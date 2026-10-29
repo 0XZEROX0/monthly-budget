@@ -331,3 +331,7 @@ button.cat-row.row-link { align-items: flex-start; width: calc(100% + 0.7rem); }
 .picker-grid button.today { border-color: var(--accent); color: var(--accent); }
 .picker-grid button.active { background: var(--accent); border-color: transparent; color: var(--on-accent); font-weight: 650; }
 .center-link { justify-self: center; }
+/* Keep the budget ring whole: it must not shrink when the headline number is wide. */
+.ring { flex: none; overflow: visible; }
+.hero-main > div:first-child { min-width: 0; }
+.hero-value { font-size: clamp(1.9rem, 9vw, 2.6rem); overflow-wrap: anywhere; }
