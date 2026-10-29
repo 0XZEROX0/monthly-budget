@@ -16,27 +16,37 @@ export interface Available {
   build: number
   url: string
   size: number
+  /** SHA-256 of the file, hex; the updater refuses a download without it. */
+  checksum: string
 }
 export type Update = { kind: 'none' } | Available
 
 export async function checkForUpdate(): Promise<Update> {
   const res = await fetch(RELEASE_API, { headers: { Accept: 'application/vnd.github+json' } })
   if (!res.ok) throw new Error(`GitHub answered ${res.status}`)
-  const rel = (await res.json()) as { name: string; body: string; assets: { name: string; browser_download_url: string; size: number }[] }
+  const rel = (await res.json()) as {
+    name: string
+    body: string
+    assets: { name: string; browser_download_url: string; size: number; digest?: string }[]
+  }
   const build = Number(/build (\d+)/.exec(rel.name)?.[1] ?? 0)
   const native = /native: (\w+)/.exec(rel.body)?.[1]
   if (!BUILD || build <= BUILD) return { kind: 'none' }
-  const asset = (name: string) => rel.assets.find((a) => a.name === name)
+  const asset = (name: string) => {
+    const a = rel.assets.find((x) => x.name === name)
+    // GitHub gives each asset's digest as "sha256:<hex>".
+    return a && { url: a.browser_download_url, size: a.size, checksum: a.digest?.replace(/^sha256:/, '') ?? '' }
+  }
   const web = asset('web.zip')
   // Same Android code: the new web files run on this APK.
-  if (web && native === NATIVE) return { kind: 'web', build, url: web.browser_download_url, size: web.size }
+  if (web?.checksum && native === NATIVE) return { kind: 'web', build, ...web }
   const apk = asset('monthly-budget.apk')
-  return apk ? { kind: 'app', build, url: apk.browser_download_url, size: apk.size } : { kind: 'none' }
+  return apk ? { kind: 'app', build, ...apk } : { kind: 'none' }
 }
 
 /** Downloads new web files; `now` reloads into them, otherwise they load the next time the app opens. */
 export async function applyWebUpdate(u: Available, now: boolean) {
-  const bundle = await CapacitorUpdater.download({ url: u.url, version: String(u.build) })
+  const bundle = await CapacitorUpdater.download({ url: u.url, version: String(u.build), checksum: u.checksum })
   if (now) await CapacitorUpdater.set({ id: bundle.id })
   else await CapacitorUpdater.next({ id: bundle.id })
 }
