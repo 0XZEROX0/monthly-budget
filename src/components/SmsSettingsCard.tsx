@@ -27,7 +27,6 @@ export function SmsSettingsCard({ sms, settings, onSave }: Props) {
   const set = (patch: Partial<SmsSettings>) => onSave({ ...settings, sms: { ...cfg, ...patch } })
   const senders = [...new Set([...cfg.senders, ...sms.detectedSenders])].sort()
   const banks = senders.filter(sms.isWatched)
-  const others = senders.filter((x) => !sms.isWatched(x))
   const without = (list: string[] | undefined, x: string) => (list ?? []).filter((y) => senderKey(y) !== senderKey(x))
   const turnOn = (x: string) => set({ excluded: without(cfg.excluded, x), senders: bankName(x) ? cfg.senders : [...without(cfg.senders, x), x] })
   const turnOff = (x: string) => set({ excluded: [...without(cfg.excluded, x), x], senders: without(cfg.senders, x) })
@@ -65,19 +64,6 @@ export function SmsSettingsCard({ sms, settings, onSave }: Props) {
             )}
             <p className="muted small">CIB, NBE, Banque Misr, Banque du Caire, QNB and other Egyptian banks are recognised by their SMS sender.</p>
           </div>
-          {others.length > 0 && (
-            <div className="field">
-              <span className="field-label">Other senders, not read</span>
-              <div className="row wrap">
-                {others.map((x) => (
-                  <button key={x} className="chip" onClick={() => turnOn(x)} aria-pressed={false} title="Tap to read this sender too">
-                    + {x}
-                  </button>
-                ))}
-              </div>
-              <p className="muted small">These send card-like messages but aren't banks (pay-later apps like TRU or valU). Tap one to read it too.</p>
-            </div>
-          )}
           <AddSender onAdd={turnOn} />
           <TargetRow label="Cards not listed below" value={defaultTarget(settings)} settings={settings} onChange={(t) => set({ defaultTarget: t })} />
           {[...cards, ...pendingCards].map((c) => (
