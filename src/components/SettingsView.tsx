@@ -6,6 +6,7 @@ import { formatWhole, monthLabel } from '../data/month'
 import type { Account, AccountType, Backend, Debt, Kind, Settings } from '../data/types'
 import { NumberInput } from './NumberInput'
 import { SmsSettingsCard } from './SmsSettingsCard'
+import { UpdateCard } from './UpdateCard'
 
 interface Props {
   backend: Backend
@@ -59,6 +60,8 @@ export function SettingsView({ backend, settings, sms, user, onSignOut }: Props)
 
       <CategoryEditor title="Expense categories" list={settings.categories.expense} onChange={(l) => setCategories('expense', l)} />
       <CategoryEditor title="Income categories" list={settings.categories.income} onChange={(l) => setCategories('income', l)} />
+
+      <UpdateCard />
 
       <section className="card">
         <h2>Danger zone</h2>

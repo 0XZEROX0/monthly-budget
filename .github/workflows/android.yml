@@ -27,8 +27,19 @@ jobs:
           java-version: 21
           cache: gradle
       - run: npm ci
+
+      # Identifies the Android side: tracked files under android/ plus the Capacitor
+      # plugins. The app installs web-only updates (web.zip) when this matches its own.
+      - name: Hash the Android code
+        run: |
+          plugins=$(node -p "Object.entries(require('./package.json').dependencies).filter(([k]) => k.startsWith('@cap')).join()")
+          echo "VITE_NATIVE_HASH=$( (git ls-files -s android; echo "$plugins") | sha1sum | cut -c1-12)" >> "$GITHUB_ENV"
+          echo "VITE_BUILD=${{ github.run_number }}" >> "$GITHUB_ENV"
+
       - run: npm run build
       - run: npx cap sync android
+      - name: Zip the web files
+        run: cd dist && zip -qr "$RUNNER_TEMP/web.zip" .
 
       # Optional private signing key; without it the committed debug key is used.
       - name: Load signing key
@@ -54,7 +65,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: monthly-budget-apk
-          path: ${{ runner.temp }}/monthly-budget.apk
+          path: |
+            ${{ runner.temp }}/monthly-budget.apk
+            ${{ runner.temp }}/web.zip
 
       # main always replaces one release, so the download link never changes:
       # https://github.com/<owner>/<repo>/releases/latest/download/monthly-budget.apk
@@ -64,7 +77,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete android --yes --cleanup-tag || true
-          gh release create android "$RUNNER_TEMP/monthly-budget.apk" \
+          # The app reads "build N" from the title and "native:" from the notes (src/data/appUpdate.ts).
+          gh release create android "$RUNNER_TEMP/monthly-budget.apk" "$RUNNER_TEMP/web.zip" \
             --title "Monthly Budget for Android (build ${{ github.run_number }})" \
-            --notes "Built from ${{ github.sha }}. Install on your phone: open this page on Android and tap monthly-budget.apk." \
+            --notes "Built from ${{ github.sha }}. Install on your phone: open this page on Android and tap monthly-budget.apk.
+
+          native: $VITE_NATIVE_HASH" \
             --target "${{ github.sha }}" --latest
