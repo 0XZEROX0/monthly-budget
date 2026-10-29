@@ -8,6 +8,7 @@ import { balancesBefore, summarize } from '../data/summary'
 import type { ParsedSms } from '../data/smsParser'
 import type { Backend, NewTransaction, Settings, SmsTarget, Transaction } from '../data/types'
 import { PendingSms } from './PendingSms'
+import { MonthPicker } from './MonthPicker'
 import { PlanEditor } from './PlanEditor'
 import { SettingsView } from './SettingsView'
 import { SummaryView } from './SummaryView'
@@ -33,6 +34,7 @@ interface Props {
 export function MonthView({ backend, user, onSignOut }: Props) {
   const [month, setMonth] = useState(currentMonth)
   const [tab, setTab] = useState<Tab>('summary')
+  const [picking, setPicking] = useState(false)
   // Set when a Summary row is tapped: the Transactions tab then shows only its entries.
   const [focus, setFocus] = useState<ListFocus | null>(null)
   const openFocus = (f: ListFocus) => {
@@ -61,17 +63,18 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   return (
     <div className="app">
       <header className="topbar">
-        <button className="icon" aria-label="Previous month" onClick={() => setMonth((m) => shiftMonth(m, -1))}>
-          ‹
+        <button className="month" onClick={() => setPicking(true)} aria-label={`${monthLabel(month)}, choose another month`}>
+          <span>
+            {monthLabel(month)} <span className="caret" aria-hidden>▾</span>
+          </span>
         </button>
-        <button className="month" onClick={() => setMonth(currentMonth())} title="Go to this month">
-          <span>{monthLabel(month)}</span>
-          {month !== currentMonth() && <small>Back to this month</small>}
-        </button>
-        <button className="icon" aria-label="Next month" onClick={() => setMonth((m) => shiftMonth(m, 1))}>
-          ›
-        </button>
+        {month !== currentMonth() && (
+          <button className="link back-current" onClick={() => setMonth(currentMonth())}>
+            Back to current month
+          </button>
+        )}
       </header>
+      {picking && <MonthPicker month={month} onPick={setMonth} onClose={() => setPicking(false)} />}
 
       <main className="content">
         {loading || !summary ? (

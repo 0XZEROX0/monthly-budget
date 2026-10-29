@@ -316,3 +316,18 @@ button.cat-row.row-link { align-items: flex-start; width: calc(100% + 0.7rem); }
 .list .sms-actions { padding: 0 0.6rem; }
 .list .sms-actions button { width: auto; justify-content: center; padding: 0.5rem 0.9rem; border-radius: 12px; }
 .list .sms-actions button.primary { background: var(--accent); color: var(--on-accent); }
+/* Month title + picker (replaces the prev/next arrows) */
+.topbar { flex-direction: column; gap: 0; }
+.topbar .month { padding: 0.35rem 0.9rem; border-radius: 12px; }
+.topbar .month:hover { background: var(--surface-2); }
+.caret { font-size: 0.75em; color: var(--muted); }
+.back-current { font-size: 0.8rem; padding: 0 0 0.2rem; }
+.picker-backdrop { align-items: flex-start; padding-top: calc(env(safe-area-inset-top) + 4rem); }
+.sheet.picker { border-radius: 22px; max-width: 360px; margin: 0 1rem; padding: 0.9rem; gap: 0.8rem; animation: fade 0.15s ease; }
+.picker-head { display: flex; align-items: center; justify-content: space-between; }
+.picker-head strong { font-size: 1.1rem; }
+.picker-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
+.picker-grid button { padding: 0.8rem 0; border-radius: 14px; background: var(--surface-2); font-weight: 500; }
+.picker-grid button.today { border-color: var(--accent); color: var(--accent); }
+.picker-grid button.active { background: var(--accent); border-color: transparent; color: var(--on-accent); font-weight: 650; }
+.center-link { justify-self: center; }
