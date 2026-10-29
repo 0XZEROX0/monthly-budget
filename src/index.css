@@ -157,7 +157,11 @@ label.inline { grid-template-columns: 2rem 1fr 8rem; align-items: center; color:
 a.button.primary { display: inline-block; text-align: center; text-decoration: none; border-radius: 12px; background: var(--accent); color: var(--on-accent); font-weight: 600; padding: 0.85rem 1rem; }
 
 /* Shell */
-.app { max-width: 640px; margin: 0 auto; min-height: 100dvh; padding-bottom: 9rem; }
+.app { max-width: 640px; margin: 0 auto; }
+/* The app scrolls inside .app, not the page (see usePull), so the tab bar never stretches. */
+html, body, #root { height: 100%; overflow: hidden; }
+.app { height: 100dvh; overflow-y: auto; overscroll-behavior-y: none; -webkit-overflow-scrolling: touch; }
+.pull { padding-bottom: 9rem; min-height: 100%; }
 .topbar {
   position: sticky; top: 0; z-index: 2;
   display: flex; align-items: center; gap: 0.5rem;

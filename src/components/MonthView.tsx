@@ -10,6 +10,7 @@ import type { ParsedSms } from '../data/smsParser'
 import type { Backend, NewTransaction, Settings, SmsTarget, Transaction } from '../data/types'
 import { PendingSms } from './PendingSms'
 import { MonthPicker } from './MonthPicker'
+import { usePull } from './usePull'
 import { PlanEditor } from './PlanEditor'
 import { SettingsView } from './SettingsView'
 import { SummaryView } from './SummaryView'
@@ -36,12 +37,13 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   const [month, setMonth] = useState(currentMonth)
   const [tab, setTab] = useState<Tab>('summary')
   const [picking, setPicking] = useState(false)
+  const { scroller, content } = usePull<HTMLDivElement, HTMLDivElement>()
   // Set when a Summary row is tapped: the Transactions tab then shows only its entries.
   const [focus, setFocus] = useState<ListFocus | null>(null)
   const openFocus = (f: ListFocus) => {
     setFocus(f)
     setTab('transactions')
-    window.scrollTo(0, 0)
+    scroller.current?.scrollTo(0, 0)
   }
   // null: form closed; 'new': adding; a transaction: editing it.
   const [editing, setEditing] = useState<Transaction | 'new' | null>(null)
@@ -67,7 +69,8 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   const summary = loading ? null : summarize(plan ?? emptyPlan(), settings, txns, balancesBefore(month, settings, history))
 
   return (
-    <div className="app">
+    <div className="app" ref={scroller}>
+      <div className="pull" ref={content}>
       <header className="topbar">
         <button className="month" onClick={() => setPicking(true)} aria-label={`${monthLabel(month)}, choose another month`}>
           <span>
@@ -80,7 +83,6 @@ export function MonthView({ backend, user, onSignOut }: Props) {
           </button>
         )}
       </header>
-      {picking && <MonthPicker month={month} onPick={setMonth} onClose={() => setPicking(false)} />}
 
       <main className="content">
         {loading || !summary ? (
@@ -122,6 +124,8 @@ export function MonthView({ backend, user, onSignOut }: Props) {
           <SettingsView backend={backend} settings={settings} sms={sms} user={user} onSignOut={onSignOut} />
         )}
       </main>
+      </div>
+      {picking && <MonthPicker month={month} onPick={setMonth} onClose={() => setPicking(false)} />}
 
       {tab !== 'settings' && tab !== 'plan' && (
         <button className="fab" aria-label="Add transaction" onClick={() => setEditing('new')}>
