@@ -14,6 +14,13 @@ export function usePlan(backend: Backend, month: string) {
   return plan?.month === month ? plan.plan : undefined
 }
 
+export function useRange(backend: Backend, from: string, to: string) {
+  const key = `${from}:${to}`
+  const [state, setState] = useState<{ key: string; txns: Transaction[] } | undefined>()
+  useEffect(() => backend.watchRange(from, to, (txns) => setState({ key: `${from}:${to}`, txns })), [backend, from, to])
+  return state?.key === key ? state.txns : undefined
+}
+
 export function useTransactions(backend: Backend, month: string) {
   const [state, setState] = useState<{ month: string; txns: Transaction[] } | undefined>()
   useEffect(() => backend.watchTransactions(month, (txns) => setState({ month, txns })), [backend, month])

@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { categoryIcon } from '../data/icons'
 import { today } from '../data/month'
 import type { Backend, Kind, Settings, Transaction } from '../data/types'
 
@@ -43,10 +44,22 @@ export function TransactionForm({ backend, settings, month, existing, onClose }:
     onClose()
   }
 
+  const yesterday = (() => {
+    const d = new Date(today() + 'T00:00')
+    d.setDate(d.getDate() - 1)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })()
+
   return (
     <div className="sheet-backdrop" onClick={onClose}>
-      <form className="sheet" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
-        <h2>{existing ? 'Edit transaction' : 'New transaction'}</h2>
+      <form className={`sheet kind-${kind}`} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
+        <div className="sheet-grab" aria-hidden />
+        <div className="sheet-head">
+          <h2>{existing ? 'Edit' : 'Add'} {kind === 'expense' ? 'expense' : 'income'}</h2>
+          <button type="button" className="icon ghost" aria-label="Close" onClick={onClose}>
+            ✕
+          </button>
+        </div>
         <div className="segmented">
           <button type="button" className={kind === 'expense' ? 'active' : ''} onClick={() => switchKind('expense')}>
             Expense
@@ -55,26 +68,37 @@ export function TransactionForm({ backend, settings, month, existing, onClose }:
             Income
           </button>
         </div>
-        <label>
-          Amount
-          <input inputMode="decimal" autoFocus required value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" />
+        <label className="amount">
+          <span className="sr-only">Amount in {settings.currency}</span>
+          <span className="amount-currency">{settings.currency}</span>
+          <input inputMode="decimal" autoFocus required value={amount} style={{ width: `${Math.max(1, amount.length) + 0.6}ch` }} onChange={(e) => setAmount(e.target.value)} placeholder="0" />
         </label>
-        <label>
-          Date
-          <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
-        </label>
-        <label>
-          Description
-          <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" />
-        </label>
-        <label>
-          Category
-          <select value={category} onChange={(e) => setCategory(e.target.value)}>
-            {!categories.includes(category) && category && <option value={category}>{category}</option>}
-            {categories.map((c) => (
-              <option key={c}>{c}</option>
+        <div className="field">
+          <span className="field-label">Category</span>
+          <div className="cat-grid" role="radiogroup">
+            {[...(categories.includes(category) || !category ? [] : [category]), ...categories].map((c) => (
+              <button type="button" role="radio" aria-checked={c === category} key={c} className={c === category ? 'active' : ''} onClick={() => setCategory(c)}>
+                <span className="cat-icon">{categoryIcon(c)}</span>
+                <span className="cat-name">{c.replace('/', '/\u200b')}</span>
+              </button>
             ))}
-          </select>
+          </div>
+        </div>
+        <div className="field">
+          <span className="field-label">Date</span>
+          <div className="row wrap">
+            <button type="button" className={`chip ${date === today() ? 'active' : ''}`} onClick={() => setDate(today())}>
+              Today
+            </button>
+            <button type="button" className={`chip ${date === yesterday ? 'active' : ''}`} onClick={() => setDate(yesterday)}>
+              Yesterday
+            </button>
+            <input className="date-input" type="date" required value={date} onChange={(e) => setDate(e.target.value)} aria-label="Date" />
+          </div>
+        </div>
+        <label className="field">
+          <span className="field-label">Note</span>
+          <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What was it for? (optional)" />
         </label>
         <div className="row">
           {existing && (
@@ -82,11 +106,7 @@ export function TransactionForm({ backend, settings, month, existing, onClose }:
               Delete
             </button>
           )}
-          <span className="spacer" />
-          <button type="button" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="primary">Save</button>
+          <button className="primary grow">{existing ? 'Save changes' : `Add ${kind}`}</button>
         </div>
       </form>
     </div>

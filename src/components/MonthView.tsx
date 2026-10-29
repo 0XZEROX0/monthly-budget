@@ -47,7 +47,8 @@ export function MonthView({ backend, user, onSignOut }: Props) {
           ‹
         </button>
         <button className="month" onClick={() => setMonth(currentMonth())} title="Go to this month">
-          {monthLabel(month)}
+          <span>{monthLabel(month)}</span>
+          {month !== currentMonth() && <small>Back to this month</small>}
         </button>
         <button className="icon" aria-label="Next month" onClick={() => setMonth((m) => shiftMonth(m, 1))}>
           ›
@@ -58,7 +59,16 @@ export function MonthView({ backend, user, onSignOut }: Props) {
         {loading || !summary ? (
           <p className="center muted">Loading…</p>
         ) : tab === 'summary' ? (
-          <SummaryView summary={summary} currency={settings.currency} hasPlan={plan !== null} onPlan={() => setTab('plan')} />
+          <SummaryView
+            backend={backend}
+            month={month}
+            summary={summary}
+            txns={txns}
+            currency={settings.currency}
+            hasPlan={plan !== null}
+            onPlan={() => setTab('plan')}
+            onSelectMonth={setMonth}
+          />
         ) : tab === 'transactions' ? (
           <TransactionList txns={txns} currency={settings.currency} onEdit={setEditing} />
         ) : tab === 'plan' ? (

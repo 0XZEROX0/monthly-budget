@@ -52,6 +52,7 @@ export function createLocalBackend(): Backend {
     },
     watchTransactions: (month, cb) =>
       watch(() => cb(db.transactions.filter((t) => t.month === month).sort((a, b) => b.date.localeCompare(a.date)))),
+    watchRange: (from, to, cb) => watch(() => cb(db.transactions.filter((t) => t.month >= from && t.month <= to))),
     addTransaction: (t) => {
       db = { ...db, transactions: [...db.transactions, toTxn(crypto.randomUUID(), t)] }
       return commit()

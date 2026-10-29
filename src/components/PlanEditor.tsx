@@ -3,6 +3,7 @@ import { emptyPlan } from '../data/defaults'
 import { shiftMonth } from '../data/month'
 import type { Backend, Kind, MonthPlan, Settings } from '../data/types'
 import { NumberInput } from './NumberInput'
+import { categoryIcon } from '../data/icons'
 
 interface Props {
   backend: Backend
@@ -56,6 +57,7 @@ export function PlanEditor({ backend, month, plan, settings }: Props) {
           <h2>Planned {kind === 'expense' ? 'expenses' : 'income'}</h2>
           {settings.categories[kind].map((c) => (
             <label className="inline" key={c}>
+              <span className="cat-icon plan-icon">{categoryIcon(c)}</span>
               <span>{c}</span>
               <NumberInput value={draft.planned[kind][c] ?? 0} onChange={(n) => setPlanned(kind, c, n)} />
             </label>

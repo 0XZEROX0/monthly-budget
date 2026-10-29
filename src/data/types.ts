@@ -35,6 +35,8 @@ export interface Backend {
   watchPlan(month: string, cb: (p: MonthPlan | null) => void): Unsubscribe
   savePlan(month: string, p: MonthPlan): Promise<void>
   watchTransactions(month: string, cb: (t: Transaction[]) => void): Unsubscribe
+  /** Transactions for an inclusive range of months, e.g. for trend charts. */
+  watchRange(from: string, to: string, cb: (t: Transaction[]) => void): Unsubscribe
   addTransaction(t: NewTransaction): Promise<void>
   updateTransaction(id: string, t: NewTransaction): Promise<void>
   deleteTransaction(id: string): Promise<void>
