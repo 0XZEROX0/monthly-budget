@@ -17,8 +17,10 @@ import { MonthView } from './components/MonthView'
 import { auth, firebaseConfigured, firestore, WEB_URL } from './data/firebase'
 import { createFirestoreBackend } from './data/firestoreBackend'
 import { createLocalBackend } from './data/localBackend'
+import { GoogleSignIn } from './native/googleSignIn'
 
-// Google doesn't allow its sign-in page inside an app's WebView. So the Android app opens
+// Google doesn't allow its sign-in page inside an app's WebView. The Android app shows
+// Google's own account picker instead (GoogleSignInPlugin). If that isn't set up, it opens
 // the website in the browser at ?app-signin, signs in there, and the website hands the
 // Google ID token back through monthlybudget://signin, which the app signs in with.
 const native = Capacitor.isNativePlatform()
@@ -60,7 +62,19 @@ function SignIn({ error: outerError }: { error: string }) {
   const [error, setError] = useState('')
   const signIn = async () => {
     if (!auth) return
-    if (native) return Browser.open({ url: `${WEB_URL}?app-signin=1` })
+    if (native) {
+      const clientId = import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID
+      try {
+        if (!clientId) throw new Error('no web client id')
+        const { idToken } = await GoogleSignIn.signIn({ serverClientId: clientId })
+        await signInWithCredential(auth, GoogleAuthProvider.credential(idToken))
+        return
+      } catch (e) {
+        if ((e as { code?: string }).code === 'CANCELED') return
+        // Not set up for this app in Firebase yet, or no Google account on the phone.
+        return Browser.open({ url: `${WEB_URL}?app-signin=1` })
+      }
+    }
     const provider = new GoogleAuthProvider()
     try {
       await signInWithPopup(auth, provider)
@@ -78,7 +92,6 @@ function SignIn({ error: outerError }: { error: string }) {
       <button className="primary" onClick={signIn}>
         Sign in with Google
       </button>
-      {native && <p className="muted small">Sign-in opens in your browser, then brings you back here.</p>}
       {(error || outerError) && <p className="error">{error || outerError}</p>}
     </div>
   )

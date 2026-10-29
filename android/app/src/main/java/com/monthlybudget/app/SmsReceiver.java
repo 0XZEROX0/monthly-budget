@@ -35,11 +35,13 @@ public class SmsReceiver extends BroadcastReceiver {
         if (isWatched(context, address)) notify(context, address, body.toString());
     }
 
+    /** Senders are compared like src/data/egyptBanks.ts senderKey: lowercase, letters and digits only. */
     private static boolean isWatched(Context context, String address) {
         if (address == null) return false;
+        String key = address.toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9]", "");
         String saved = SmsReaderPlugin.prefs(context).getString(SmsReaderPlugin.KEY_SENDERS, "");
         for (String s : saved.split("\n")) {
-            if (!s.isEmpty() && address.equalsIgnoreCase(s)) return true;
+            if (!s.isEmpty() && key.equals(s)) return true;
         }
         return false;
     }
