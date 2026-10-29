@@ -6,11 +6,15 @@ PWA from the browser and is built to be wrapped as an Android APK with Capacitor
 
 ## What it does
 
-- **Summary**: starting balance, ending balance (starting + income − expenses),
-  amount saved, and planned vs actual per category for expenses and income.
-- **Transactions**: add, edit and delete expenses and income per month.
-- **Plan**: starting balance and planned amount per category, with "copy from last month".
-- **Settings**: currency, and your own expense and income categories.
+- **Accounts**: Cash and Bank (liquidity) and Thndr (investment, with an interest
+  rate and "Update value"). Expenses are paid from an account; transfers move money
+  between accounts without counting as spending.
+- **Debts**: lenders with limits; borrowing raises what you owe, repayments count as spending.
+- **Summary**: left to spend, saved this month (liquidity change, with money moved into
+  investments counted as saved), capital, budget vs actual per category, and charts.
+- **Plan**: planned spending per category, with "copy from last month".
+- **Import**: reads an .xlsx download of the "Monthly budget" Google Sheet (one tab per
+  month) and reconciles every month's balances to the sheet's own totals.
 
 ## Sync
 

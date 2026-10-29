@@ -1,5 +1,13 @@
 // Emoji for common category names so they're quick to spot; others get their initial.
 const ICONS: [RegExp, string][] = [
+  [/^cash$/i, '💵'],
+  [/^bank$/i, '🏦'],
+  [/thndr|thunder|stock|invest/i, '📈'],
+  [/loan to|lend/i, '🤝'],
+  [/debt|loan|credit|tru|valu/i, '💳'],
+  [/fee/i, '🧾'],
+  [/instal/i, '📆'],
+  [/^car$/i, '🚙'],
   [/food|grocer|restaurant|eat/i, '🛒'],
   [/gift/i, '🎁'],
   [/health|medical|doctor|pharma/i, '💊'],

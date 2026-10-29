@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS } from './defaults'
+import { DEFAULT_SETTINGS, withDefaults } from './defaults'
 import type { Backend, MonthPlan, NewTransaction, Settings, Transaction } from './types'
 
 // Browser-only storage, used when no Firebase project is configured.
@@ -13,12 +13,17 @@ interface Db {
 function load(): Db {
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) return JSON.parse(raw) as Db
+    if (raw) {
+      const db = JSON.parse(raw) as Db
+      return { ...db, settings: withDefaults(db.settings) }
+    }
   } catch {
     // Storage blocked or corrupt: start fresh in memory.
   }
   return { settings: DEFAULT_SETTINGS, plans: {}, transactions: [] }
 }
+
+export const toTxn = (id: string, t: NewTransaction): Transaction => ({ ...t, id, month: t.month ?? t.date.slice(0, 7) })
 
 export function createLocalBackend(): Backend {
   let db = load()
@@ -36,7 +41,7 @@ export function createLocalBackend(): Backend {
     listeners.add(fn)
     return () => void listeners.delete(fn)
   }
-  const toTxn = (id: string, t: NewTransaction): Transaction => ({ ...t, id, month: t.date.slice(0, 7) })
+  const upsert = (list: Transaction[], t: Transaction) => [...list.filter((x) => x.id !== t.id), t]
 
   return {
     mode: 'local',
@@ -58,11 +63,24 @@ export function createLocalBackend(): Backend {
       return commit()
     },
     updateTransaction: (id, t) => {
-      db = { ...db, transactions: db.transactions.map((x) => (x.id === id ? toTxn(id, t) : x)) }
+      db = { ...db, transactions: upsert(db.transactions, toTxn(id, t)) }
       return commit()
     },
     deleteTransaction: (id) => {
       db = { ...db, transactions: db.transactions.filter((x) => x.id !== id) }
+      return commit()
+    },
+    importAll: (data) => {
+      const ids = new Set(data.transactions.map((t) => t.id))
+      db = {
+        settings: data.settings,
+        plans: { ...db.plans, ...data.plans },
+        transactions: [...db.transactions.filter((t) => !ids.has(t.id)), ...data.transactions],
+      }
+      return commit()
+    },
+    clearAll: () => {
+      db = { settings: DEFAULT_SETTINGS, plans: {}, transactions: [] }
       return commit()
     },
   }

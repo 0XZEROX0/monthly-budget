@@ -33,6 +33,14 @@ function columnPath(x: number, y: number, w: number, h: number) {
   return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`
 }
 
+/** Column hanging below the baseline at y0: square at the baseline, rounded at the bottom. */
+function columnDownPath(x: number, y0: number, w: number, h: number) {
+  if (h <= 0) return ''
+  const r = Math.min(4, w / 2, h)
+  const b = y0 + h
+  return `M${x},${y0}V${b - r}Q${x},${b} ${x + r},${b}H${x + w - r}Q${x + w},${b} ${x + w},${b - r}V${y0}Z`
+}
+
 export function Legend({ items }: { items: { label: string; color: string; line?: boolean }[] }) {
   return (
     <div className="legend">
@@ -259,5 +267,90 @@ export function BudgetRing({ pct, size = 76 }: { pct: number; size?: number }) {
         {Math.round(pct)}%
       </text>
     </svg>
+  )
+}
+
+export interface SavedBar {
+  month: string
+  label: string
+  saved: number
+}
+
+/** Saved (or overspent) per month, as on the sheet's Analysis tab. Tap a month to open it. */
+export function SavedChart({ bars, current, format, axisFormat, onSelect }: {
+  bars: SavedBar[]
+  current: string
+  format: (n: number) => string
+  axisFormat: (n: number) => string
+  onSelect: (month: string) => void
+}) {
+  const [ref, width] = useWidth<HTMLDivElement>()
+  const [hover, setHover] = useState<number | null>(null)
+  const height = 180
+  const innerW = Math.max(0, width - PAD.left - PAD.right)
+  const innerH = height - PAD.top - PAD.bottom
+  const maxUp = Math.max(0, ...bars.map((b) => b.saved))
+  const maxDown = Math.max(0, ...bars.map((b) => -b.saved))
+  const upTicks = niceTicks(Math.max(maxUp, maxDown ? 0 : 1), 3)
+  const step = upTicks[1] ?? niceTicks(maxDown, 3)[1] ?? 1
+  const top = Math.max(upTicks[upTicks.length - 1], 0)
+  const bottom = maxDown ? -Math.ceil(maxDown / step) * step : 0
+  const ticks: number[] = []
+  for (let t = bottom; t <= top + 1e-9; t += step) ticks.push(t)
+  const y = (v: number) => PAD.top + ((top - v) / (top - bottom || 1)) * innerH
+  const band = innerW / Math.max(1, bars.length)
+  const barW = Math.min(24, band - 14)
+  const h = hover !== null ? bars[hover] : null
+
+  return (
+    <div className="chart" ref={ref}>
+      {width > 0 && (
+        <svg width={width} height={height} role="img" aria-label="Saved each month">
+          {ticks.map((t) => (
+            <g key={t}>
+              <line className={t === 0 ? 'baseline' : 'grid'} x1={PAD.left} x2={width - PAD.right} y1={y(t)} y2={y(t)} />
+              <text className="tick" x={PAD.left - 6} y={y(t)} dy="0.32em" textAnchor="end">
+                {axisFormat(t)}
+              </text>
+            </g>
+          ))}
+          {bars.map((b, i) => {
+            const cx = PAD.left + band * i + band / 2
+            const up = b.saved >= 0
+            const hgt = Math.abs(y(b.saved) - y(0))
+            const d = up ? columnPath(cx - barW / 2, y(b.saved), barW, hgt) : columnDownPath(cx - barW / 2, y(0), barW, hgt)
+            return (
+              <g key={b.month} className={hover !== null && hover !== i ? 'dim' : ''}>
+                {hover === i && <rect className="band-hover" x={cx - band / 2 + 2} y={PAD.top} width={band - 4} height={innerH} rx={6} />}
+                <path className={`col ${up ? 'income' : 'expense'}`} d={d} />
+                <text className={`tick ${b.month === current ? 'tick-current' : ''}`} x={cx} y={height - 6} textAnchor="middle">
+                  {b.label}
+                </text>
+                <rect
+                  className="hit"
+                  x={cx - band / 2}
+                  y={0}
+                  width={band}
+                  height={height}
+                  onPointerEnter={() => setHover(i)}
+                  onPointerDown={() => setHover(i)}
+                  onPointerLeave={() => setHover(null)}
+                  onClick={() => onSelect(b.month)}
+                />
+              </g>
+            )
+          })}
+        </svg>
+      )}
+      {h && hover !== null && (
+        <Tooltip x={PAD.left + band * hover + band / 2} width={width}>
+          <strong>{h.label}</strong>
+          <span>
+            <i className="key-dot" style={{ background: h.saved >= 0 ? 'var(--income)' : 'var(--expense)' }} />
+            {h.saved >= 0 ? 'Saved' : 'Overspent'} {format(Math.abs(h.saved))}
+          </span>
+        </Tooltip>
+      )}
+    </div>
   )
 }

@@ -274,3 +274,18 @@ button.icon { width: 2.6rem; height: 2.6rem; padding: 0; font-size: 1.3rem; line
   .sheet-grab { display: none; }
 }
 .plan-icon { width: 2rem; height: 2rem; font-size: 1rem; border-radius: 10px; }
+.segmented.four { grid-template-columns: repeat(4, 1fr); }
+.segmented.four button { font-size: 0.88rem; padding: 0.5rem 0.2rem; }
+.stat-sub { font-size: 0.7rem; color: var(--hero-muted); }
+.accounts li { align-items: center; }
+.account-end { display: grid; justify-items: end; gap: 0.1rem; }
+.account-end strong { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.account-end .link { padding: 0; font-size: 0.78rem; }
+.liquidity { display: flex; justify-content: space-between; align-items: baseline; border-top: 1px solid var(--border); padding-top: 0.75rem; font-variant-numeric: tabular-nums; }
+.debt-track { background: color-mix(in srgb, var(--income) 15%, var(--surface-2)); }
+.debt-fill { background: var(--income); }
+.edit-row { display: flex; align-items: center; gap: 0.6rem; color: var(--text); font-size: 0.95rem; }
+.edit-row select { width: auto; }
+.mini { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--text-2); font-size: 0.85rem; }
+.mini input { width: 7rem; }
+.cat-icon.transfer, .cat-icon.adjust { color: var(--text-2); }

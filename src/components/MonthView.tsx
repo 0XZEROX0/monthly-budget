@@ -1,9 +1,9 @@
 import type { User } from 'firebase/auth'
 import { useState } from 'react'
 import { emptyPlan } from '../data/defaults'
-import { usePlan, useSettings, useTransactions } from '../data/hooks'
+import { usePlan, useRange, useSettings, useTransactions } from '../data/hooks'
 import { currentMonth, monthLabel, shiftMonth } from '../data/month'
-import { summarize } from '../data/summary'
+import { balancesBefore, summarize } from '../data/summary'
 import type { Backend, Transaction } from '../data/types'
 import { PlanEditor } from './PlanEditor'
 import { SettingsView } from './SettingsView'
@@ -37,8 +37,13 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   const plan = usePlan(backend, month)
   const txns = useTransactions(backend, month)
 
-  const loading = !settings || plan === undefined || !txns
-  const summary = loading ? null : summarize(plan ?? emptyPlan(), settings, txns)
+  // Everything from the opening month (for balances) or the last 6 months (for trends).
+  const trendFrom = shiftMonth(month, -5)
+  const opening = settings?.opening.month ?? month
+  const history = useRange(backend, opening < trendFrom ? opening : trendFrom, month)
+
+  const loading = !settings || plan === undefined || !txns || !history
+  const summary = loading ? null : summarize(plan ?? emptyPlan(), settings, txns, balancesBefore(month, settings, history))
 
   return (
     <div className="app">
@@ -64,13 +69,22 @@ export function MonthView({ backend, user, onSignOut }: Props) {
             month={month}
             summary={summary}
             txns={txns}
-            currency={settings.currency}
+            history={history}
+            settings={settings}
             hasPlan={plan !== null}
             onPlan={() => setTab('plan')}
             onSelectMonth={setMonth}
           />
         ) : tab === 'transactions' ? (
-          <TransactionList txns={txns} currency={settings.currency} onEdit={setEditing} />
+          <TransactionList
+            txns={txns}
+            settings={settings}
+            onEdit={(t) => {
+              // Balance updates have no form; they can only be removed.
+              if (t.kind !== 'adjust') return setEditing(t)
+              if (confirm('Delete this balance update?')) backend.deleteTransaction(t.id).catch((e: Error) => alert(e.message))
+            }}
+          />
         ) : tab === 'plan' ? (
           <PlanEditor backend={backend} month={month} plan={plan} settings={settings} />
         ) : (

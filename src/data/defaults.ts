@@ -1,8 +1,9 @@
+import { currentMonth } from './month'
 import type { MonthPlan, Settings } from './types'
 
-// Categories from Google Sheets' "Monthly budget" template. Edit them in Settings.
+// Matches Static's "Monthly budget" sheet. Everything here is editable in Settings.
 export const DEFAULT_SETTINGS: Settings = {
-  currency: 'USD',
+  currency: 'EGP',
   categories: {
     expense: [
       'Food',
@@ -11,17 +12,28 @@ export const DEFAULT_SETTINGS: Settings = {
       'Home',
       'Transportation',
       'Personal',
-      'Pets',
-      'Utilities',
-      'Travel',
-      'Debt',
+      'Bank Fees',
+      'A loan to someone',
       'Other',
+      'Car',
+      'Instalment',
     ],
-    income: ['Savings', 'Paycheck', 'Bonus', 'Interest', 'Other'],
+    income: ['Salary', 'Other'],
   },
+  accounts: [
+    { name: 'Cash', type: 'cash' },
+    { name: 'Bank', type: 'bank' },
+    { name: 'Thndr', type: 'investment', interestPct: 5.2 },
+  ],
+  debts: [
+    { name: 'Debt', limit: 55000 },
+    { name: 'Debt TRU', limit: 40000 },
+    { name: 'Debt Valu', limit: 4000 },
+  ],
+  opening: { month: currentMonth(), accounts: {}, debts: {} },
 }
 
-export const emptyPlan = (): MonthPlan => ({
-  startingBalance: 0,
-  planned: { expense: {}, income: {} },
-})
+/** Fills in fields added after a user first saved settings. */
+export const withDefaults = (s: Partial<Settings> | undefined): Settings => ({ ...DEFAULT_SETTINGS, ...s })
+
+export const emptyPlan = (): MonthPlan => ({ planned: { expense: {}, income: {} } })
