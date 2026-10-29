@@ -289,3 +289,12 @@ button.icon { width: 2.6rem; height: 2.6rem; padding: 0; font-size: 1.3rem; line
 .mini { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--text-2); font-size: 0.85rem; }
 .mini input { width: 7rem; }
 .cat-icon.transfer, .cat-icon.adjust { color: var(--text-2); }
+/* Grid children default to their content's min width; let cards shrink to the screen. */
+.stack > *, .card > * { min-width: 0; }
+.edit-row > .grow { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.edit-row select { flex: none; max-width: 9rem; }
+.edit-row button.icon { width: 2.2rem; height: 2.2rem; flex: none; }
+.edit-group { display: grid; gap: 0.4rem; }
+.sub-row { padding-left: 2.6rem; }
+.mini { flex: none; }
+.mini input { width: 5.5rem; }

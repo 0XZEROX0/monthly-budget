@@ -125,7 +125,8 @@ function AccountsEditor({ settings, onSave }: { settings: Settings; onSave: (s: 
       <h2>Accounts</h2>
       <p className="muted small">Where your money is. Cash and bank count as liquidity; investments count toward capital.</p>
       {settings.accounts.map((a, i) => (
-        <div className="edit-row" key={a.name}>
+        <div className="edit-group" key={a.name}>
+        <div className="edit-row">
           <span className="cat-icon plan-icon">{categoryIcon(a.name)}</span>
           <strong className="grow">{a.name}</strong>
           <select value={a.type} onChange={(e) => update(i, { ...a, type: e.target.value as AccountType })} aria-label={`${a.name} type`}>
@@ -135,15 +136,19 @@ function AccountsEditor({ settings, onSave }: { settings: Settings; onSave: (s: 
               </option>
             ))}
           </select>
-          {a.type === 'investment' && (
-            <label className="mini">
-              <NumberInput value={a.interestPct ?? 0} onChange={(n) => update(i, { ...a, interestPct: n })} />
-              <span>%</span>
-            </label>
-          )}
           <button className="icon ghost" aria-label={`Remove ${a.name}`} onClick={() => confirm(`Remove ${a.name}? Its past entries stay.`) && set(settings.accounts.filter((_, j) => j !== i))}>
             ×
           </button>
+        </div>
+        {a.type === 'investment' && (
+          <label className="edit-row sub-row">
+            <span className="grow muted small">Interest rate</span>
+            <span className="mini">
+              <NumberInput value={a.interestPct ?? 0} onChange={(n) => update(i, { ...a, interestPct: n })} />
+              <span>%</span>
+            </span>
+          </label>
+        )}
         </div>
       ))}
       <AddRow placeholder="New account" value={name} onChange={setName} onAdd={() => {
@@ -161,13 +166,13 @@ function DebtsEditor({ settings, onSave }: { settings: Settings; onSave: (s: Set
   return (
     <section className="card">
       <h2>Debts</h2>
-      <p className="muted small">Lenders and their limits. Add what you owe under Opening balances or with a Debt entry.</p>
+      <p className="muted small">Lenders and their limits (the number on the right). Add what you owe under Opening balances or with a Debt entry.</p>
       {settings.debts.map((d, i) => (
         <div className="edit-row" key={d.name}>
           <span className="cat-icon plan-icon">{categoryIcon(d.name)}</span>
           <strong className="grow">{d.name}</strong>
           <label className="mini">
-            <span>Limit</span>
+            <span className="sr-only">Limit</span>
             <NumberInput value={d.limit} onChange={(n) => set(settings.debts.map((x, j) => (j === i ? { ...x, limit: n } : x)))} />
           </label>
           <button className="icon ghost" aria-label={`Remove ${d.name}`} onClick={() => confirm(`Remove ${d.name}?`) && set(settings.debts.filter((_, j) => j !== i))}>
