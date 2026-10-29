@@ -38,6 +38,7 @@ object Budget {
         val txns = db.where("transactions", "month", month)
         val glance = summarize(month, settings, plan, txns) + Store.queue(context)
         Store.saveGlance(context, glance)
+        Store.saveDetail(context, detail(settings, plan, txns))
         return glance
     }
 
@@ -52,7 +53,11 @@ object Budget {
     suspend fun add(context: Context, entry: Entry): Boolean {
         sending.withLock { Store.saveQueue(context, Store.queue(context) + entry) }
         // Show it in the figures straight away.
-        Store.glance(context)?.let { if (it.month == entry.date.substring(0, 7)) Store.saveGlance(context, it + listOf(entry)) }
+        Store.glance(context)?.let {
+            if (it.month != entry.date.substring(0, 7)) return@let
+            Store.saveGlance(context, it + listOf(entry))
+            Store.detail(context)?.let { d -> Store.saveDetail(context, d + entry) }
+        }
         val sent = runCatching { flush(context) }.getOrDefault(false)
         if (!sent) SyncWorker.schedule(context)
         Surfaces.update(context)
@@ -121,6 +126,52 @@ object Budget {
         val rows = s.expense + actualBy.keys.filter { it !in s.expense }
         val planned = rows.sumOf { (plannedBy[it] as? Double) ?: 0.0 }
         return Glance(month, s.currency, planned, actualBy.values.sum(), System.currentTimeMillis())
+    }
+
+    private fun detail(s: WatchSettings, plan: Map<String, Any?>?, txns: List<Map<String, Any?>>): Detail {
+        val planned = plan?.get("planned") as? Map<*, *>
+        fun plannedFor(kind: String) = (planned?.get(kind) as? Map<*, *>) ?: emptyMap<String, Any?>()
+        val debtRow = s.debtCategory?.takeIf { it in s.expense }
+        val actualBy = mutableMapOf<String, Double>()
+        var income = 0.0
+        for (t in txns) {
+            val amount = (t["amount"] as? Double) ?: 0.0
+            when (t["kind"]) {
+                "income" -> income += amount
+                "expense" -> (t["category"] as? String)?.let { actualBy[it] = (actualBy[it] ?: 0.0) + amount }
+                "repay" -> debtRow?.let { actualBy[it] = (actualBy[it] ?: 0.0) + amount }
+            }
+        }
+        val plannedExpense = plannedFor("expense")
+        val rows = (s.expense + actualBy.keys.filter { it !in s.expense })
+            .map { CategoryRow(it, (plannedExpense[it] as? Double) ?: 0.0, actualBy[it] ?: 0.0) }
+            .filter { it.planned > 0 || it.actual > 0 }
+            // Most spent first, as the watch only has room for a few.
+            .sortedByDescending { it.actual }
+        val incomePlanned = s.income.sumOf { (plannedFor("income")[it] as? Double) ?: 0.0 }
+        // Newest first; the web app has no time of day, so same-day entries keep Firestore's order.
+        val recent = txns.sortedByDescending { it["date"] as? String ?: "" }.take(15).map { t ->
+            val label = (t["description"] as? String)?.takeIf { it.isNotBlank() }
+                ?: (t["category"] as? String)?.takeIf { it.isNotBlank() }
+                ?: when (t["kind"]) {
+                    "transfer" -> "${t["account"] ?: ""} → ${t["toAccount"] ?: ""}"
+                    "repay" -> "Repay ${t["debt"] ?: ""}"
+                    "borrow" -> "Borrow ${t["debt"] ?: ""}"
+                    else -> t["kind"] as? String ?: ""
+                }
+            Txn(t["date"] as? String ?: "", t["kind"] as? String ?: "", (t["amount"] as? Double) ?: 0.0, label, t["account"] as? String ?: "")
+        }
+        return Detail(incomePlanned, income, rows, recent)
+    }
+
+    private operator fun Detail.plus(e: Entry): Detail {
+        val txn = Txn(e.date, e.kind, e.amount, e.category, e.account)
+        if (e.kind == "income") return copy(income = income + e.amount, recent = listOf(txn) + recent)
+        val has = rows.any { it.category == e.category }
+        val rows = (if (has) rows else rows + CategoryRow(e.category, 0.0, 0.0))
+            .map { if (it.category == e.category) it.copy(actual = it.actual + e.amount) else it }
+            .sortedByDescending { it.actual }
+        return copy(rows = rows, recent = listOf(txn) + recent)
     }
 
     /** Adds entries that Firestore doesn't have yet. */

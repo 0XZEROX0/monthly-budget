@@ -29,7 +29,10 @@ android {
     buildTypes {
         release {
             signingConfig signingConfigs.release
-            minifyEnabled false
+            // Keeps the APK small, since the watch downloads its own updates.
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
         }
         debug {
             signingConfig signingConfigs.release

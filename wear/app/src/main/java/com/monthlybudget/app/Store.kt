@@ -44,6 +44,20 @@ data class Glance(
     val fractionSpent get() = if (planned > 0) (spent / planned).toFloat().coerceIn(0f, 1f) else 0f
 }
 
+/** A category's plan and spending this month. */
+data class CategoryRow(val category: String, val planned: Double, val actual: Double)
+
+/** An entry as the phone app saved it, for the recent list. */
+data class Txn(val date: String, val kind: String, val amount: Double, val label: String, val account: String)
+
+/** The rest of the month for the watch's summary: income and expense rows, newest entries. */
+data class Detail(
+    val incomePlanned: Double,
+    val income: Double,
+    val rows: List<CategoryRow>,
+    val recent: List<Txn>,
+)
+
 /** One quick-add entry, kept until Firestore has it. */
 data class Entry(
     val id: String,
@@ -77,6 +91,7 @@ object Store {
             // Another account (or none): drop the old one's figures and unsent entries.
             if (!sameUser) {
                 remove("glance")
+                remove("detail")
                 remove("settings")
                 remove("queue")
             }
@@ -106,6 +121,29 @@ object Store {
             .put("spent", g.spent)
             .put("updatedAt", g.updatedAt)
         prefs(context).edit().putString("glance", o.toString()).apply()
+    }
+
+    fun detail(context: Context): Detail? {
+        val o = prefs(context).getString("detail", null)?.let(::JSONObject) ?: return null
+        val rows = o.getJSONArray("rows").let { a ->
+            (0 until a.length()).map { a.getJSONObject(it) }.map { CategoryRow(it.getString("category"), it.getDouble("planned"), it.getDouble("actual")) }
+        }
+        val recent = o.getJSONArray("recent").let { a ->
+            (0 until a.length()).map { a.getJSONObject(it) }
+                .map { Txn(it.getString("date"), it.getString("kind"), it.getDouble("amount"), it.getString("label"), it.getString("account")) }
+        }
+        return Detail(o.getDouble("incomePlanned"), o.getDouble("income"), rows, recent)
+    }
+
+    fun saveDetail(context: Context, d: Detail) {
+        val rows = JSONArray()
+        for (r in d.rows) rows.put(JSONObject().put("category", r.category).put("planned", r.planned).put("actual", r.actual))
+        val recent = JSONArray()
+        for (t in d.recent) {
+            recent.put(JSONObject().put("date", t.date).put("kind", t.kind).put("amount", t.amount).put("label", t.label).put("account", t.account))
+        }
+        val o = JSONObject().put("incomePlanned", d.incomePlanned).put("income", d.income).put("rows", rows).put("recent", recent)
+        prefs(context).edit().putString("detail", o.toString()).apply()
     }
 
     fun settings(context: Context): WatchSettings {

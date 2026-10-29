@@ -6,6 +6,18 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.wear.compose.material.Button
+import androidx.wear.compose.material.ButtonDefaults
+import androidx.wear.compose.material.CompactChip
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+import kotlin.math.abs
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -124,10 +136,14 @@ private fun App(start: String?, onStarted: () -> Unit, finish: () -> Unit) {
 @Composable
 private fun HomeScreen(onAdd: (String) -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var glance by remember { mutableStateOf(Store.glance(context)) }
+    var detail by remember { mutableStateOf(Store.detail(context)) }
     var link by remember { mutableStateOf(Store.link(context)) }
     var status by remember { mutableStateOf<String?>(null) }
     var revealed by remember { mutableStateOf(false) }
+    var update by remember { mutableStateOf<WatchRelease?>(null) }
+    var updating by remember { mutableStateOf<String?>(null) }
     val waiting = remember(glance) { Store.queue(context).size }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(Unit) {
@@ -136,7 +152,7 @@ private fun HomeScreen(onAdd: (String) -> Unit) {
             status = if (glance == null) "Loading…" else null
             status = try {
                 glance = Budget.refresh(context)
-                link = Store.link(context)
+                detail = Store.detail(context)
                 null
             } catch (e: SignedOutException) {
                 "Sign in again in the phone app"
@@ -145,6 +161,7 @@ private fun HomeScreen(onAdd: (String) -> Unit) {
             }
             link = Store.link(context)
             Surfaces.update(context)
+            update = runCatching { Updater.check(context) }.getOrNull()
         }
     }
 
@@ -158,7 +175,7 @@ private fun HomeScreen(onAdd: (String) -> Unit) {
                 startAngle = 300f,
                 endAngle = 240f,
                 indicatorColor = if (g.left < 0) ExpenseColor else MaterialTheme.colors.primary,
-                strokeWidth = 5.dp,
+                strokeWidth = 4.dp,
             )
         }
         ScalingLazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
@@ -172,13 +189,14 @@ private fun HomeScreen(onAdd: (String) -> Unit) {
                 }
                 return@ScalingLazyColumn
             }
+            val hidden = link?.hidden == true && !revealed
+            val secret = { n: Double -> if (hidden) MASK else whole(n) }
             if (g != null) {
-                val hidden = link?.hidden == true && !revealed
-                item { Text(leftLabel(g), style = MaterialTheme.typography.caption1, color = MaterialTheme.colors.onSurfaceVariant) }
+                item { Text(leftLabel(g), style = MaterialTheme.typography.caption2, color = MaterialTheme.colors.onSurfaceVariant) }
                 item {
                     Text(
-                        if (hidden) MASK else whole(kotlin.math.abs(if (g.planned > 0) g.left else g.spent)),
-                        style = MaterialTheme.typography.display3,
+                        if (hidden) MASK else whole(abs(if (g.planned > 0) g.left else g.spent)),
+                        style = MaterialTheme.typography.title1,
                         color = if (g.left < 0) ExpenseColor else MaterialTheme.colors.onSurface,
                         // Privacy mode: tap to show the amounts here, until the app closes.
                         modifier = Modifier.clickable(enabled = link?.hidden == true) { revealed = !revealed },
@@ -188,62 +206,156 @@ private fun HomeScreen(onAdd: (String) -> Unit) {
                     val pct = (g.fractionSpent * 100).toInt()
                     Text(
                         if (hidden) "$pct% spent" else "${whole(g.spent)} of ${whole(g.planned)} ${g.currency}",
-                        style = MaterialTheme.typography.caption2,
+                        style = MaterialTheme.typography.caption3,
                         color = MaterialTheme.colors.onSurfaceVariant,
                     )
                 }
             }
             item {
-                Chip(
-                    onClick = { onAdd("expense") },
-                    label = { Text("Add expense") },
-                    icon = { Text("−", fontSize = 20.sp, fontWeight = FontWeight.Bold) },
-                    colors = ChipDefaults.primaryChipColors(backgroundColor = ExpenseColor, contentColor = Color.Black),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            item {
-                Chip(
-                    onClick = { onAdd("income") },
-                    label = { Text("Add income") },
-                    icon = { Text("+", fontSize = 20.sp, fontWeight = FontWeight.Bold) },
-                    colors = ChipDefaults.primaryChipColors(backgroundColor = IncomeColor, contentColor = Color.Black),
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    AddButton("−", "Add expense", ExpenseColor) { onAdd("expense") }
+                    AddButton("+", "Add income", IncomeColor) { onAdd("income") }
+                }
             }
             if (waiting > 0) {
                 item { Text("$waiting waiting to sync", style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant) }
             }
             status?.let { item { Text(it, style = MaterialTheme.typography.caption3, textAlign = TextAlign.Center, color = MaterialTheme.colors.onSurfaceVariant) } }
+            update?.let { release ->
+                item {
+                    CompactChip(
+                        onClick = {
+                            if (updating != null) return@CompactChip
+                            updating = "Downloading…"
+                            scope.launch {
+                                updating = try {
+                                    Updater.install(context, release) { updating = "Downloading ${(it * 100).toInt()}%" }
+                                    "Installing…"
+                                } catch (e: Exception) {
+                                    null.also { status = "Update failed. Try again on Wi-Fi." }
+                                }
+                            }
+                        },
+                        label = { Text(updating ?: "Update watch app") },
+                        colors = ChipDefaults.primaryChipColors(),
+                    )
+                }
+            }
+
+            val d = detail
+            if (d != null && g != null) {
+                item { ListHeader { Text("This month") } }
+                item { Line("Income", secret(d.income), if (d.incomePlanned > 0) "of ${secret(d.incomePlanned)}" else null, IncomeColor) }
+                item { Line("Spent", secret(g.spent), if (g.planned > 0) "of ${secret(g.planned)}" else null, ExpenseColor) }
+                // Category budgets stay visible in privacy mode, as on the phone.
+                items(d.rows.take(6)) { row -> CategoryLine(row) }
+                if (d.recent.isNotEmpty()) item { ListHeader { Text("Recent") } }
+                items(d.recent.take(10)) { t -> TxnLine(t) }
+            }
         }
     }
 }
 
-/** A keypad sized for the round screen; whole amounts, as the sheet uses. */
+@Composable
+private fun AddButton(label: String, description: String, color: Color, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.size(ButtonDefaults.SmallButtonSize).semantics { contentDescription = description },
+        colors = ButtonDefaults.buttonColors(backgroundColor = color, contentColor = Color.Black),
+    ) {
+        Text(label, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun Line(label: String, value: String, of: String?, color: Color) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp), verticalAlignment = Alignment.Bottom) {
+        Text(label, style = MaterialTheme.typography.caption1, modifier = Modifier.weight(1f))
+        Text(value, style = MaterialTheme.typography.caption1, color = color)
+        of?.let { Text(" $it", style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant) }
+    }
+}
+
+@Composable
+private fun CategoryLine(row: CategoryRow) {
+    val over = row.planned > 0 && row.actual > row.planned
+    Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 2.dp)) {
+        Row(Modifier.fillMaxWidth()) {
+            Text(row.category, style = MaterialTheme.typography.caption2, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Text(
+                if (row.planned > 0) "${compact(row.actual)} / ${compact(row.planned)}" else compact(row.actual),
+                style = MaterialTheme.typography.caption3,
+                color = if (over) ExpenseColor else MaterialTheme.colors.onSurfaceVariant,
+            )
+        }
+        if (row.planned > 0) {
+            Box(Modifier.padding(top = 2.dp).fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(MaterialTheme.colors.surface)) {
+                Box(
+                    Modifier
+                        .fillMaxWidth((row.actual / row.planned).toFloat().coerceIn(0f, 1f))
+                        .height(3.dp)
+                        .background(if (over) ExpenseColor else MaterialTheme.colors.primary),
+                )
+            }
+        }
+    }
+}
+
+private val dayFormat = DateTimeFormatter.ofPattern("MMM d", Locale.US)
+
+@Composable
+private fun TxnLine(t: Txn) {
+    val (sign, color) = when (t.kind) {
+        "income", "borrow" -> "+" to IncomeColor
+        "expense", "repay" -> "−" to ExpenseColor
+        else -> "" to MaterialTheme.colors.onSurface
+    }
+    val day = runCatching { LocalDate.parse(t.date).format(dayFormat) }.getOrDefault(t.date)
+    Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(t.label, style = MaterialTheme.typography.caption1, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(listOf(day, t.account).filter { it.isNotEmpty() }.joinToString(" · "), style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant)
+        }
+        Text(sign + whole(t.amount), style = MaterialTheme.typography.caption1, color = color)
+    }
+}
+
+/**
+ * A keypad sized to the screen and kept inside the circle: the bottom row, with ⌫ and ✓,
+ * is narrower so its keys don't fall off the round edge. Whole amounts, as the sheet uses.
+ */
 @Composable
 private fun AmountScreen(kind: String, onNext: (Double) -> Unit) {
     var digits by remember { mutableStateOf("") }
     val haptics = LocalHapticFeedback.current
     val color = if (kind == "income") IncomeColor else ExpenseColor
     val amount = digits.toDoubleOrNull() ?: 0.0
+    val screen = LocalConfiguration.current.screenHeightDp.dp
+    val keyHeight = screen * 0.13f
     Column(
-        Modifier.fillMaxSize().padding(top = 22.dp),
+        Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically),
     ) {
-        Text(if (kind == "income") "Income" else "Expense", style = MaterialTheme.typography.caption2, color = color)
-        Text(if (digits.isEmpty()) "0" else whole(amount), style = MaterialTheme.typography.title1, color = MaterialTheme.colors.onSurface)
+        Text(if (kind == "income") "Income" else "Expense", style = MaterialTheme.typography.caption3, color = color)
+        Text(if (digits.isEmpty()) "0" else whole(amount), style = MaterialTheme.typography.title2, color = MaterialTheme.colors.onSurface)
         val rows = listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf("⌫", "0", "✓"))
-        for (row in rows) {
-            Row(Modifier.width(150.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                for (key in row) {
+        for ((i, keys) in rows.withIndex()) {
+            val width = screen * (if (i == rows.lastIndex) 0.54f else 0.62f)
+            Row(Modifier.width(width), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                for (key in keys) {
                     val enabled = key != "✓" || amount > 0
+                    val background = when {
+                        key == "✓" && enabled -> color
+                        key == "✓" || key == "⌫" -> MaterialTheme.colors.surface.copy(alpha = 0.6f)
+                        else -> MaterialTheme.colors.surface
+                    }
                     Box(
                         Modifier
                             .weight(1f)
-                            .height(34.dp)
-                            .clip(RoundedCornerShape(17.dp))
-                            .background(if (key == "✓") (if (enabled) color else MaterialTheme.colors.surface) else MaterialTheme.colors.surface)
+                            .height(keyHeight)
+                            .clip(RoundedCornerShape(keyHeight / 2))
+                            .background(background)
                             .combinedClickable(
                                 enabled = enabled,
                                 // Hold ⌫ to clear.
@@ -259,7 +371,7 @@ private fun AmountScreen(kind: String, onNext: (Double) -> Unit) {
                             ),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(key, fontSize = 17.sp, color = if (key == "✓" && enabled) Color.Black else MaterialTheme.colors.onSurface)
+                        Text(key, fontSize = 15.sp, color = if (key == "✓" && enabled) Color.Black else MaterialTheme.colors.onSurface)
                     }
                 }
             }
@@ -288,17 +400,15 @@ private fun CategoryScreen(kind: String, amount: Double, onSaved: (Boolean) -> U
 
     Scaffold(positionIndicator = { PositionIndicator(scalingLazyListState = listState) }) {
         ScalingLazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-            item { ListHeader { Text("${whole(amount)} ${settings.currency}", color = color) } }
+            item { Text("${whole(amount)} ${settings.currency}", style = MaterialTheme.typography.title3, color = color) }
             item {
-                Chip(
+                CompactChip(
                     onClick = {
                         val i = settings.accounts.indexOf(account)
                         account = settings.accounts[(i + 1) % settings.accounts.size]
                     },
-                    label = { Text((if (kind == "income") "Into " else "From ") + account) },
-                    secondaryLabel = { if (settings.accounts.size > 1) Text("Tap to change") },
+                    label = { Text((if (kind == "income") "Into " else "From ") + account + if (settings.accounts.size > 1) "  ⇄" else "") },
                     colors = ChipDefaults.secondaryChipColors(),
-                    modifier = Modifier.fillMaxWidth(),
                 )
             }
             items(categories) { category ->
@@ -311,14 +421,16 @@ private fun CategoryScreen(kind: String, amount: Double, onSaved: (Boolean) -> U
                         val entry = Entry(newId(), kind, amount, category, account, LocalDate.now().toString())
                         scope.launch { onSaved(Budget.add(context, entry)) }
                     },
-                    label = { Text(category) },
+                    label = { Text(category, style = MaterialTheme.typography.caption1, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     colors = ChipDefaults.primaryChipColors(backgroundColor = MaterialTheme.colors.surface, contentColor = MaterialTheme.colors.onSurface),
-                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+                    modifier = Modifier.fillMaxWidth().height(40.dp),
                 )
             }
         }
     }
 }
+
 
 @Composable
 private fun DoneScreen(sent: Boolean) {
