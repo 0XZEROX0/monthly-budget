@@ -1,3 +1,4 @@
+import type { Theme } from './theme'
 export type Kind = 'expense' | 'income'
 
 /**
@@ -64,6 +65,8 @@ export interface Settings {
   debtCategory?: string
   /** Bank SMS import in the Android app. */
   sms?: SmsSettings
+  /** Accent colour and light/dark choice. */
+  theme?: Theme
 }
 
 /** Where a card's spending goes: an account (`account:Bank`) or a debt (`debt:Debt TRU`). */

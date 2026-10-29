@@ -4,6 +4,9 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { startUpdates } from './data/appUpdate'
+import { applyTheme, cachedTheme } from './data/theme'
+
+applyTheme(cachedTheme())
 
 startUpdates()
 if (!Capacitor.isNativePlatform())

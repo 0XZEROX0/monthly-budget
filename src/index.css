@@ -31,8 +31,9 @@
   color: var(--text);
   background: var(--bg);
 }
+/* Dark mode follows the phone unless Settings › Themes picks Light or Dark (data-mode on <html>). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-mode="light"]) {
     color-scheme: dark;
     --bg: #0d0d0d;
     --surface: #1a1a19;
@@ -55,6 +56,50 @@
     --shadow: none;
   }
 }
+:root[data-mode="dark"] {
+    color-scheme: dark;
+    --bg: #0d0d0d;
+    --surface: #1a1a19;
+    --surface-2: #232321;
+    --text: #f0efec;
+    --text-2: #c3c2b7;
+    --muted: #898781;
+    --border: rgba(255, 255, 255, 0.08);
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --accent: #9085e9;
+    --accent-soft: #26233f;
+    --on-accent: #0d0d0d;
+    --hero-bg: linear-gradient(140deg, #1f1c3d 0%, #2b2760 60%, #4a3fb0 140%);
+    --income: #3987e5;
+    --expense: #d95926;
+    --expense-soft: #3a2419;
+    --good: #0ca30c;
+    --bad: #e66767;
+    --shadow: none;
+}
+
+/* Accent colours from Settings › Themes (data-accent on <html>); purple is the default above. */
+:root[data-accent="blue"] { --accent: #1f5fbf; --accent-soft: #e3edfb; --hero-bg: linear-gradient(140deg, #0f1d33 0%, #17325c 55%, #1f5fbf 130%); }
+:root[data-accent="teal"] { --accent: #0f766e; --accent-soft: #dcf2ef; --hero-bg: linear-gradient(140deg, #0b2422 0%, #0f3e3a 55%, #0f766e 130%); }
+:root[data-accent="green"] { --accent: #2f7d32; --accent-soft: #e3f1e3; --hero-bg: linear-gradient(140deg, #102312 0%, #1b3d1d 55%, #2f7d32 130%); }
+:root[data-accent="orange"] { --accent: #c2560f; --accent-soft: #fbeadf; --hero-bg: linear-gradient(140deg, #2a160a 0%, #4a2510 55%, #c2560f 130%); }
+:root[data-accent="pink"] { --accent: #be2f6e; --accent-soft: #f9e3ed; --hero-bg: linear-gradient(140deg, #2a0f1c 0%, #4a1830 55%, #be2f6e 130%); }
+:root[data-accent="graphite"] { --accent: #2b2b2b; --accent-soft: #ececea; --hero-bg: linear-gradient(140deg, #111111 0%, #2a2a2a 55%, #5a5a5a 130%); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-mode="light"])[data-accent="blue"] { --accent: #6ea6f0; --accent-soft: #1a2a40; }
+  :root:not([data-mode="light"])[data-accent="teal"] { --accent: #4fc1b3; --accent-soft: #15302d; }
+  :root:not([data-mode="light"])[data-accent="green"] { --accent: #6cc070; --accent-soft: #1a2e1b; }
+  :root:not([data-mode="light"])[data-accent="orange"] { --accent: #f0904f; --accent-soft: #3a2416; }
+  :root:not([data-mode="light"])[data-accent="pink"] { --accent: #ee7aab; --accent-soft: #3a1a28; }
+  :root:not([data-mode="light"])[data-accent="graphite"] { --accent: #d6d6d2; --accent-soft: #2a2a28; }
+}
+:root[data-mode="dark"][data-accent="blue"] { --accent: #6ea6f0; --accent-soft: #1a2a40; }
+:root[data-mode="dark"][data-accent="teal"] { --accent: #4fc1b3; --accent-soft: #15302d; }
+:root[data-mode="dark"][data-accent="green"] { --accent: #6cc070; --accent-soft: #1a2e1b; }
+:root[data-mode="dark"][data-accent="orange"] { --accent: #f0904f; --accent-soft: #3a2416; }
+:root[data-mode="dark"][data-accent="pink"] { --accent: #ee7aab; --accent-soft: #3a1a28; }
+:root[data-mode="dark"][data-accent="graphite"] { --accent: #d6d6d2; --accent-soft: #2a2a28; }
 
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); -webkit-tap-highlight-color: transparent; }
@@ -338,3 +383,12 @@ button.cat-row.row-link { align-items: flex-start; width: calc(100% + 0.7rem); }
 .plan-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
 .plan-head h2 { font-size: 1.1rem; }
 button.small-btn { padding: 0.55rem 1.1rem; flex: none; }
+/* Settings › Themes */
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(4.2rem, 1fr)); gap: 0.5rem; }
+.swatch { display: grid; justify-items: center; gap: 0.35rem; padding: 0.55rem 0.2rem; border-radius: 16px; background: var(--surface-2); border: 1.5px solid transparent; --sw: var(--sw-light); }
+.swatch.active { border-color: var(--accent); background: var(--accent-soft); }
+.swatch-dot { width: 1.9rem; height: 1.9rem; border-radius: 50%; background: var(--sw); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35); }
+.swatch-label { font-size: 0.75rem; color: var(--text); }
+@media (prefers-color-scheme: dark) { :root:not([data-mode="light"]) .swatch { --sw: var(--sw-dark); } }
+:root[data-mode="dark"] .swatch { --sw: var(--sw-dark); }
+.segmented button.active { color: var(--accent); }

@@ -5,6 +5,7 @@ import { categoryIcon } from '../data/icons'
 import { formatWhole, monthLabel } from '../data/month'
 import type { Account, AccountType, Backend, Debt, Kind, Settings } from '../data/types'
 import { NumberInput } from './NumberInput'
+import { ACCENTS, DEFAULT_THEME, applyTheme, type Theme, type ThemeMode } from '../data/theme'
 import { SmsSettingsCard } from './SmsSettingsCard'
 import { UpdateCard } from './UpdateCard'
 
@@ -40,6 +41,8 @@ export function SettingsView({ backend, settings, sms, user, onSignOut }: Props)
       </section>
 
       <SmsSettingsCard sms={sms} settings={settings} onSave={save} />
+
+      <ThemeCard settings={settings} onSave={save} />
 
       <ImportCard backend={backend} settings={settings} />
 
@@ -283,6 +286,55 @@ function CategoryEditor({ title, list, onChange }: { title: string; list: string
         ))}
       </ul>
       <AddRow placeholder="New category" value={name} onChange={setName} onAdd={add} />
+    </section>
+  )
+}
+
+const MODES: { id: ThemeMode; label: string }[] = [
+  { id: 'system', label: 'System' },
+  { id: 'light', label: 'Light' },
+  { id: 'dark', label: 'Dark' },
+]
+
+function ThemeCard({ settings, onSave }: { settings: Settings; onSave: (s: Settings) => void }) {
+  const theme = settings.theme ?? DEFAULT_THEME
+  const set = (t: Partial<Theme>) => {
+    const next = { ...theme, ...t }
+    // Apply at once; saving syncs it to your other devices.
+    applyTheme(next)
+    onSave({ ...settings, theme: next })
+  }
+  return (
+    <section className="card">
+      <h2>Themes</h2>
+      <div className="field">
+        <span className="field-label">Colour</span>
+        <div className="swatches" role="radiogroup" aria-label="Theme colour">
+          {ACCENTS.map((a) => (
+            <button
+              key={a.id}
+              role="radio"
+              aria-checked={theme.accent === a.id}
+              className={`swatch ${theme.accent === a.id ? 'active' : ''}`}
+              style={{ ['--sw-light' as string]: a.light, ['--sw-dark' as string]: a.dark }}
+              onClick={() => set({ accent: a.id })}
+            >
+              <span className="swatch-dot" aria-hidden />
+              <span className="swatch-label">{a.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="field">
+        <span className="field-label">Appearance</span>
+        <div className="segmented three">
+          {MODES.map((m) => (
+            <button key={m.id} className={theme.mode === m.id ? 'active' : ''} onClick={() => set({ mode: m.id })}>
+              {m.label}
+            </button>
+          ))}
+        </div>
+      </div>
     </section>
   )
 }

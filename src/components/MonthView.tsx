@@ -1,10 +1,11 @@
 import type { User } from 'firebase/auth'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { describe, draftFor, smsSettings, smsTxnId, useBankSms } from '../data/bankSms'
 import { emptyPlan } from '../data/defaults'
 import { usePlan, useRange, useSettings, useTransactions } from '../data/hooks'
 import { currentMonth, monthLabel, shiftMonth } from '../data/month'
 import { balancesBefore, summarize } from '../data/summary'
+import { applyTheme } from '../data/theme'
 import type { ParsedSms } from '../data/smsParser'
 import type { Backend, NewTransaction, Settings, SmsTarget, Transaction } from '../data/types'
 import { PendingSms } from './PendingSms'
@@ -48,6 +49,11 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   const [fromSms, setFromSms] = useState<ParsedSms | null>(null)
 
   const settings = useSettings(backend)
+  // Apply the synced theme once settings arrive (main.tsx already applied this device's last one).
+  const theme = settings?.theme
+  useEffect(() => {
+    if (theme) applyTheme(theme)
+  }, [theme])
   const sms = useBankSms(backend, settings)
   const plan = usePlan(backend, month)
   const txns = useTransactions(backend, month)
