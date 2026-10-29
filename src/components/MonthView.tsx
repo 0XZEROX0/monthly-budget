@@ -9,7 +9,7 @@ import { PlanEditor } from './PlanEditor'
 import { SettingsView } from './SettingsView'
 import { SummaryView } from './SummaryView'
 import { TransactionForm } from './TransactionForm'
-import { TransactionList } from './TransactionList'
+import { TransactionList, type ListFocus } from './TransactionList'
 
 type Tab = 'summary' | 'transactions' | 'plan' | 'settings'
 
@@ -30,6 +30,13 @@ interface Props {
 export function MonthView({ backend, user, onSignOut }: Props) {
   const [month, setMonth] = useState(currentMonth)
   const [tab, setTab] = useState<Tab>('summary')
+  // Set when a Summary row is tapped: the Transactions tab then shows only its entries.
+  const [focus, setFocus] = useState<ListFocus | null>(null)
+  const openFocus = (f: ListFocus) => {
+    setFocus(f)
+    setTab('transactions')
+    window.scrollTo(0, 0)
+  }
   // null: form closed; 'new': adding; a transaction: editing it.
   const [editing, setEditing] = useState<Transaction | 'new' | null>(null)
 
@@ -74,11 +81,14 @@ export function MonthView({ backend, user, onSignOut }: Props) {
             hasPlan={plan !== null}
             onPlan={() => setTab('plan')}
             onSelectMonth={setMonth}
+            onOpen={openFocus}
           />
         ) : tab === 'transactions' ? (
           <TransactionList
             txns={txns}
             settings={settings}
+            focus={focus}
+            onClearFocus={() => setFocus(null)}
             onEdit={(t) => {
               // Balance updates have no form; they can only be removed.
               if (t.kind !== 'adjust') return setEditing(t)
@@ -100,7 +110,10 @@ export function MonthView({ backend, user, onSignOut }: Props) {
 
       <nav className="tabbar">
         {TABS.map((t) => (
-          <button key={t.id} className={t.id === tab ? 'active' : ''} onClick={() => setTab(t.id)}>
+          <button key={t.id} className={t.id === tab ? 'active' : ''} onClick={() => {
+              setTab(t.id)
+              setFocus(null)
+            }}>
             <svg viewBox="0 0 24 24" aria-hidden>
               <path d={t.icon} />
             </svg>

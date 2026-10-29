@@ -4,6 +4,7 @@ import { currentMonth, daysInMonth, formatCompact, formatWhole, shiftMonth, shor
 import { savedIn, spentIn, type CategoryRow, type MonthSummary } from '../data/summary'
 import type { Account, Backend, Settings, Transaction } from '../data/types'
 import { BalanceForm } from './BalanceForm'
+import type { ListFocus } from './TransactionList'
 import { BudgetRing, Legend, MonthsChart, PaceChart, SavedChart, type MonthBar, type PacePoint, type SavedBar } from './charts'
 
 interface Props {
@@ -17,11 +18,13 @@ interface Props {
   hasPlan: boolean
   onPlan: () => void
   onSelectMonth: (month: string) => void
+  /** Opens the Transactions tab filtered to a category, account or debt. */
+  onOpen: (f: ListFocus) => void
 }
 
 const TREND_MONTHS = 6
 
-export function SummaryView({ backend, month, summary: s, txns, history, settings, hasPlan, onPlan, onSelectMonth }: Props) {
+export function SummaryView({ backend, month, summary: s, txns, history, settings, hasPlan, onPlan, onSelectMonth, onOpen }: Props) {
   const { currency } = settings
   const money = (n: number) => formatWhole(n, currency)
   const compact = (n: number) => formatCompact(n, currency)
@@ -103,6 +106,7 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
             const interest = a.type === 'investment' ? (end * (a.interestPct ?? 0)) / 100 : 0
             return (
               <li key={a.name}>
+                <button className="row-link grow" onClick={() => onOpen({ kind: 'account', value: a.name })}>
                 <span className="cat-icon">{categoryIcon(a.name)}</span>
                 <span className="grow list-main">
                   <span>{a.name}</span>
@@ -111,6 +115,7 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
                     {interest > 0 && ` · ~${money(interest)} interest (${a.interestPct}%)`}
                   </span>
                 </span>
+                </button>
                 <span className="account-end">
                   <strong>{money(end)}</strong>
                   {a.type === 'investment' && (
@@ -160,9 +165,9 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
         ) : (
           <>
             {spending.map((r) => (
-              <CategoryBar key={r.category} row={r} money={money} />
+              <CategoryBar key={r.category} row={r} money={money} onOpen={() => onOpen({ kind: 'category', value: r.category })} />
             ))}
-            {s.debtPayments > 0 && <CategoryBar row={{ category: 'Debt payments', planned: 0, actual: s.debtPayments, diff: 0 }} money={money} note="Paid back on your debts" />}
+            {s.debtPayments > 0 && <CategoryBar row={{ category: 'Debt payments', planned: 0, actual: s.debtPayments, diff: 0 }} money={money} note="Paid back on your debts" onOpen={() => onOpen({ kind: 'debtPayments' })} />}
           </>
         )}
       </section>
@@ -178,7 +183,7 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
             const paid = txns.filter((t) => t.kind === 'repay' && t.debt === d.name).reduce((a, t) => a + t.amount, 0)
             const scale = Math.max(d.limit, owed, 1)
             return (
-              <div className="cat-row" key={d.name}>
+              <button className="cat-row row-link" key={d.name} onClick={() => onOpen({ kind: 'debt', value: d.name })}>
                 <span className="cat-icon">{categoryIcon(d.name)}</span>
                 <div className="cat-body">
                   <div className="cat-line">
@@ -197,7 +202,7 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
                     {d.limit > 0 && ` · ${money(Math.max(0, d.limit - owed))} available`}
                   </span>
                 </div>
-              </div>
+              </button>
             )
           })}
         </section>
@@ -244,10 +249,12 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
           <ul className="plain-list">
             {income.map((r) => (
               <li key={r.category}>
-                <span className="cat-icon">{categoryIcon(r.category)}</span>
-                <span className="grow">{r.category}</span>
-                <span className="muted small">{r.planned ? `of ${money(r.planned)}` : ''}</span>
-                <strong>{money(r.actual)}</strong>
+                <button className="row-link grow" onClick={() => onOpen({ kind: 'category', value: r.category })}>
+                  <span className="cat-icon">{categoryIcon(r.category)}</span>
+                  <span className="grow">{r.category}</span>
+                  <span className="muted small">{r.planned ? `of ${money(r.planned)}` : ''}</span>
+                  <strong>{money(r.actual)}</strong>
+                </button>
               </li>
             ))}
           </ul>
@@ -281,11 +288,11 @@ function Stat({ label, value, color, tone, sub }: { label: string; value: string
   )
 }
 
-function CategoryBar({ row, money, note }: { row: CategoryRow; money: (n: number) => string; note?: string }) {
+function CategoryBar({ row, money, note, onOpen }: { row: CategoryRow; money: (n: number) => string; note?: string; onOpen: () => void }) {
   const scale = Math.max(row.planned, row.actual, 1)
   const over = row.planned > 0 && row.actual > row.planned
   return (
-    <div className="cat-row">
+    <button className="cat-row row-link" onClick={onOpen} aria-label={`${row.category}: see transactions`}>
       <span className="cat-icon">{categoryIcon(row.category)}</span>
       <div className="cat-body">
         <div className="cat-line">
@@ -309,7 +316,8 @@ function CategoryBar({ row, money, note }: { row: CategoryRow; money: (n: number
           <span className="small muted">No budget set</span>
         )}
       </div>
-    </div>
+      <span className="chevron" aria-hidden>›</span>
+    </button>
   )
 }
 

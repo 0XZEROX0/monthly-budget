@@ -3,11 +3,32 @@ import { categoryIcon } from '../data/icons'
 import { dayLabel, formatMoney, formatWhole } from '../data/month'
 import type { Settings, Transaction } from '../data/types'
 
+/** A drill-down from the Summary: one category, account or debt. */
+export type ListFocus =
+  | { kind: 'category'; value: string }
+  | { kind: 'account'; value: string }
+  | { kind: 'debt'; value: string }
+  | { kind: 'debtPayments' }
+
 interface Props {
   txns: Transaction[]
   settings: Settings
   onEdit: (t: Transaction) => void
+  focus: ListFocus | null
+  onClearFocus: () => void
 }
+
+const inFocus = (t: Transaction, f: ListFocus | null) =>
+  !f ||
+  (f.kind === 'category'
+    ? (t.kind === 'expense' || t.kind === 'income') && t.category === f.value
+    : f.kind === 'account'
+      ? t.account === f.value || t.toAccount === f.value
+      : f.kind === 'debt'
+        ? t.debt === f.value
+        : t.kind === 'repay')
+
+const focusLabel = (f: ListFocus) => (f.kind === 'debtPayments' ? 'Debt payments' : f.value)
 
 type Filter = 'all' | 'expense' | 'income' | 'moves'
 
@@ -40,13 +61,14 @@ function describe(t: Transaction): { title: string; sub: string; icon: string; s
   }
 }
 
-export function TransactionList({ txns, settings, onEdit }: Props) {
+export function TransactionList({ txns, settings, onEdit, focus, onClearFocus }: Props) {
   const { currency } = settings
   const [filter, setFilter] = useState<Filter>('all')
   const [search, setSearch] = useState('')
   const q = search.trim().toLowerCase()
   const shown = txns.filter(
     (t) =>
+      inFocus(t, focus) &&
       matches(t, filter) &&
       (!q || [t.description, t.category, t.account, t.toAccount, t.debt].some((v) => v?.toLowerCase().includes(q))),
   )
@@ -57,6 +79,18 @@ export function TransactionList({ txns, settings, onEdit }: Props) {
 
   return (
     <div className="stack">
+      {focus && (
+        <div className="focus-bar">
+          <span className="cat-icon plan-icon">{focus.kind === 'debtPayments' ? categoryIcon('debt') : categoryIcon(focus.value)}</span>
+          <span className="grow list-main">
+            <strong>{focusLabel(focus)}</strong>
+            <span className="muted small">Showing only this {focus.kind === 'category' ? 'category' : focus.kind === 'account' ? 'account' : 'debt'} for the month</span>
+          </span>
+          <button className="chip" onClick={onClearFocus}>
+            Clear ✕
+          </button>
+        </div>
+      )}
       <div className="segmented four">
         {FILTERS.map((f) => (
           <button key={f.id} className={filter === f.id ? 'active' : ''} onClick={() => setFilter(f.id)}>
