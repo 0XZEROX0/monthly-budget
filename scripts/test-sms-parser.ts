@@ -1,6 +1,8 @@
 // Checks the bank SMS parser against real message templates. Run: npm run test:sms
 import assert from 'node:assert/strict'
+import { alreadyRecorded } from '../src/data/smsMatch.ts'
 import { parseBankSms, type ParsedSms } from '../src/data/smsParser.ts'
+import type { Transaction } from '../src/data/types.ts'
 
 const at = new Date(2026, 9, 28, 21, 16).getTime()
 const parse = (body: string) => parseBankSms({ id: '1', address: 'CIB', body, date: at })
@@ -47,5 +49,21 @@ for (const [body, want] of cases) {
     console.error(`FAIL ${body.slice(0, 60)}…\n  ${(e as Error).message}\n  got ${JSON.stringify(got && { ...got, body: undefined })}`)
   }
 }
-console.log(`${cases.length - failed}/${cases.length} passed`)
+// Messages already entered (by hand or from the sheet import) aren't offered again.
+const sms = (id: string, amount: number, date: string, direction: ParsedSms['direction'] = 'spend'): ParsedSms =>
+  ({ smsId: id, sender: 'CIB', direction, transfer: false, amount, currency: 'EGP', merchant: '', card: '2244', date, body: '' })
+const txn = (id: string, kind: Transaction['kind'], amount: number, date: string): Transaction =>
+  ({ id, kind, amount, date, month: date.slice(0, 7), description: '', category: '' })
+const matched = alreadyRecorded(
+  [sms('a', 215, '2026-10-26'), sms('b', 215, '2026-10-26'), sms('c', 1010, '2026-10-27'), sms('d', 13800, '2026-10-02', 'credit'), sms('e', 99, '2026-10-20')],
+  [txn('x', 'expense', 215, '2026-10-25'), txn('y', 'transfer', 1010, '2026-10-27'), txn('z', 'income', 13800, '2026-10-03'), txn('w', 'income', 99, '2026-10-20')],
+)
+try {
+  // Two 215 payments but one entry: only one is matched. 99 out doesn't match 99 in.
+  assert.deepEqual([...matched].sort(), ['a', 'c', 'd'])
+} catch (e) {
+  failed++
+  console.error(`FAIL alreadyRecorded: ${(e as Error).message}`)
+}
+console.log(`${cases.length + 1 - failed}/${cases.length + 1} passed`)
 process.exit(failed ? 1 : 0)

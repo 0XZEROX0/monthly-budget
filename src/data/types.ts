@@ -70,8 +70,10 @@ export interface Settings {
 export type SmsTarget = `account:${string}` | `debt:${string}`
 
 export interface SmsSettings {
-  /** SMS senders that are banks, e.g. "CIB"; only their messages are read. */
+  /** Senders turned on by hand: banks the app doesn't know, e.g. a new bank's sender name. */
   senders: string[]
+  /** Senders turned off, including known banks. */
+  excluded?: string[]
   /** Last four card digits -> where that card's payments go. */
   cards: Record<string, SmsTarget>
   /** For messages without a known card. */
