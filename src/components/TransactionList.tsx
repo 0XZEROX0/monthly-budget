@@ -18,10 +18,10 @@ interface Props {
   onClearFocus: () => void
 }
 
-const inFocus = (t: Transaction, f: ListFocus | null) =>
+const inFocus = (t: Transaction, f: ListFocus | null, debtCategory?: string) =>
   !f ||
   (f.kind === 'category'
-    ? (t.kind === 'expense' || t.kind === 'income') && t.category === f.value
+    ? ((t.kind === 'expense' || t.kind === 'income') && t.category === f.value) || (t.kind === 'repay' && f.value === debtCategory)
     : f.kind === 'account'
       ? t.account === f.value || t.toAccount === f.value
       : f.kind === 'debt'
@@ -68,7 +68,7 @@ export function TransactionList({ txns, settings, onEdit, focus, onClearFocus }:
   const q = search.trim().toLowerCase()
   const shown = txns.filter(
     (t) =>
-      inFocus(t, focus) &&
+      inFocus(t, focus, settings.debtCategory) &&
       matches(t, filter) &&
       (!q || [t.description, t.category, t.account, t.toAccount, t.debt].some((v) => v?.toLowerCase().includes(q))),
   )

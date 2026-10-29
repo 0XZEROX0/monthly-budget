@@ -167,7 +167,7 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
             {spending.map((r) => (
               <CategoryBar key={r.category} row={r} money={money} onOpen={() => onOpen({ kind: 'category', value: r.category })} />
             ))}
-            {s.debtPayments > 0 && <CategoryBar row={{ category: 'Debt payments', planned: 0, actual: s.debtPayments, diff: 0 }} money={money} note="Paid back on your debts" onOpen={() => onOpen({ kind: 'debtPayments' })} />}
+            {s.debtPayments > 0 && !settings.categories.expense.includes(settings.debtCategory ?? '') && <CategoryBar row={{ category: 'Debt payments', planned: 0, actual: s.debtPayments, diff: 0 }} money={money} note="Paid back on your debts" onOpen={() => onOpen({ kind: 'debtPayments' })} />}
           </>
         )}
       </section>

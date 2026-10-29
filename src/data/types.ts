@@ -60,6 +60,8 @@ export interface Settings {
   accounts: Account[]
   debts: Debt[]
   opening: Opening
+  /** Expense category that debt repayments count toward (e.g. Instalment); none keeps them separate. */
+  debtCategory?: string
 }
 
 export type Unsubscribe = () => void

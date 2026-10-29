@@ -31,6 +31,7 @@ export const DEFAULT_SETTINGS: Settings = {
     { name: 'Debt Valu', limit: 4000 },
   ],
   opening: { month: currentMonth(), accounts: {}, debts: {} },
+  debtCategory: 'Instalment',
 }
 
 /** Fills in fields added after a user first saved settings. */

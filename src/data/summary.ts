@@ -26,7 +26,7 @@ export interface MonthSummary {
   capital: number
   planned: Record<Kind, number>
   actual: Record<Kind, number>
-  /** Repayments made this month; part of spending. */
+  /** Repayments made this month; part of spending (inside the debt category's row when set). */
   debtPayments: number
   /** Expenses + debt payments. */
   spent: number
@@ -111,9 +111,14 @@ export const spentIn = (txns: Transaction[]) => sum(txns.filter((t) => t.kind ==
 // Mirrors a month tab of the sheet: planned vs actual per category, account and
 // debt balances, liquidity (cash + bank), saved this month and capital.
 export function summarize(plan: MonthPlan, settings: Settings, txns: Transaction[], start: Balances): MonthSummary {
+  // Repayments count toward this expense category when it exists, so they share its budget.
+  const debtRow = settings.debtCategory && settings.categories.expense.includes(settings.debtCategory) ? settings.debtCategory : null
   const rowsFor = (kind: Kind): CategoryRow[] => {
     const actualBy: Record<string, number> = {}
-    for (const t of txns) if (t.kind === kind) actualBy[t.category] = (actualBy[t.category] ?? 0) + t.amount
+    for (const t of txns) {
+      const cat = t.kind === kind ? t.category : kind === 'expense' && t.kind === 'repay' ? debtRow : null
+      if (cat) actualBy[cat] = (actualBy[cat] ?? 0) + t.amount
+    }
     // Keep categories that were renamed or removed but still have entries this month.
     const cats = [...settings.categories[kind], ...Object.keys(actualBy).filter((c) => !settings.categories[kind].includes(c))]
     return cats.map((category) => {
@@ -126,7 +131,7 @@ export function summarize(plan: MonthPlan, settings: Settings, txns: Transaction
   const planned = { expense: sum(rows.expense.map((r) => r.planned)), income: sum(rows.income.map((r) => r.planned)) }
   const actual = { expense: sum(rows.expense.map((r) => r.actual)), income: sum(rows.income.map((r) => r.actual)) }
   const debtPayments = sum(txns.filter((t) => t.kind === 'repay').map((t) => t.amount))
-  const spent = actual.expense + debtPayments
+  const spent = actual.expense + (debtRow ? 0 : debtPayments)
   const end = apply(start, txns, settings)
 
   const liquid = settings.accounts.filter((a) => a.type !== 'investment')

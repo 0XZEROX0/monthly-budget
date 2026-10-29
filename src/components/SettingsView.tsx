@@ -180,6 +180,15 @@ function DebtsEditor({ settings, onSave }: { settings: Settings; onSave: (s: Set
           </button>
         </div>
       ))}
+      <label className="edit-row">
+        <span className="grow">Payments count as</span>
+        <select value={settings.debtCategory ?? ''} onChange={(e) => onSave({ ...settings, debtCategory: e.target.value })} aria-label="Category debt payments count toward">
+          <option value="">Their own row</option>
+          {settings.categories.expense.map((c) => (
+            <option key={c}>{c}</option>
+          ))}
+        </select>
+      </label>
       <AddRow placeholder="New lender" value={name} onChange={setName} onAdd={() => {
         const n = name.trim()
         if (n && !settings.debts.some((d) => d.name === n)) set([...settings.debts, { name: n, limit: 0 }])
