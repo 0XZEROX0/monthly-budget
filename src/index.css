@@ -396,3 +396,8 @@ button.small-btn { padding: 0.55rem 1.1rem; flex: none; }
 @media (prefers-color-scheme: dark) { :root:not([data-mode="light"]) .swatch { --sw: var(--sw-dark); } }
 :root[data-mode="dark"] .swatch { --sw: var(--sw-dark); }
 .segmented button.active { color: var(--accent); }
+/* Privacy eye, top right of the Summary header */
+.topbar { position: sticky; }
+.privacy { position: absolute; right: 0.75rem; top: calc(env(safe-area-inset-top) + 0.6rem); color: var(--text-2); }
+.privacy[aria-pressed='true'] { color: var(--accent); background: var(--accent-soft); }
+.privacy svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }

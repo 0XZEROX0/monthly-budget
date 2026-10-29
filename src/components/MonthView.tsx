@@ -19,6 +19,8 @@ import { TransactionList, type ListFocus } from './TransactionList'
 
 type Tab = 'summary' | 'transactions' | 'plan' | 'settings'
 
+const PRIVACY_KEY = 'budget-app:privacy'
+
 // Stroke icons drawn on a 24x24 grid.
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'summary', label: 'Summary', icon: 'M4 20V10M10 20V4M16 20v-7M22 20H2' },
@@ -37,6 +39,23 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   const [month, setMonth] = useState(currentMonth)
   const [tab, setTab] = useState<Tab>('summary')
   const [picking, setPicking] = useState(false)
+  // Privacy mode is per device, so hiding numbers on the phone doesn't hide them elsewhere.
+  const [hidden, setHidden] = useState(() => {
+    try {
+      return localStorage.getItem(PRIVACY_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+  const togglePrivacy = () =>
+    setHidden((h) => {
+      try {
+        localStorage.setItem(PRIVACY_KEY, h ? '0' : '1')
+      } catch {
+        // Not stored; still applies until the app closes.
+      }
+      return !h
+    })
   const { scroller, content } = usePull<HTMLDivElement, HTMLDivElement>()
   // Set when a Summary row is tapped: the Transactions tab then shows only its entries.
   const [focus, setFocus] = useState<ListFocus | null>(null)
@@ -82,6 +101,15 @@ export function MonthView({ backend, user, onSignOut }: Props) {
             Back to current month
           </button>
         )}
+        {tab === 'summary' && (
+          <button className="icon ghost privacy" onClick={togglePrivacy} aria-pressed={hidden} aria-label={hidden ? 'Show amounts' : 'Hide amounts'} title={hidden ? 'Show amounts' : 'Hide amounts'}>
+            <svg viewBox="0 0 24 24" aria-hidden>
+              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+              <circle cx="12" cy="12" r="3" />
+              {hidden && <path d="M4 4l16 16" />}
+            </svg>
+          </button>
+        )}
       </header>
 
       <main className="content">
@@ -101,6 +129,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
               onPlan={() => setTab('plan')}
               onSelectMonth={setMonth}
               onOpen={openFocus}
+            hidden={hidden}
             />
           </div>
         ) : tab === 'transactions' ? (

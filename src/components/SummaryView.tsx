@@ -20,16 +20,21 @@ interface Props {
   onSelectMonth: (month: string) => void
   /** Opens the Transactions tab filtered to a category, account or debt. */
   onOpen: (f: ListFocus) => void
+  /** Privacy mode: hide balances, capital, debts, income and spending totals. */
+  hidden: boolean
 }
 
 const TREND_MONTHS = 6
+const MASK = '•••••'
 
-export function SummaryView({ backend, month, summary: s, txns, history, settings, hasPlan, onPlan, onSelectMonth, onOpen }: Props) {
+export function SummaryView({ backend, month, summary: s, txns, history, settings, hasPlan, onPlan, onSelectMonth, onOpen, hidden }: Props) {
   const { currency } = settings
   const money = (n: number) => formatWhole(n, currency)
   const compact = (n: number) => formatCompact(n, currency)
   // Hero tiles are narrow, so they drop the currency the headline already shows.
-  const plain = (n: number) => Math.round(n).toLocaleString()
+  const plain = (n: number) => (hidden ? MASK : Math.round(n).toLocaleString())
+  // Wealth figures that privacy mode hides; budgets and categories stay visible.
+  const secret = (n: number) => (hidden ? MASK : money(n))
   const [updating, setUpdating] = useState<Account | null>(null)
   const plannedSpend = s.planned.expense
   const left = plannedSpend - s.actual.expense
@@ -65,9 +70,9 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
         <div className="hero-main">
           <div>
             <span className="hero-label">{plannedSpend > 0 ? (left >= 0 ? 'Left to spend' : 'Over budget by') : 'Cash + bank'}</span>
-            <div className="hero-value">{money(plannedSpend > 0 ? Math.abs(left) : s.liquidityEnd)}</div>
+            <div className="hero-value">{plannedSpend > 0 ? money(Math.abs(left)) : secret(s.liquidityEnd)}</div>
             <span className="hero-sub">
-              {plannedSpend > 0 ? `${money(s.actual.expense)} spent of ${money(plannedSpend)} budget` : `Capital ${money(s.capital)}`}
+              {plannedSpend > 0 ? `${secret(s.actual.expense)} spent of ${money(plannedSpend)} budget` : `Capital ${secret(s.capital)}`}
             </span>
           </div>
           {plannedSpend > 0 && <BudgetRing pct={pctSpent} />}
@@ -77,7 +82,7 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
           <Stat label="Spent" value={plain(s.spent)} color="var(--expense)" />
           <Stat
             label={s.saved >= 0 ? 'Saved' : 'Overspent'}
-            value={plain(Math.abs(s.saved))}
+            value={Math.round(Math.abs(s.saved)).toLocaleString()}
             tone={s.saved >= 0 ? 'good' : 'bad'}
             sub={s.savingsPct !== null ? `${s.savingsPct >= 0 ? '+' : ''}${s.savingsPct.toFixed(0)}% of income` : undefined}
           />
@@ -97,7 +102,7 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
       <section className="card">
         <div className="card-head">
           <h2>Accounts</h2>
-          <span className="muted small">Capital {money(s.capital)}</span>
+          <span className="muted small">Capital {secret(s.capital)}</span>
         </div>
         <ul className="plain-list accounts">
           {settings.accounts.map((a) => {
@@ -111,13 +116,13 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
                 <span className="grow list-main">
                   <span>{a.name}</span>
                   <span className="muted small">
-                    {delta === 0 ? 'No change' : `${delta > 0 ? '+' : '−'}${money(Math.abs(delta))} this month`}
-                    {interest > 0 && ` · ~${money(interest)} interest (${a.interestPct}%)`}
+                    {hidden ? 'Amount hidden' : delta === 0 ? 'No change' : `${delta > 0 ? '+' : '−'}${money(Math.abs(delta))} this month`}
+                    {interest > 0 && !hidden && ` · ~${money(interest)} interest (${a.interestPct}%)`}
                   </span>
                 </span>
                 </button>
                 <span className="account-end">
-                  <strong>{money(end)}</strong>
+                  <strong>{secret(end)}</strong>
                   {a.type === 'investment' && (
                     <button className="link small" onClick={() => setUpdating(a)}>
                       Update value
@@ -131,7 +136,7 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
         <div className="liquidity">
           <span className="muted small">Cash + bank</span>
           <span>
-            <span className="muted">{money(s.liquidityStart)}</span> → <strong>{money(s.liquidityEnd)}</strong>
+            <span className="muted">{secret(s.liquidityStart)}</span> → <strong>{secret(s.liquidityEnd)}</strong>
           </span>
         </div>
       </section>
@@ -139,7 +144,7 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
       <section className="card">
         <div className="card-head">
           <h2>Spending this month</h2>
-          <span className="muted small">{money(s.spent)}</span>
+          <span className="muted small">{secret(s.spent)}</span>
         </div>
         <Legend
           items={[
@@ -176,7 +181,7 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
         <section className="card">
           <div className="card-head">
             <h2>Debts</h2>
-            <span className="muted small">{money(totalDebt)} owed</span>
+            <span className="muted small">{secret(totalDebt)} owed</span>
           </div>
           {debts.map((d) => {
             const owed = s.end.debts[d.name] ?? 0
@@ -189,7 +194,7 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
                   <div className="cat-line">
                     <span>{d.name}</span>
                     <span>
-                      <strong>{money(owed)}</strong>
+                      <strong>{secret(owed)}</strong>
                       {d.limit > 0 && <span className="muted"> / {money(d.limit)}</span>}
                     </span>
                   </div>
@@ -199,7 +204,7 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
                   </div>
                   <span className="small muted">
                     {paid > 0 ? `Paid ${money(paid)} this month` : 'No payment this month'}
-                    {d.limit > 0 && ` · ${money(Math.max(0, d.limit - owed))} available`}
+                    {d.limit > 0 && ` · ${secret(Math.max(0, d.limit - owed))} available`}
                   </span>
                 </div>
               </button>
@@ -236,7 +241,11 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
               { label: 'Spent', color: 'var(--expense)' },
             ]}
           />
-          <MonthsChart bars={trend as MonthBar[]} current={month} format={money} axisFormat={compact} onSelect={onSelectMonth} />
+          {hidden ? (
+            <p className="muted small">Hidden in privacy mode.</p>
+          ) : (
+            <MonthsChart bars={trend as MonthBar[]} current={month} format={money} axisFormat={compact} onSelect={onSelectMonth} />
+          )}
         </section>
       )}
 
@@ -244,7 +253,7 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
         <section className="card">
           <div className="card-head">
             <h2>Income</h2>
-            <span className="muted small">{money(s.actual.income)}</span>
+            <span className="muted small">{secret(s.actual.income)}</span>
           </div>
           <ul className="plain-list">
             {income.map((r) => (
@@ -253,7 +262,7 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
                   <span className="cat-icon">{categoryIcon(r.category)}</span>
                   <span className="grow">{r.category}</span>
                   <span className="muted small">{r.planned ? `of ${money(r.planned)}` : ''}</span>
-                  <strong>{money(r.actual)}</strong>
+                  <strong>{secret(r.actual)}</strong>
                 </button>
               </li>
             ))}
