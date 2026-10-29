@@ -1,4 +1,4 @@
-import { CapacitorUpdater } from '@capgo/capacitor-updater'
+import { CapacitorUpdater, type BundleInfo } from '@capgo/capacitor-updater'
 import { Capacitor } from '@capacitor/core'
 
 // Each push to main publishes one GitHub release with the APK, the web files as web.zip,
@@ -44,9 +44,28 @@ export async function checkForUpdate(): Promise<Update> {
   return apk ? { kind: 'app', build, ...apk } : { kind: 'none' }
 }
 
+// The quiet download at launch and a tap on Update now can ask for the same build; they
+// share one download, since two at once (or a second one later) fail.
+let downloading: { build: number; bundle: Promise<BundleInfo> } | null = null
+
+async function bundleFor(u: Available): Promise<BundleInfo> {
+  if (downloading?.build === u.build) return downloading.bundle
+  const bundle = (async () => {
+    const { bundles } = await CapacitorUpdater.list()
+    const have = bundles.find((b) => b.version === String(u.build) && (b.status === 'success' || b.status === 'pending'))
+    return have ?? CapacitorUpdater.download({ url: u.url, version: String(u.build), checksum: u.checksum })
+  })()
+  downloading = { build: u.build, bundle }
+  // A failed download can be tried again.
+  bundle.catch(() => {
+    if (downloading?.bundle === bundle) downloading = null
+  })
+  return bundle
+}
+
 /** Downloads new web files; `now` reloads into them, otherwise they load the next time the app opens. */
 export async function applyWebUpdate(u: Available, now: boolean) {
-  const bundle = await CapacitorUpdater.download({ url: u.url, version: String(u.build), checksum: u.checksum })
+  const bundle = await bundleFor(u)
   if (now) await CapacitorUpdater.set({ id: bundle.id })
   else await CapacitorUpdater.next({ id: bundle.id })
 }
