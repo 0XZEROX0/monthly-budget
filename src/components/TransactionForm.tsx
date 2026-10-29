@@ -8,6 +8,9 @@ interface Props {
   settings: Settings
   month: string
   existing: Transaction | null
+  /** A new entry filled in from elsewhere (a bank SMS), saved under this id so it is only added once. */
+  draft?: { id: string; txn: NewTransaction }
+  onSaved?: (t: NewTransaction) => void
   onClose: () => void
 }
 
@@ -32,20 +35,22 @@ const shiftDay = (iso: string, days: number) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-export function TransactionForm({ backend, settings, month, existing, onClose }: Props) {
+export function TransactionForm({ backend, settings, month, existing, draft, onSaved, onClose }: Props) {
   const accounts = settings.accounts.map((a) => a.name)
   const liquid = settings.accounts.filter((a) => a.type !== 'investment').map((a) => a.name)
   const defaultDate = today().startsWith(month) ? today() : `${month}-01`
 
-  const [tab, setTab] = useState<Tab>(existing ? tabOf(existing.kind) : 'expense')
-  const [debtMode, setDebtMode] = useState<'repay' | 'borrow'>(existing?.kind === 'borrow' ? 'borrow' : 'repay')
-  const [amount, setAmount] = useState(existing ? String(existing.amount) : '')
-  const [date, setDate] = useState(existing?.date ?? defaultDate)
-  const [description, setDescription] = useState(existing?.description ?? '')
-  const [category, setCategory] = useState(existing?.category || settings.categories.expense[0] || '')
-  const [account, setAccount] = useState(existing?.account ?? liquid[0] ?? accounts[0] ?? '')
-  const [toAccount, setToAccount] = useState(existing?.toAccount ?? accounts.find((a) => a !== account) ?? '')
-  const [debt, setDebt] = useState(existing?.debt ?? settings.debts[0]?.name ?? '')
+  const init = existing ?? draft?.txn
+  const [tab, setTab] = useState<Tab>(init ? tabOf(init.kind) : 'expense')
+  const [debtMode, setDebtMode] = useState<'repay' | 'borrow'>(init?.kind === 'borrow' ? 'borrow' : 'repay')
+  const [amount, setAmount] = useState(init ? String(init.amount) : '')
+  const [date, setDate] = useState(init?.date ?? defaultDate)
+  const [description, setDescription] = useState(init?.description ?? '')
+  // A draft starts with no category so one has to be picked, unless it remembered one.
+  const [category, setCategory] = useState(draft ? draft.txn.category : existing?.category || settings.categories.expense[0] || '')
+  const [account, setAccount] = useState(init?.account ?? liquid[0] ?? accounts[0] ?? '')
+  const [toAccount, setToAccount] = useState(init?.toAccount ?? accounts.find((a) => a !== account) ?? '')
+  const [debt, setDebt] = useState(init?.debt ?? settings.debts[0]?.name ?? '')
 
   const catKind = tab === 'income' ? 'income' : 'expense'
   const categories = settings.categories[catKind]
@@ -59,6 +64,7 @@ export function TransactionForm({ backend, settings, month, existing, onClose }:
     e.preventDefault()
     const value = Number(amount.replace(',', '.'))
     if (!Number.isFinite(value) || value <= 0) return
+    if ((tab === 'expense' || tab === 'income') && !category) return alert('Pick a category.')
     const base = { amount: value, date, description: description.trim(), category: '' }
     let t: NewTransaction
     if (tab === 'expense' || tab === 'income') t = { ...base, kind: tab, category, account }
@@ -69,7 +75,9 @@ export function TransactionForm({ backend, settings, month, existing, onClose }:
     else t = { ...base, kind: 'borrow', debt, ...(account ? { account } : {}) }
     // Keep an imported entry's month unless the date moved it to another month.
     if (existing && existing.date.slice(0, 7) !== existing.month && date === existing.date) t.month = existing.month
-    report(existing ? backend.updateTransaction(existing.id, t) : backend.addTransaction(t))
+    const id = existing?.id ?? draft?.id
+    report(id ? backend.updateTransaction(id, t) : backend.addTransaction(t))
+    onSaved?.(t)
     onClose()
   }
 

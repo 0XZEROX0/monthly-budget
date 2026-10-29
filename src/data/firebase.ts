@@ -1,5 +1,6 @@
+import { Capacitor } from '@capacitor/core'
 import { initializeApp, type FirebaseApp } from 'firebase/app'
-import { getAuth } from 'firebase/auth'
+import { getAuth, indexedDBLocalPersistence, initializeAuth } from 'firebase/auth'
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
 
 const config = {
@@ -15,7 +16,12 @@ export const firebaseConfigured = Boolean(config.apiKey && config.projectId && c
 
 const app: FirebaseApp | null = firebaseConfigured ? initializeApp(config) : null
 
-export const auth = app ? getAuth(app) : null
+// The Android app signs in with a token from the browser (see App.tsx), so it needs no
+// popup or redirect support; getAuth's defaults for those don't work inside its WebView.
+export const auth = app ? (Capacitor.isNativePlatform() ? initializeAuth(app, { persistence: indexedDBLocalPersistence }) : getAuth(app)) : null
+
+/** The website, where the Android app sends Google sign-in. */
+export const WEB_URL = import.meta.env.VITE_WEB_URL || 'https://0xzerox0.github.io/monthly-budget/'
 
 // Offline cache: the app keeps working without a connection and syncs when back online.
 export const firestore = app

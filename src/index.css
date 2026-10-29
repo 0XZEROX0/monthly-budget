@@ -108,7 +108,8 @@ label.inline { grid-template-columns: 2rem 1fr 8rem; align-items: center; color:
 .signin { min-height: 100dvh; display: grid; place-content: center; justify-items: center; gap: 0.9rem; padding: 2rem; }
 .signin img { border-radius: 22px; box-shadow: 0 10px 30px rgba(75, 63, 209, 0.25); }
 .signin h1 { font-size: 1.7rem; }
-.signin button { min-width: 15rem; }
+.signin button, .signin a.button { min-width: 15rem; }
+a.button.primary { display: inline-block; text-align: center; text-decoration: none; border-radius: 12px; background: var(--accent); color: var(--on-accent); font-weight: 600; padding: 0.85rem 1rem; }
 
 /* Shell */
 .app { max-width: 640px; margin: 0 auto; min-height: 100dvh; padding-bottom: 9rem; }
@@ -306,3 +307,12 @@ button.cat-row.row-link { align-items: flex-start; width: calc(100% + 0.7rem); }
 .plain-list li > button.row-link { width: calc(100% + 0.7rem); }
 .focus-bar { display: flex; align-items: center; gap: 0.75rem; padding: 0.7rem 0.8rem; border-radius: 16px; background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); }
 .focus-bar .chip { flex: none; }
+
+/* Bank SMS waiting to be added */
+.sms-hint { width: 100%; text-align: left; font: inherit; }
+.sms-row { display: grid; gap: 0.25rem; padding-bottom: 0.5rem; }
+.list li + li .sms-row { border-top: 1px solid var(--border); padding-top: 0.3rem; }
+.sms-body { margin: 0 0.6rem; white-space: pre-wrap; unicode-bidi: plaintext; }
+.list .sms-actions { padding: 0 0.6rem; }
+.list .sms-actions button { width: auto; justify-content: center; padding: 0.5rem 0.9rem; border-radius: 12px; }
+.list .sms-actions button.primary { background: var(--accent); color: var(--on-accent); }

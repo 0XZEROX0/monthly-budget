@@ -1,13 +1,16 @@
 import type { User } from 'firebase/auth'
 import { useRef, useState } from 'react'
+import type { BankSms } from '../data/bankSms'
 import { categoryIcon } from '../data/icons'
 import { formatWhole, monthLabel } from '../data/month'
 import type { Account, AccountType, Backend, Debt, Kind, Settings } from '../data/types'
 import { NumberInput } from './NumberInput'
+import { SmsSettingsCard } from './SmsSettingsCard'
 
 interface Props {
   backend: Backend
   settings: Settings
+  sms: BankSms
   user: User | null | undefined
   onSignOut?: () => void
 }
@@ -15,7 +18,7 @@ interface Props {
 const CURRENCIES = ['EGP', 'USD', 'EUR', 'GBP', 'SAR', 'AED', 'KWD', 'QAR', 'TRY']
 const fail = (e: Error) => alert(`Could not save: ${e.message}`)
 
-export function SettingsView({ backend, settings, user, onSignOut }: Props) {
+export function SettingsView({ backend, settings, sms, user, onSignOut }: Props) {
   const save = (s: Settings) => backend.saveSettings(s).catch(fail)
   const setCategories = (kind: Kind, list: string[]) => save({ ...settings, categories: { ...settings.categories, [kind]: list } })
 
@@ -34,6 +37,8 @@ export function SettingsView({ backend, settings, user, onSignOut }: Props) {
           <p className="muted small">Local mode: data is saved in this browser only.</p>
         )}
       </section>
+
+      <SmsSettingsCard sms={sms} settings={settings} onSave={save} />
 
       <ImportCard backend={backend} settings={settings} />
 
@@ -87,7 +92,8 @@ function ImportCard({ backend, settings }: { backend: Backend; settings: Setting
       )
       if (!ok) return setStatus('')
       setStatus('Importing…')
-      await backend.importAll(res)
+      // The sheet knows nothing about bank SMS, so keep those settings.
+      await backend.importAll(settings.sms ? { ...res, settings: { ...res.settings, sms: settings.sms } } : res)
       setStatus(`Imported ${res.transactions.length} entries from ${res.months.length} months.`)
     } catch (e) {
       setStatus(`Import failed: ${(e as Error).message}`)

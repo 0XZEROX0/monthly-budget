@@ -62,6 +62,24 @@ export interface Settings {
   opening: Opening
   /** Expense category that debt repayments count toward (e.g. Instalment); none keeps them separate. */
   debtCategory?: string
+  /** Bank SMS import in the Android app. */
+  sms?: SmsSettings
+}
+
+/** Where a card's spending goes: an account (`account:Bank`) or a debt (`debt:Debt TRU`). */
+export type SmsTarget = `account:${string}` | `debt:${string}`
+
+export interface SmsSettings {
+  /** SMS senders that are banks, e.g. "CIB"; only their messages are read. */
+  senders: string[]
+  /** Last four card digits -> where that card's payments go. */
+  cards: Record<string, SmsTarget>
+  /** For messages without a known card. */
+  defaultTarget?: SmsTarget
+  /** Merchant (lowercased) -> category last picked for it. */
+  merchants: Record<string, string>
+  /** YYYY-MM-DD; messages from before this day are not offered. */
+  since: string
 }
 
 export type Unsubscribe = () => void

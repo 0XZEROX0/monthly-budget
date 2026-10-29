@@ -1,10 +1,13 @@
 import type { User } from 'firebase/auth'
 import { useState } from 'react'
+import { describe, draftFor, smsSettings, smsTxnId, useBankSms } from '../data/bankSms'
 import { emptyPlan } from '../data/defaults'
 import { usePlan, useRange, useSettings, useTransactions } from '../data/hooks'
 import { currentMonth, monthLabel, shiftMonth } from '../data/month'
 import { balancesBefore, summarize } from '../data/summary'
-import type { Backend, Transaction } from '../data/types'
+import type { ParsedSms } from '../data/smsParser'
+import type { Backend, NewTransaction, Settings, SmsTarget, Transaction } from '../data/types'
+import { PendingSms } from './PendingSms'
 import { PlanEditor } from './PlanEditor'
 import { SettingsView } from './SettingsView'
 import { SummaryView } from './SummaryView'
@@ -39,8 +42,11 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   }
   // null: form closed; 'new': adding; a transaction: editing it.
   const [editing, setEditing] = useState<Transaction | 'new' | null>(null)
+  // A bank SMS being reviewed in the add form.
+  const [fromSms, setFromSms] = useState<ParsedSms | null>(null)
 
   const settings = useSettings(backend)
+  const sms = useBankSms(backend, settings)
   const plan = usePlan(backend, month)
   const txns = useTransactions(backend, month)
 
@@ -71,34 +77,40 @@ export function MonthView({ backend, user, onSignOut }: Props) {
         {loading || !summary ? (
           <p className="center muted">Loading…</p>
         ) : tab === 'summary' ? (
-          <SummaryView
-            backend={backend}
-            month={month}
-            summary={summary}
-            txns={txns}
-            history={history}
-            settings={settings}
-            hasPlan={plan !== null}
-            onPlan={() => setTab('plan')}
-            onSelectMonth={setMonth}
-            onOpen={openFocus}
-          />
+          <div className="stack">
+            <PendingSms sms={sms} onAdd={setFromSms} onOpen={() => setTab('transactions')} />
+            <SummaryView
+              backend={backend}
+              month={month}
+              summary={summary}
+              txns={txns}
+              history={history}
+              settings={settings}
+              hasPlan={plan !== null}
+              onPlan={() => setTab('plan')}
+              onSelectMonth={setMonth}
+              onOpen={openFocus}
+            />
+          </div>
         ) : tab === 'transactions' ? (
-          <TransactionList
-            txns={txns}
-            settings={settings}
-            focus={focus}
-            onClearFocus={() => setFocus(null)}
-            onEdit={(t) => {
-              // Balance updates have no form; they can only be removed.
-              if (t.kind !== 'adjust') return setEditing(t)
-              if (confirm('Delete this balance update?')) backend.deleteTransaction(t.id).catch((e: Error) => alert(e.message))
-            }}
-          />
+          <div className="stack">
+            {!focus && <PendingSms sms={sms} onAdd={setFromSms} />}
+            <TransactionList
+              txns={txns}
+              settings={settings}
+              focus={focus}
+              onClearFocus={() => setFocus(null)}
+              onEdit={(t) => {
+                // Balance updates have no form; they can only be removed.
+                if (t.kind !== 'adjust') return setEditing(t)
+                if (confirm('Delete this balance update?')) backend.deleteTransaction(t.id).catch((e: Error) => alert(e.message))
+              }}
+            />
+          </div>
         ) : tab === 'plan' ? (
           <PlanEditor backend={backend} month={month} plan={plan} settings={settings} />
         ) : (
-          <SettingsView backend={backend} settings={settings} user={user} onSignOut={onSignOut} />
+          <SettingsView backend={backend} settings={settings} sms={sms} user={user} onSignOut={onSignOut} />
         )}
       </main>
 
@@ -131,6 +143,28 @@ export function MonthView({ backend, user, onSignOut }: Props) {
           onClose={() => setEditing(null)}
         />
       )}
+
+      {fromSms && settings && (
+        <TransactionForm
+          backend={backend}
+          settings={settings}
+          month={month}
+          existing={null}
+          draft={{ id: smsTxnId(fromSms), txn: draftFor(fromSms, settings) }}
+          onSaved={(t) => remember(backend, settings, fromSms, t)}
+          onClose={() => setFromSms(null)}
+        />
+      )}
     </div>
   )
+}
+
+/** Saves the category picked for this merchant and the account picked for this card, for next time. */
+function remember(backend: Backend, settings: Settings, p: ParsedSms, t: NewTransaction) {
+  const cfg = smsSettings(settings)
+  const target: SmsTarget | null =
+    t.kind === 'expense' || t.kind === 'income' ? `account:${t.account}` : t.kind === 'borrow' && t.debt ? `debt:${t.debt}` : null
+  const merchants = p.merchant && t.category && (t.kind === 'expense' || t.kind === 'income') ? { ...cfg.merchants, [describe(p).toLowerCase()]: t.category } : cfg.merchants
+  const cards = target ? { ...cfg.cards, [p.card]: target } : cfg.cards
+  backend.saveSettings({ ...settings, sms: { ...cfg, merchants, cards } }).catch(() => {})
 }
