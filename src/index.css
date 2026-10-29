@@ -159,7 +159,7 @@ a.button.primary { display: inline-block; text-align: center; text-decoration: n
 /* Shell */
 .app { max-width: 640px; margin: 0 auto; }
 /* The app scrolls inside .app, not the page (see usePull), so the tab bar never stretches. */
-html, body, #root { height: 100%; overflow: hidden; }
+html, body, #root { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .app { height: 100dvh; overflow-y: auto; overscroll-behavior-y: none; -webkit-overflow-scrolling: touch; }
 .pull { padding-bottom: 9rem; min-height: 100%; }
 .topbar {
