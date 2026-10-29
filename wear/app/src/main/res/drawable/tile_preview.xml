@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Shown in the watch's tile picker: a ring with the wallet in the middle. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#FF000000" />
+            <size android:width="192dp" android:height="192dp" />
+        </shape>
+    </item>
+    <item android:left="6dp" android:top="6dp" android:right="6dp" android:bottom="6dp">
+        <shape android:shape="oval">
+            <stroke android:width="6dp" android:color="#FF8AB4F8" />
+        </shape>
+    </item>
+    <item android:drawable="@drawable/ic_wallet" android:gravity="center" android:width="56dp" android:height="56dp" />
+</layer-list>

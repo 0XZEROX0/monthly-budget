@@ -1,0 +1,171 @@
+package com.monthlybudget.app
+
+import android.content.Context
+import org.json.JSONArray
+import org.json.JSONObject
+
+/** What the quick add needs from the budget's settings. */
+data class WatchSettings(
+    val currency: String,
+    val expense: List<String>,
+    val income: List<String>,
+    /** Cash and bank accounts; investments aren't spent from directly. */
+    val accounts: List<String>,
+    val debtCategory: String?,
+) {
+    fun categories(kind: String) = if (kind == "income") income else expense
+
+    companion object {
+        // Matches src/data/defaults.ts, for a budget whose settings were never saved.
+        val DEFAULT = WatchSettings(
+            currency = "EGP",
+            expense = listOf(
+                "Food", "Gifts", "Health/medical", "Home", "Transportation", "Personal",
+                "Bank Fees", "A loan to someone", "Other", "Car", "Instalment",
+            ),
+            income = listOf("Salary", "Other"),
+            accounts = listOf("Cash", "Bank"),
+            debtCategory = "Instalment",
+        )
+    }
+}
+
+/** The month at a glance, as the phone's Summary shows it. */
+data class Glance(
+    val month: String,
+    val currency: String,
+    /** Planned spending for the month. */
+    val planned: Double,
+    /** Expenses (and repayments in the debt category) so far. */
+    val spent: Double,
+    val updatedAt: Long,
+) {
+    val left get() = planned - spent
+    val fractionSpent get() = if (planned > 0) (spent / planned).toFloat().coerceIn(0f, 1f) else 0f
+}
+
+/** One quick-add entry, kept until Firestore has it. */
+data class Entry(
+    val id: String,
+    val kind: String,
+    val amount: Double,
+    val category: String,
+    val account: String,
+    val date: String,
+)
+
+/** Everything the watch keeps on itself. */
+object Store {
+    private fun prefs(context: Context) = context.getSharedPreferences("budget", Context.MODE_PRIVATE)
+
+    fun link(context: Context): Link? {
+        val p = prefs(context)
+        val token = p.getString("refreshToken", null) ?: return null
+        return Link(
+            token,
+            p.getString("uid", "")!!,
+            p.getString("apiKey", "")!!,
+            p.getString("projectId", "")!!,
+            p.getBoolean("hidden", false),
+        )
+    }
+
+    fun saveLink(context: Context, link: Link?) {
+        val p = prefs(context)
+        val sameUser = link != null && p.getString("uid", null) == link.uid
+        p.edit().apply {
+            // Another account (or none): drop the old one's figures and unsent entries.
+            if (!sameUser) {
+                remove("glance")
+                remove("settings")
+                remove("queue")
+            }
+            if (link == null) {
+                listOf("refreshToken", "uid", "apiKey", "projectId", "hidden").forEach(::remove)
+            } else {
+                putString("refreshToken", link.refreshToken)
+                putString("uid", link.uid)
+                putString("apiKey", link.apiKey)
+                putString("projectId", link.projectId)
+                putBoolean("hidden", link.hidden)
+            }
+        }.apply()
+        Auth.forget()
+    }
+
+    fun glance(context: Context): Glance? {
+        val o = prefs(context).getString("glance", null)?.let(::JSONObject) ?: return null
+        return Glance(o.getString("month"), o.getString("currency"), o.getDouble("planned"), o.getDouble("spent"), o.getLong("updatedAt"))
+    }
+
+    fun saveGlance(context: Context, g: Glance) {
+        val o = JSONObject()
+            .put("month", g.month)
+            .put("currency", g.currency)
+            .put("planned", g.planned)
+            .put("spent", g.spent)
+            .put("updatedAt", g.updatedAt)
+        prefs(context).edit().putString("glance", o.toString()).apply()
+    }
+
+    fun settings(context: Context): WatchSettings {
+        val o = prefs(context).getString("settings", null)?.let(::JSONObject) ?: return WatchSettings.DEFAULT
+        fun list(key: String) = o.getJSONArray(key).let { a -> (0 until a.length()).map { a.getString(it) } }
+        return WatchSettings(
+            o.getString("currency"),
+            list("expense"),
+            list("income"),
+            list("accounts"),
+            if (o.isNull("debtCategory")) null else o.getString("debtCategory"),
+        )
+    }
+
+    fun saveSettings(context: Context, s: WatchSettings) {
+        val o = JSONObject()
+            .put("currency", s.currency)
+            .put("expense", JSONArray(s.expense))
+            .put("income", JSONArray(s.income))
+            .put("accounts", JSONArray(s.accounts))
+            .put("debtCategory", s.debtCategory ?: JSONObject.NULL)
+        prefs(context).edit().putString("settings", o.toString()).apply()
+    }
+
+    fun queue(context: Context): List<Entry> {
+        val a = prefs(context).getString("queue", null)?.let(::JSONArray) ?: return emptyList()
+        return (0 until a.length()).map {
+            val o = a.getJSONObject(it)
+            Entry(o.getString("id"), o.getString("kind"), o.getDouble("amount"), o.getString("category"), o.getString("account"), o.getString("date"))
+        }
+    }
+
+    fun saveQueue(context: Context, entries: List<Entry>) {
+        val a = JSONArray()
+        for (e in entries) {
+            a.put(
+                JSONObject()
+                    .put("id", e.id)
+                    .put("kind", e.kind)
+                    .put("amount", e.amount)
+                    .put("category", e.category)
+                    .put("account", e.account)
+                    .put("date", e.date),
+            )
+        }
+        prefs(context).edit().putString("queue", a.toString()).apply()
+    }
+
+    /** The account last picked for this kind, so the next entry starts there. */
+    fun lastAccount(context: Context, kind: String): String? = prefs(context).getString("account:$kind", null)
+
+    /** Most recent first. */
+    fun recentCategories(context: Context, kind: String): List<String> =
+        prefs(context).getString("recent:$kind", "")!!.split('\n').filter { it.isNotEmpty() }
+
+    fun remember(context: Context, kind: String, category: String, account: String) {
+        val recent = (listOf(category) + recentCategories(context, kind).filter { it != category }).take(3)
+        prefs(context).edit()
+            .putString("account:$kind", account)
+            .putString("recent:$kind", recent.joinToString("\n"))
+            .apply()
+    }
+}

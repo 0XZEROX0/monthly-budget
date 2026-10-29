@@ -7,6 +7,7 @@ import { currentMonth, monthLabel, shiftMonth } from '../data/month'
 import { balancesBefore, summarize } from '../data/summary'
 import { applyTheme } from '../data/theme'
 import type { ParsedSms } from '../data/smsParser'
+import { shareWithWatch } from '../native/wear'
 import type { Backend, NewTransaction, Settings, SmsTarget, Transaction } from '../data/types'
 import { PendingSms } from './PendingSms'
 import { MonthPicker } from './MonthPicker'
@@ -56,6 +57,8 @@ export function MonthView({ backend, user, onSignOut }: Props) {
       }
       return !h
     })
+  // The watch follows this phone's privacy mode.
+  useEffect(() => shareWithWatch({ hidden }), [hidden])
   const { scroller, content } = usePull<HTMLDivElement, HTMLDivElement>()
   // Set when a Summary row is tapped: the Transactions tab then shows only its entries.
   const [focus, setFocus] = useState<ListFocus | null>(null)

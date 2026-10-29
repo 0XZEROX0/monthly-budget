@@ -18,6 +18,7 @@ import { auth, firebaseConfigured, firestore, WEB_URL } from './data/firebase'
 import { createFirestoreBackend } from './data/firestoreBackend'
 import { createLocalBackend } from './data/localBackend'
 import { GoogleSignIn } from './native/googleSignIn'
+import { shareWithWatch } from './native/wear'
 
 // Google doesn't allow its sign-in page inside an app's WebView. The Android app shows
 // Google's own account picker instead (GoogleSignInPlugin). If that isn't set up, it opens
@@ -32,6 +33,11 @@ export default function App() {
   const [authError, setAuthError] = useState('')
 
   useEffect(() => (auth ? onAuthStateChanged(auth, setUser) : undefined), [])
+
+  // Signs the Galaxy Watch app in (and out) along with this one.
+  useEffect(() => {
+    if (user !== undefined) shareWithWatch({ user })
+  }, [user])
 
   useEffect(() => {
     if (!native || !auth) return
