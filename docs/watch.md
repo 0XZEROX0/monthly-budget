@@ -4,6 +4,7 @@ A Wear OS companion for the budget, made for the Galaxy Watch 8 (it runs on any 
 
 - **Quick add**: tap **Add expense** or **Add income**, type the amount, tap a category. The chip at the top picks the account (Cash, Bank…). Your last category comes first.
 - **Glance**: left to spend this month with a ring for how much of the plan is used, the same figure as the phone's Summary.
+- **This month**: scroll down for income, spent, the categories you've spent most in (against their budgets) and your latest entries.
 - **Tile**: left to spend plus **−** and **+** buttons that go straight to the keypad.
 - **Complication**: "left to spend" for your watch face (short text or a ring).
 - **Privacy mode**: when the eye is on in the phone app, the watch, tile and complication show percentages instead of amounts. Tap the amount in the watch app to show it until you close the app.
@@ -48,6 +49,16 @@ Install **Bugjaeger** or **Wear Installer 2** from the Play Store, pair with the
 - **Tile**: swipe left from the watch face to the end of your tiles, tap **+ Add**, pick **Budget**.
 - **Complication**: long-press the watch face › **Customize** › tap a slot › **Budget › Left to spend**.
 - You can turn **Wireless debugging** off again afterwards.
+
+## Updates
+
+You only need adb once. When a newer watch build is out, the watch app shows **Update watch app**; tap it and confirm on the watch. It downloads the APK from the `wear` release (about 2 MB) and Android's installer updates it in place, keeping your data.
+
+If tapping it does nothing or Android says the app isn't allowed to install apps, allow it once from the computer while adb is connected:
+
+```sh
+adb shell appops set com.monthlybudget.app REQUEST_INSTALL_PACKAGES allow
+```
 
 ## Building
 
