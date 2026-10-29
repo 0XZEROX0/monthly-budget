@@ -19,7 +19,7 @@ Firestore under `users/{uid}`, syncing live across devices and working offline.
 Without Firebase config the app runs in local mode (this browser only).
 
 1. Create a Firebase project, enable **Authentication > Google** and **Firestore**.
-2. Copy `.env.example` to `.env.local` and fill in the web app config.
+2. Put the web app config in `.env` (already set for monthly-budget-393b6; `.env.example` shows the keys).
 3. Deploy `firestore.rules` (each user can only access their own data).
 
 ## Develop
