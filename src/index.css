@@ -335,3 +335,6 @@ button.cat-row.row-link { align-items: flex-start; width: calc(100% + 0.7rem); }
 .ring { flex: none; overflow: visible; }
 .hero-main > div:first-child { min-width: 0; }
 .hero-value { font-size: clamp(1.9rem, 9vw, 2.6rem); overflow-wrap: anywhere; }
+.plan-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.plan-head h2 { font-size: 1.1rem; }
+button.small-btn { padding: 0.55rem 1.1rem; flex: none; }

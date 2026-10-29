@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { emptyPlan } from '../data/defaults'
-import { formatWhole, shiftMonth } from '../data/month'
+import { formatWhole, monthLabel, shiftMonth } from '../data/month'
 import type { Backend, Kind, MonthPlan, Settings } from '../data/types'
 import { NumberInput } from './NumberInput'
 import { categoryIcon } from '../data/icons'
@@ -43,6 +43,12 @@ export function PlanEditor({ backend, month, plan, settings }: Props) {
 
   return (
     <div className="stack">
+      <div className="plan-head">
+        <h2>Budget for {monthLabel(month)}</h2>
+        <button className="primary small-btn" disabled={!dirty} onClick={save}>
+          {dirty ? 'Save' : 'Saved ✓'}
+        </button>
+      </div>
       <section className="card">
         <p className="muted small">Set how much you plan to spend in each category this month. Starting balances come from your accounts automatically.</p>
         <button className="link" onClick={copyPrevious}>
@@ -66,11 +72,6 @@ export function PlanEditor({ backend, month, plan, settings }: Props) {
           ))}
         </section>
       ))}
-      <div className="sticky-actions">
-        <button className="primary" disabled={!dirty} onClick={save}>
-          {dirty ? 'Save plan' : 'Saved'}
-        </button>
-      </div>
     </div>
   )
 }
