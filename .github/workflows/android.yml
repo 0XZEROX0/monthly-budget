@@ -1,0 +1,70 @@
+name: Android APK
+
+on:
+  push:
+    branches: [main, 'claude/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap sync android
+
+      # Optional private signing key; without it the committed debug key is used.
+      - name: Load signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        if: env.KEYSTORE_BASE64 != ''
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+
+      - name: Build APK
+        working-directory: android
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/monthly-budget.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: monthly-budget-apk
+          path: ${{ runner.temp }}/monthly-budget.apk
+
+      # main always replaces one release, so the download link never changes:
+      # https://github.com/<owner>/<repo>/releases/latest/download/monthly-budget.apk
+      - name: Publish release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete android --yes --cleanup-tag || true
+          gh release create android "$RUNNER_TEMP/monthly-budget.apk" \
+            --title "Monthly Budget for Android (build ${{ github.run_number }})" \
+            --notes "Built from ${{ github.sha }}. Install on your phone: open this page on Android and tap monthly-budget.apk." \
+            --target "${{ github.sha }}" --latest

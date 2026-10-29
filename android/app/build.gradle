@@ -1,0 +1,68 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace = "com.monthlybudget.app"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "com.monthlybudget.app"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        // CI passes the run number so each new APK installs over the last one.
+        versionCode (System.getenv("VERSION_CODE") ?: "1") as Integer
+        versionName "1.0." + (System.getenv("VERSION_CODE") ?: "0")
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    signingConfigs {
+        // A private key from the ANDROID_KEYSTORE_* secrets when they exist. Otherwise this
+        // committed debug key, which keeps the signature the same from build to build so
+        // updates install over the old app; anyone with the repo can sign with it.
+        release {
+            def ks = System.getenv("ANDROID_KEYSTORE_FILE")
+            storeFile ks ? file(ks) : file("shared-debug.keystore")
+            storePassword ks ? System.getenv("ANDROID_KEYSTORE_PASSWORD") : "android"
+            keyAlias ks ? System.getenv("ANDROID_KEY_ALIAS") : "androiddebugkey"
+            keyPassword ks ? System.getenv("ANDROID_KEY_PASSWORD") : "android"
+        }
+    }
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

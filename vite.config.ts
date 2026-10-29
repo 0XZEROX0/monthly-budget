@@ -10,6 +10,8 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Registered from main.tsx, and only on the website: the Android app ships its files inside the APK.
+      injectRegister: false,
       includeAssets: ['favicon.svg'],
       manifest: {
         name: 'Monthly Budget',
