@@ -495,3 +495,4 @@ button.holder-name strong { overflow: hidden; text-overflow: ellipsis; white-spa
 .layout-list li { display: flex; align-items: center; gap: 0.7rem; padding: 0.5rem 0.6rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; touch-action: pan-y; user-select: none; }
 .layout-list li.layout-off { opacity: 0.5; }
 .layout-grip { color: var(--text-2); font-size: 1.1rem; }
+.edit-row.toggle-row > .grow { white-space: normal; overflow: visible; }
