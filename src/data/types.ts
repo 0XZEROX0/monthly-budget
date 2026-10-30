@@ -27,7 +27,8 @@ export interface Transaction {
 
 export type NewTransaction = Omit<Transaction, 'id' | 'month'> & { month?: string }
 
-export type AccountType = 'cash' | 'bank' | 'investment'
+/** Cash, bank and e-wallets count as money you can spend; investments as capital. Types the user adds count like a bank. */
+export type AccountType = 'cash' | 'bank' | 'wallet' | 'investment' | (string & {})
 
 export interface Account {
   name: string
@@ -60,6 +61,8 @@ export interface Settings {
   categories: Record<Kind, string[]>
   accounts: Account[]
   debts: Debt[]
+  /** Account types the user added, besides Cash, Bank, E-wallet and Investment. */
+  accountTypes?: string[]
   opening: Opening
   /** Expense category that debt repayments count toward (e.g. Instalment); none keeps them separate. */
   debtCategory?: string

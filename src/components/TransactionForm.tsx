@@ -6,6 +6,7 @@ import { categoryIcon } from '../data/icons'
 import { today } from '../data/month'
 import type { Backend, NewTransaction, Settings, Transaction, TxnKind } from '../data/types'
 import { ask, askForm, askText, showAlert } from './dialog'
+import { askRenameCategory } from './categoryRename'
 
 interface Props {
   backend: Backend
@@ -82,6 +83,14 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
     if (!name) return
     if (!categories.includes(name)) saveSettings({ ...settings, categories: { ...settings.categories, [catKind]: [...categories, name] } })
     setCategory(name)
+  }
+  // Tapping the picked category again renames it.
+  const pickCategory = async (c: string) => {
+    if (c !== category) return setCategory(c)
+    const to = await askRenameCategory(backend, settings, catKind, c)
+    if (!to) return
+    setSettings({ ...settings, categories: { ...settings.categories, [catKind]: categories.map((x) => (x === c ? to : x)) } })
+    setCategory(to)
   }
   // Hold a category and drag it to reorder; the order is saved for next time.
   const reorder = useReorder(categories, (next) => saveSettings({ ...settings, categories: { ...settings.categories, [catKind]: next } }))
@@ -234,7 +243,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
         {(tab === 'expense' || tab === 'income') && (
           <div className="field">
             <span className="field-label">
-              Category <span className="muted small">· hold and drag to reorder</span>
+              Category <span className="muted small">· tap again to rename, hold to reorder</span>
             </span>
             <div className="cat-grid" role="radiogroup">
               {!categories.includes(category) && category && (
@@ -244,7 +253,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
                 </button>
               )}
               {reorder.order.map((c) => (
-                <button type="button" role="radio" aria-checked={c === category} key={c} {...reorder.itemProps(c, c === category ? 'active' : '')} onClick={() => setCategory(c)}>
+                <button type="button" role="radio" aria-checked={c === category} key={c} {...reorder.itemProps(c, c === category ? 'active' : '')} onClick={() => pickCategory(c)}>
                   <span className="cat-icon">{categoryIcon(c)}</span>
                   <span className="cat-name">{c.replace('/', '/​')}</span>
                 </button>

@@ -64,7 +64,7 @@ export function GoalsEditor({ settings, onSave }: { settings: Settings; onSave: 
   const goals = settings.goals ?? []
   const [editing, setEditing] = useState<Goal | null>(null)
   const set = (list: Goal[]) => onSave({ ...settings, goals: list })
-  const savers = settings.accounts.filter((a) => a.type !== 'cash').map((a) => a.name)
+  const savers = settings.accounts.filter((a) => a.type !== 'cash' && a.type !== 'wallet').map((a) => a.name)
   const money = (n: number) => formatWhole(n, settings.currency)
   return (
     <section className="card" id="goals">

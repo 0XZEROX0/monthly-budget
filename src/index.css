@@ -460,3 +460,4 @@ input[type='checkbox'][role='switch']:checked::after { transform: translateX(1.1
 .app-dialog .dialog p { white-space: pre-line; }
 .app-dialog .dialog input { width: 100%; }
 button.danger.solid { background: var(--critical); color: #fff; border-color: transparent; font-weight: 600; }
+.chips button.chip-name { color: var(--text); padding: 0; font: inherit; }
