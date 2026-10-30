@@ -1,10 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { useReorder } from './useReorder'
 import { guessType } from '../data/accounts'
-import { defaultFee, feeCategory, feeFor, FEES, type FeeKind } from '../data/fees'
+import { defaultFee, feeCategory, feeFor, feeHint, feeTemplates, type FeeKind } from '../data/fees'
 import { categoryIcon } from '../data/icons'
 import { today } from '../data/month'
 import type { Backend, NewTransaction, Settings, Transaction, TxnKind } from '../data/types'
+import { ask, askForm, askText, showAlert } from './dialog'
 
 interface Props {
   backend: Backend
@@ -30,7 +31,7 @@ const tabOf = (k: TxnKind): Tab => (k === 'repay' || k === 'borrow' ? 'debt' : k
 
 // Writes are not awaited: with the offline cache they apply locally at once and
 // sync later, so waiting on the server would freeze the form without a connection.
-const report = (p: Promise<void>) => p.catch((e: Error) => alert(`Could not save: ${e.message}`))
+const report = (p: Promise<void>) => p.catch((e: Error) => showAlert(`Could not save: ${e.message}`))
 
 const shiftDay = (iso: string, days: number) => {
   const d = new Date(iso + 'T00:00')
@@ -61,23 +62,23 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
   const [account, setAccount] = useState(init?.account ?? liquid[0] ?? accounts[0] ?? '')
   const [toAccount, setToAccount] = useState(init?.toAccount ?? accounts.find((a) => a !== account) ?? '')
   // A transfer fee, saved as its own expense; only offered when adding money going out.
-  const [fee, setFee] = useState<FeeKind>(() => (init ? 'none' : defaultFee(account)))
+  const [fee, setFee] = useState<FeeKind>(() => (init ? 'none' : defaultFee(account, settings.feeTemplates)))
   const [customFee, setCustomFee] = useState('')
   const [feeTouched, setFeeTouched] = useState(false)
   const [debt, setDebt] = useState(init?.debt ?? settings.debts[0]?.name ?? '')
 
   const catKind = tab === 'income' ? 'income' : 'expense'
   const categories = settings.categories[catKind]
-  const addAccount = () => {
-    const name = prompt('New account name (for example Wallet, CIB card, Instapay):')?.trim()
+  const addAccount = async () => {
+    const name = (await askText('Give it a name, like Wallet, CIB card or Instapay.', { title: 'New account', placeholder: 'Account name' }))?.trim()
     if (!name) return
     if (!accounts.includes(name)) saveSettings({ ...settings, accounts: [...settings.accounts, { name, type: guessType(name) }] })
     setAccount(name)
-    if (!feeTouched) setFee(defaultFee(name))
+    if (!feeTouched) setFee(defaultFee(name, settings.feeTemplates))
     if (name === toAccount) setToAccount(accounts.find((x) => x !== name) ?? '')
   }
-  const addCategory = () => {
-    const name = prompt(`New ${catKind} category:`)?.trim()
+  const addCategory = async () => {
+    const name = (await askText(`It's added to your ${catKind} categories.`, { title: `New ${catKind} category`, placeholder: 'Category name' }))?.trim()
     if (!name) return
     if (!categories.includes(name)) saveSettings({ ...settings, categories: { ...settings.categories, [catKind]: [...categories, name] } })
     setCategory(name)
@@ -93,18 +94,54 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
   const sendsMoney = tab === 'expense' || tab === 'transfer' || (tab === 'debt' && debtMode === 'repay')
   const showFee = !existing && sendsMoney
   const amountValue = Number(amount.replace(',', '.'))
-  const feeValue = !showFee ? 0 : fee === 'custom' ? Number(customFee.replace(',', '.')) || 0 : feeFor(fee, amountValue)
+  const templates = feeTemplates(settings)
+  const feeTemplate = templates.find((t) => t.id === fee)
+  const feeValue = !showFee ? 0 : fee === 'custom' ? Number(customFee.replace(',', '.')) || 0 : feeFor(feeTemplate, amountValue)
+  const ownTemplates = settings.feeTemplates ?? []
+  const pickFee = (id: FeeKind) => {
+    setFee(id)
+    setFeeTouched(true)
+  }
+  // A fee template of the user's own: a percentage kept between an optional minimum and maximum.
+  const addFeeTemplate = async () => {
+    const v = await askForm(
+      'Worked out as a percentage of the amount, like InstaPay.',
+      [
+        { key: 'name', label: 'Name', placeholder: 'Like Bank transfer' },
+        { key: 'pct', label: 'Percentage', placeholder: 'Like 0.5', inputMode: 'decimal' },
+        { key: 'min', label: 'Minimum (optional)', placeholder: 'No minimum', inputMode: 'decimal' },
+        { key: 'max', label: 'Maximum (optional)', placeholder: 'No maximum', inputMode: 'decimal' },
+      ],
+      { title: 'New fee' },
+    )
+    if (!v) return
+    const n = (k: string) => (v[k]?.trim() ? Number(v[k].replace(',', '.').replace('%', '')) : undefined)
+    const name = v.name?.trim()
+    const [pct, min, max] = [n('pct'), n('min'), n('max')]
+    if (!name || pct == null || !(pct >= 0) || [min, max].some((x) => x != null && !(x >= 0)))
+      return void showAlert('Give it a name and a percentage, with numbers for the minimum and maximum if you set them.')
+    if (min != null && max != null && min > max) return void showAlert('The minimum is more than the maximum.')
+    const t = { id: crypto.randomUUID(), name, pct, ...(min != null ? { min } : {}), ...(max != null ? { max } : {}) }
+    saveSettings({ ...settings, feeTemplates: [...ownTemplates, t] })
+    pickFee(t.id)
+  }
+  const removeFeeTemplate = async (id: string) => {
+    const t = ownTemplates.find((x) => x.id === id)
+    if (!t || !(await ask(`Remove the ${t.name} fee? Fees already saved stay.`, { ok: 'Remove', danger: true }))) return
+    saveSettings({ ...settings, feeTemplates: ownTemplates.filter((x) => x.id !== id) })
+    pickFee('none')
+  }
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
     const value = Number(amount.replace(',', '.'))
     if (!Number.isFinite(value) || value <= 0) return
-    if ((tab === 'expense' || tab === 'income') && !category) return alert('Pick a category.')
+    if ((tab === 'expense' || tab === 'income') && !category) return void showAlert('Pick a category.')
     const base = { amount: value, date, description: description.trim(), category: '' }
     let t: NewTransaction
     if (tab === 'expense' || tab === 'income') t = { ...base, kind: tab, category, account }
     else if (tab === 'transfer') {
-      if (account === toAccount) return alert('Pick two different accounts.')
+      if (account === toAccount) return void showAlert('Pick two different accounts.')
       t = { ...base, kind: 'transfer', account, toAccount }
     } else if (debtMode === 'repay') t = { ...base, kind: 'repay', account, debt }
     else t = { ...base, kind: 'borrow', debt, ...(account ? { account } : {}) }
@@ -114,7 +151,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
     if (feeValue > 0) {
       // The fee is its own expense from the same account, saved next to the entry it belongs to.
       const mainId = id ?? crypto.randomUUID()
-      const label = FEES.find((f) => f.id === fee)?.label ?? 'Transfer'
+      const label = feeTemplate?.name ?? 'Transfer'
       report(backend.updateTransaction(mainId, t))
       report(
         backend.updateTransaction(`${mainId}-fee`, {
@@ -124,7 +161,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
           ...(t.month ? { month: t.month } : {}),
           category: feeCategory(settings.categories.expense),
           account,
-          description: `${fee === 'custom' ? 'Transfer' : label} fee${t.description ? ` · ${t.description}` : ''}`,
+          description: `${label} fee${t.description ? ` · ${t.description}` : ''}`,
         }),
       )
     } else report(id ? backend.updateTransaction(id, t) : backend.addTransaction(t))
@@ -132,8 +169,8 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
     onClose()
   }
 
-  const remove = () => {
-    if (!existing || !confirm('Delete this entry?')) return
+  const remove = async () => {
+    if (!existing || !(await ask('Delete this entry?', { ok: 'Delete', danger: true }))) return
     report(backend.deleteTransaction(existing.id))
     onClose()
   }
@@ -186,7 +223,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
             // Borrowed money doesn't have to land in an account: tapping the chosen one clears it.
             if (tab === 'debt' && debtMode === 'borrow' && a === account) return setAccount('')
             setAccount(a)
-            if (!feeTouched) setFee(defaultFee(a))
+            if (!feeTouched) setFee(defaultFee(a, settings.feeTemplates))
             if (a === toAccount) setToAccount(accounts.find((x) => x !== a) ?? '')
           }}
           onAdd={addAccount}
@@ -226,26 +263,31 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
               Fee{feeValue > 0 && <span className="muted small"> · {settings.currency} {feeValue.toLocaleString(undefined, { maximumFractionDigits: 2 })} from {account}</span>}
             </span>
             <div className="row wrap" role="radiogroup" aria-label="Fee">
-              {FEES.map((f) => (
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={fee === f.id}
-                  key={f.id}
-                  className={`chip ${fee === f.id ? 'active' : ''}`}
-                  onClick={() => {
-                    setFee(f.id)
-                    setFeeTouched(true)
-                  }}
-                >
-                  {f.label}
+              {[{ id: 'none', name: 'No fee' }, ...templates, { id: 'custom', name: 'Other' }].map((f) => (
+                <button type="button" role="radio" aria-checked={fee === f.id} key={f.id} className={`chip ${fee === f.id ? 'active' : ''}`} onClick={() => pickFee(f.id)}>
+                  {f.name}
                 </button>
               ))}
+              <button type="button" className="chip chip-add" onClick={addFeeTemplate} aria-label="New fee">
+                + New
+              </button>
             </div>
             {fee === 'custom' ? (
               <input inputMode="decimal" value={customFee} onChange={(e) => setCustomFee(e.target.value)} placeholder="Fee amount" aria-label="Fee amount" />
             ) : (
-              fee !== 'none' && <span className="muted small">{FEES.find((f) => f.id === fee)?.hint}</span>
+              feeTemplate && (
+                <span className="muted small">
+                  {feeHint(feeTemplate)}
+                  {ownTemplates.some((t) => t.id === fee) && (
+                    <>
+                      {' · '}
+                      <button type="button" className="link small" onClick={() => removeFeeTemplate(fee)}>
+                        Remove
+                      </button>
+                    </>
+                  )}
+                </span>
+              )
             )}
           </div>
         )}

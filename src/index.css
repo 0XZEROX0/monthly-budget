@@ -454,3 +454,9 @@ input[type='checkbox'][role='switch']:checked::after { transform: translateX(1.1
 /* Lifted: a little bigger, a soft shadow, above the others. Its position follows the finger (set inline). */
 .reorder-dragging { scale: 1.12; box-shadow: 0 14px 30px rgba(0, 0, 0, 0.22); position: relative; z-index: 2; cursor: grabbing; }
 .reorder-moving { position: relative; z-index: 1; }
+/* In-app alert / confirm / prompt (dialog.tsx) */
+.app-dialog { z-index: 30; }
+.app-dialog .dialog { text-align: left; }
+.app-dialog .dialog p { white-space: pre-line; }
+.app-dialog .dialog input { width: 100%; }
+button.danger.solid { background: var(--critical); color: #fff; border-color: transparent; font-weight: 600; }

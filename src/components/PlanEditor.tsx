@@ -4,6 +4,7 @@ import { formatWhole, monthLabel, shiftMonth } from '../data/month'
 import type { Backend, Kind, MonthPlan, Settings } from '../data/types'
 import { NumberInput } from './NumberInput'
 import { categoryIcon } from '../data/icons'
+import { showAlert } from './dialog'
 
 interface Props {
   backend: Backend
@@ -29,14 +30,14 @@ export function PlanEditor({ backend, month, plan, settings }: Props) {
     update({ ...draft, planned: { ...draft.planned, [kind]: { ...draft.planned[kind], [category]: value } } })
 
   const save = () => {
-    backend.savePlan(month, draft).catch((e: Error) => alert(`Could not save: ${e.message}`))
+    backend.savePlan(month, draft).catch((e: Error) => showAlert(`Could not save: ${e.message}`))
     setDirty(false)
   }
 
   const copyPrevious = () => {
     const unsub = backend.watchPlan(shiftMonth(month, -1), (prev) => {
       queueMicrotask(() => unsub())
-      if (!prev) return alert('Last month has no plan to copy.')
+      if (!prev) return void showAlert('Last month has no plan to copy.')
       update(prev)
     })
   }

@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { formatWhole, today } from '../data/month'
 import type { Account, Backend, Settings } from '../data/types'
+import { showAlert } from './dialog'
 
 interface Props {
   backend: Backend
@@ -26,13 +27,13 @@ export function BalanceForm({ backend, account, month, current, settings, onClos
       const date = today().startsWith(month) ? today() : `${month}-01`
       backend
         .addTransaction({ kind: 'adjust', account: account.name, amount: diff, date, month, description: 'Value change', category: '' })
-        .catch((err: Error) => alert(`Could not save: ${err.message}`))
+        .catch((err: Error) => showAlert(`Could not save: ${err.message}`))
     }
     const pct = Number(rate.replace(',', '.'))
     if (account.type === 'investment' && rate.trim() && Number.isFinite(pct) && pct !== account.interestPct)
       backend
         .saveSettings({ ...settings, accounts: settings.accounts.map((a) => (a.name === account.name ? { ...a, interestPct: pct } : a)) })
-        .catch((err: Error) => alert(`Could not save: ${err.message}`))
+        .catch((err: Error) => showAlert(`Could not save: ${err.message}`))
     onClose()
   }
 

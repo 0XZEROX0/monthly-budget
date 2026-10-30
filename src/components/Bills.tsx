@@ -5,8 +5,9 @@ import { formatWhole } from '../data/month'
 import type { Backend, Bill, BillType, Settings, Transaction } from '../data/types'
 import { notificationsAllowed } from '../native/notify'
 import { NumberInput } from './NumberInput'
+import { ask, askText, showAlert } from './dialog'
 
-const fail = (e: Error) => alert(`Could not save: ${e.message}`)
+const fail = (e: Error) => showAlert(`Could not save: ${e.message}`)
 
 const STATUS_ORDER: Record<BillStatus, number> = { late: 0, due: 1, upcoming: 2, paid: 3 }
 
@@ -19,19 +20,19 @@ export function BillsCard({ backend, settings, month, txns }: { backend: Backend
   const unpaid = rows.filter((r) => r.status !== 'paid')
   const owed = unpaid.reduce((a, r) => a + r.b.amount, 0)
 
-  const pay = (b: Bill) => {
+  const pay = async (b: Bill) => {
     let amount = b.amount
     if (!amount) {
-      const v = Number(prompt(`How much did you pay for ${b.name}?`)?.replace(',', '.'))
+      const v = Number((await askText(`How much did you pay for ${b.name}?`, { placeholder: 'Amount', inputMode: 'decimal', ok: 'Paid' }))?.replace(',', '.'))
       if (!Number.isFinite(v) || v <= 0) return
       amount = v
     }
     backend.updateTransaction(billTxnId(b, month), paymentFor(b, month, settings, amount)).catch(fail)
   }
-  const unpay = (b: Bill) => {
+  const unpay = async (b: Bill) => {
     const id = billTxnId(b, month)
-    if (!txns.some((t) => t.id === id)) return alert(`A payment to ${b.debt} this month counts as paid. Delete it under Transactions to undo.`)
-    if (confirm(`Mark ${b.name} as not paid? Its payment entry is deleted.`)) backend.deleteTransaction(id).catch(fail)
+    if (!txns.some((t) => t.id === id)) return showAlert(`A payment to ${b.debt} this month counts as paid. Delete it under Transactions to undo.`)
+    if (await ask(`Mark ${b.name} as not paid? Its payment entry is deleted.`, { ok: 'Not paid', danger: true })) backend.deleteTransaction(id).catch(fail)
   }
 
   return (
@@ -150,7 +151,7 @@ function BillForm({ bill, settings, onSave, onRemove, onClose }: { bill: Bill; s
     up({ name, ...(match ? { debt: match.name } : {}) })
   }
   const save = () => {
-    if (!b.name.trim()) return alert('Give it a name, like TRU or CIB card.')
+    if (!b.name.trim()) return void showAlert('Give it a name, like TRU or CIB card.')
     onSave({ ...b, name: b.name.trim(), day: Math.min(31, Math.max(1, Math.round(b.day) || 1)), windowDays: Math.min(28, Math.max(1, Math.round(b.windowDays) || 1)) })
     onClose()
   }
@@ -233,7 +234,7 @@ function BillForm({ bill, settings, onSave, onRemove, onClose }: { bill: Bill; s
         </label>
         <div className="row">
           {onRemove && (
-            <button className="danger" onClick={() => confirm(`Remove ${bill.name}? Its reminders stop.`) && (onRemove(), onClose())}>
+            <button className="danger" onClick={() => ask(`Remove ${bill.name}? Its reminders stop.`, { ok: 'Remove', danger: true }).then((ok) => ok && (onRemove(), onClose()))}>
               Remove
             </button>
           )}

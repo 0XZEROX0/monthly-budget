@@ -32,6 +32,8 @@ export function useReorder(items: string[], onReorder: (next: string[]) => void)
   const pointer = useRef<Pt>({ x: 0, y: 0 })
   /** Where the finger is from the item's centre, so it doesn't jump to the finger. */
   const grab = useRef<Pt>({ x: 0, y: 0 })
+  /** The resting centre of each place in the list, measured when the drag starts. */
+  const slots = useRef<Pt[]>([])
   /** Each item's position on screen just before the order changed, to slide from. */
   const before = useRef<Map<HTMLElement, Pt> | null>(null)
 
@@ -125,6 +127,8 @@ export function useReorder(items: string[], onReorder: (next: string[]) => void)
           const c = center(el)
           grab.current = { x: pointer.current.x - c.x, y: pointer.current.y - c.y }
           dragged.current = el
+          // Places are fixed for the whole drag, so the target doesn't flicker while items slide.
+          slots.current = siblings().map(center)
           el.style.transition = 'scale 160ms ease'
           navigator.vibrate?.(15)
           setDrag({ key, to: items.indexOf(key) })
@@ -137,15 +141,15 @@ export function useReorder(items: string[], onReorder: (next: string[]) => void)
       if (h && Math.hypot(e.clientX - h.x, e.clientY - h.y) > SLOP) cancelHold()
       if (!drag) return
       follow()
-      // The slot under the finger, looking past the held item itself.
-      const under = document
-        .elementsFromPoint(e.clientX, e.clientY)
-        .map((n) => (n as HTMLElement).closest?.<HTMLElement>('[data-reorder-key]'))
-        .find((n) => n && n !== dragged.current)
-      const k = under?.dataset.reorderKey
-      if (k === undefined) return
-      const to = order.indexOf(k)
-      if (to < 0 || to === drag.to) return
+      // The nearest place to the finger. Measured from where places rest, not where the
+      // sliding items happen to be, and only switching once clearly closer, so it never flip-flops.
+      const p = pointer.current
+      const dist = (i: number) => Math.hypot(slots.current[i].x - p.x, slots.current[i].y - p.y)
+      let to = drag.to
+      slots.current.forEach((_, i) => {
+        if (dist(i) < dist(to) - 6) to = i
+      })
+      if (to === drag.to || to >= order.length) return
       before.current = new Map(siblings().map((s) => [s, center(s)]))
       setDrag({ key: drag.key, to })
     },

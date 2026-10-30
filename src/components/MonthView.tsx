@@ -24,6 +24,7 @@ import { SettingsView } from './SettingsView'
 import { SummaryView } from './SummaryView'
 import { TransactionForm } from './TransactionForm'
 import { TransactionList, type ListFocus } from './TransactionList'
+import { ask, showAlert } from './dialog'
 
 type Tab = 'summary' | 'transactions' | 'plan' | 'reports' | 'settings'
 
@@ -186,7 +187,9 @@ export function MonthView({ backend, user, onSignOut }: Props) {
               onEdit={(t) => {
                 // Balance updates have no form; they can only be removed.
                 if (t.kind !== 'adjust') return setEditing(t)
-                if (confirm('Delete this balance update?')) backend.deleteTransaction(t.id).catch((e: Error) => alert(e.message))
+                ask('Delete this balance update?', { ok: 'Delete', danger: true }).then((ok) => {
+                  if (ok) backend.deleteTransaction(t.id).catch((e: Error) => showAlert(e.message))
+                })
               }}
             />
           </div>

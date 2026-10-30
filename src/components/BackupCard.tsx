@@ -4,6 +4,7 @@ import { Share } from '@capacitor/share'
 import { useRef, useState } from 'react'
 import { today } from '../data/month'
 import type { Backend, ImportData, Settings, Transaction } from '../data/types'
+import { ask } from './dialog'
 
 const native = Capacitor.isNativePlatform()
 
@@ -72,7 +73,7 @@ export function BackupCard({ backend, settings }: { backend: Backend; settings: 
     run('Reading the backup…', async () => {
       const data = JSON.parse(await f.text()) as Partial<ImportData> & { app?: string }
       if (data.app !== 'monthly-budget' || !data.settings || !Array.isArray(data.transactions)) throw new Error('This is not a Monthly Budget backup file.')
-      if (!confirm(`Restore ${data.transactions.length} entries and your settings from this backup? Entries in it replace the same entries here; newer ones stay.`)) return
+      if (!(await ask(`Restore ${data.transactions.length} entries and your settings from this backup? Entries in it replace the same entries here; newer ones stay.`, { title: 'Restore backup', ok: 'Restore' }))) return
       await backend.importAll({ settings: { ...data.settings, sms: settings.sms ?? data.settings.sms }, plans: data.plans ?? {}, transactions: data.transactions })
       return `Restored ${data.transactions.length} entries.`
     }).finally(() => {
