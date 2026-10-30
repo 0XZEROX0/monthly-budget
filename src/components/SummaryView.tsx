@@ -1,9 +1,12 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState, type ReactNode } from 'react'
 import { categoryIcon } from '../data/icons'
 import { currentMonth, daysInMonth, formatCompact, formatWhole, shiftMonth, shortMonth, today } from '../data/month'
 import { budgetAlerts, savedIn, spentIn, type CategoryRow, type MonthSummary } from '../data/summary'
 import type { Account, Backend, Settings, Transaction } from '../data/types'
+import { summaryLayout, type SectionKey, type SummaryLayout } from '../data/summaryLayout'
 import { BalanceForm } from './BalanceForm'
+import { showAlert } from './dialog'
+import { LayoutEditor } from './SummaryLayoutEditor'
 import { BillsCard } from './Bills'
 import { GoalsCard } from './Goals'
 import type { ListFocus } from './TransactionList'
@@ -40,6 +43,7 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
   // Wealth figures that privacy mode hides; budgets and categories stay visible.
   const secret = (n: number) => (hidden ? MASK : money(n))
   const [updating, setUpdating] = useState<Account | null>(null)
+  const [editing, setEditing] = useState(false)
   const plannedSpend = s.planned.expense
   const left = plannedSpend - s.actual.expense
   const pctSpent = plannedSpend > 0 ? (s.actual.expense / plannedSpend) * 100 : 0
@@ -69,8 +73,10 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
   const totalDebt = debts.reduce((a, d) => a + (s.end.debts[d.name] ?? 0), 0)
   const alerts = settings.alerts?.off ? [] : budgetAlerts(s, settings.alerts?.pct ?? 80)
 
-  return (
-    <div className="stack">
+  // Each Summary card by its key, so the user can reorder and hide them.
+  const sections: Record<SectionKey, ReactNode> = {
+    hero: (
+      <>
       <section className="hero">
         <div className="hero-main">
           <div>
@@ -93,17 +99,10 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
           />
         </div>
       </section>
-
-      {!hasPlan && (
-        <button className="card hint" onClick={onPlan}>
-          <span className="hint-icon">✎</span>
-          <span>
-            <strong>Set a budget for this month</strong>
-            <span className="muted small">Choose how much you plan to spend per category, or copy last month's.</span>
-          </span>
-        </button>
-      )}
-
+      </>
+    ),
+    alerts: (
+      <>
       {alerts.length > 0 && (
         <section className="card alerts">
           <div className="card-head">
@@ -127,9 +126,15 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
           </ul>
         </section>
       )}
-
+      </>
+    ),
+    bills: (
+      <>
       <BillsCard backend={backend} settings={settings} month={month} txns={txns} />
-
+      </>
+    ),
+    accounts: (
+      <>
       <section className="card">
         <div className="card-head">
           <h2>Accounts</h2>
@@ -172,9 +177,15 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
           </span>
         </div>
       </section>
-
+      </>
+    ),
+    goals: (
+      <>
       <GoalsCard settings={settings} balances={s.end} hidden={hidden} onEdit={onEditGoals} />
-
+      </>
+    ),
+    pace: (
+      <>
       <section className="card">
         <div className="card-head">
           <h2>Spending this month</h2>
@@ -193,7 +204,10 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
           dayName={(d) => new Date(`${month}-${String(d).padStart(2, '0')}T00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
         />
       </section>
-
+      </>
+    ),
+    categories: (
+      <>
       <section className="card">
         <div className="card-head">
           <h2>Where your money went</h2>
@@ -210,7 +224,10 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
           </>
         )}
       </section>
-
+      </>
+    ),
+    debts: (
+      <>
       {debts.length > 0 && (
         <section className="card">
           <div className="card-head">
@@ -246,7 +263,10 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
           })}
         </section>
       )}
-
+      </>
+    ),
+    saved: (
+      <>
       {hasTrend && (
         <section className="card">
           <div className="card-head">
@@ -262,7 +282,10 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
           <SavedChart bars={trend as SavedBar[]} current={month} format={money} axisFormat={compact} onSelect={onSelectMonth} />
         </section>
       )}
-
+      </>
+    ),
+    trend: (
+      <>
       {hasTrend && (
         <section className="card">
           <div className="card-head">
@@ -282,7 +305,10 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
           )}
         </section>
       )}
-
+      </>
+    ),
+    income: (
+      <>
       {income.length > 0 && (
         <section className="card">
           <div className="card-head">
@@ -303,6 +329,34 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
           </ul>
         </section>
       )}
+      </>
+    ),
+  }
+  const layout = summaryLayout(settings)
+  const saveLayout = (l: SummaryLayout) => backend.saveSettings({ ...settings, summaryLayout: l }).catch((e: Error) => showAlert(`Could not save: ${e.message}`))
+
+  if (editing) return <LayoutEditor layout={layout} onChange={saveLayout} onDone={() => setEditing(false)} />
+
+  return (
+    <div className="stack">
+      <div className="summary-tools">
+        <button className="link small" onClick={() => setEditing(true)}>
+          ✎ Edit layout
+        </button>
+      </div>
+      {!hasPlan && (
+        <button className="card hint" onClick={onPlan}>
+          <span className="hint-icon">✎</span>
+          <span>
+            <strong>Set a budget for this month</strong>
+            <span className="muted small">Choose how much you plan to spend per category, or copy last month's.</span>
+          </span>
+        </button>
+      )}
+
+      {layout.order.filter((k) => !layout.hidden.includes(k)).map((k) => (
+        <Fragment key={k}>{sections[k]}</Fragment>
+      ))}
 
       {updating && (
         <BalanceForm
