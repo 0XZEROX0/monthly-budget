@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react'
+import { useReorder } from './useReorder'
+import { guessType } from '../data/accounts'
 import { categoryIcon } from '../data/icons'
 import { today } from '../data/month'
-import type { AccountType, Backend, NewTransaction, Settings, Transaction, TxnKind } from '../data/types'
+import type { Backend, NewTransaction, Settings, Transaction, TxnKind } from '../data/types'
 
 interface Props {
   backend: Backend
@@ -34,9 +36,6 @@ const shiftDay = (iso: string, days: number) => {
   d.setDate(d.getDate() + days)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
-
-/** A sensible type for an account added from the form; it can be changed in Settings. */
-const guessType = (name: string): AccountType => (/cash|wallet|pocket/i.test(name) ? 'cash' : /invest|thndr|thunder|stock|fund|gold/i.test(name) ? 'investment' : 'bank')
 
 export function TransactionForm({ backend, settings: saved, month, existing, draft, onSaved, onClose }: Props) {
   // Accounts and categories added here show at once, before the saved settings come back.
@@ -77,6 +76,8 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
     if (!categories.includes(name)) saveSettings({ ...settings, categories: { ...settings.categories, [catKind]: [...categories, name] } })
     setCategory(name)
   }
+  // Hold a category and drag it to reorder; the order is saved for next time.
+  const reorder = useReorder(categories, (next) => saveSettings({ ...settings, categories: { ...settings.categories, [catKind]: next } }))
   const switchTab = (t: Tab) => {
     setTab(t)
     const kind = t === 'income' ? 'income' : 'expense'
@@ -167,10 +168,18 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
 
         {(tab === 'expense' || tab === 'income') && (
           <div className="field">
-            <span className="field-label">Category</span>
+            <span className="field-label">
+              Category <span className="muted small">· hold and drag to reorder</span>
+            </span>
             <div className="cat-grid" role="radiogroup">
-              {[...(categories.includes(category) || !category ? [] : [category]), ...categories].map((c) => (
-                <button type="button" role="radio" aria-checked={c === category} key={c} className={c === category ? 'active' : ''} onClick={() => setCategory(c)}>
+              {!categories.includes(category) && category && (
+                <button type="button" role="radio" aria-checked className="active">
+                  <span className="cat-icon">{categoryIcon(category)}</span>
+                  <span className="cat-name">{category.replace('/', '/​')}</span>
+                </button>
+              )}
+              {reorder.order.map((c) => (
+                <button type="button" role="radio" aria-checked={c === category} key={c} {...reorder.itemProps(c, c === category ? 'active' : '')} onClick={() => setCategory(c)}>
                   <span className="cat-icon">{categoryIcon(c)}</span>
                   <span className="cat-name">{c.replace('/', '/​')}</span>
                 </button>

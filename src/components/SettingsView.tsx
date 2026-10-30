@@ -12,6 +12,7 @@ import { BillsEditor } from './Bills'
 import { GoalsEditor } from './Goals'
 import { SmsSettingsCard } from './SmsSettingsCard'
 import { UpdateCard } from './UpdateCard'
+import { useReorder } from './useReorder'
 
 interface Props {
   backend: Backend
@@ -95,14 +96,38 @@ export function SettingsView({ backend, settings, sms, user, onSignOut, lock }: 
   )
 }
 
+const fullDate = (iso: string) => new Date(iso + 'T00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+
 function ImportCard({ backend, settings }: { backend: Backend; settings: Settings }) {
   const input = useRef<HTMLInputElement>(null)
   const [status, setStatus] = useState('')
   const onFile = async (file: File) => {
     setStatus('Reading the file…')
     try {
-      const { importWorkbook } = await import('../data/importSheet')
-      const res = await importWorkbook(file, settings)
+      const { importGrids, readWorkbook } = await import('../data/importSheet')
+      const { importList, listColumns } = await import('../data/importList')
+      const sheets = await readWorkbook(file)
+      // A plain list of transactions (another app's export) rather than the sheet's month tabs.
+      const list = sheets.map((s) => ({ s, cols: listColumns(s.grid) })).find((x) => x.cols)
+      if (list?.cols) {
+        const { transactions: existing } = await backend.exportAll()
+        const res = importList(list.s.grid, list.cols, settings, existing)
+        const added = [
+          res.newAccounts.length ? `New accounts: ${res.newAccounts.join(', ')}.` : '',
+          res.newCategories.length ? `New categories: ${res.newCategories.join(', ')}.` : '',
+        ].filter(Boolean)
+        const ok = confirm(
+          `Found ${res.transactions.length} entries from ${fullDate(res.first)} to ${fullDate(res.last)}, each in the month of its date.` +
+            (res.skipped ? ` ${res.skipped} more look like entries you already have (same day, type and amount) and are left out.` : '') +
+            (added.length ? `\n\n${added.join('\n')}` : '') +
+            '\n\nAdd them? Your plans and balances stay as they are. Importing the same file again replaces these entries instead of duplicating them.',
+        )
+        if (!ok) return setStatus('')
+        setStatus('Importing…')
+        await backend.importAll({ settings: res.settings, plans: {}, transactions: res.transactions })
+        return setStatus(`Imported ${res.transactions.length} entries${res.skipped ? `, skipped ${res.skipped} you already had` : ''}.`)
+      }
+      const res = importGrids(sheets, settings)
       const first = res.months[0].month
       const last = res.months[res.months.length - 1].month
       const ok = confirm(
@@ -122,13 +147,16 @@ function ImportCard({ backend, settings }: { backend: Backend; settings: Setting
   }
   return (
     <section className="card">
-      <h2>Import from Google Sheets</h2>
+      <h2>Import from Excel</h2>
       <p className="muted small">
-        In your sheet choose File › Download › Microsoft Excel (.xlsx), then pick that file here. Every month tab (like 10/2026) is imported, and balances are matched to the sheet's own totals.
+        Your Google Sheet: choose File › Download › Microsoft Excel (.xlsx), then pick that file here. Every month tab (like 10/2026) is imported, and balances are matched to the sheet's own totals.
       </p>
-      <input ref={input} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
+      <p className="muted small">
+        An export from another budget app (like Money Manager), with one entry per row and its date in the first column, works too. Each entry goes into the month of its date, and new accounts and categories are added for you.
+      </p>
+      <input ref={input} type="file" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
       <button className="primary" onClick={() => input.current?.click()}>
-        Choose .xlsx file
+        Choose Excel file
       </button>
       {status && <p className="small">{status}</p>}
     </section>
@@ -275,23 +303,17 @@ function CategoryEditor({ title, list, onChange }: { title: string; list: string
     if (n && !list.includes(n)) onChange([...list, n])
     setName('')
   }
-  const move = (i: number, d: number) => {
-    const next = [...list]
-    ;[next[i], next[i + d]] = [next[i + d], next[i]]
-    onChange(next)
-  }
+  const reorder = useReorder(list, onChange)
   return (
     <section className="card">
       <h2>{title}</h2>
+      <p className="muted small">Hold a category and drag it to change the order.</p>
       <ul className="chips">
-        {list.map((c, i) => (
-          <li key={c}>
+        {reorder.order.map((c) => (
+          <li key={c} {...reorder.itemProps(c)}>
             <span>
               {categoryIcon(c)} {c}
             </span>
-            <button aria-label={`Move ${c} up`} disabled={i === 0} onClick={() => move(i, -1)}>
-              ↑
-            </button>
             <button aria-label={`Remove ${c}`} onClick={() => confirm(`Remove "${c}"? Past entries keep it.`) && onChange(list.filter((x) => x !== c))}>
               ×
             </button>
