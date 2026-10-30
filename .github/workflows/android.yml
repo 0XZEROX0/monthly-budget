@@ -36,7 +36,15 @@ jobs:
           echo "VITE_NATIVE_HASH=$( (git ls-files -s android; echo "$plugins") | sha1sum | cut -c1-12)" >> "$GITHUB_ENV"
           echo "VITE_BUILD=${{ github.run_number }}" >> "$GITHUB_ENV"
 
-      - run: npm run build
+      # .env is not committed: the FIREBASE_ENV repository secret holds the whole file
+      # (same lines as .env.example). Stops here rather than shipping a build without sync.
+      - name: Build web app
+        env:
+          FIREBASE_ENV: ${{ secrets.FIREBASE_ENV }}
+        run: |
+          printf '%s\n' "$FIREBASE_ENV" | tr -d '\r' > .env
+          grep -q '^VITE_FIREBASE_API_KEY=.' .env || { echo "::error::Add the FIREBASE_ENV repository secret (the contents of .env)"; exit 1; }
+          npm run build
       - run: npx cap sync android
       - name: Zip the web files
         run: cd dist && zip -qr "$RUNNER_TEMP/web.zip" .

@@ -27,7 +27,15 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run build
+      # .env is not committed: the FIREBASE_ENV repository secret holds the whole file
+      # (same lines as .env.example). Stops here rather than shipping a build without sync.
+      - name: Build web app
+        env:
+          FIREBASE_ENV: ${{ secrets.FIREBASE_ENV }}
+        run: |
+          printf '%s\n' "$FIREBASE_ENV" | tr -d '\r' > .env
+          grep -q '^VITE_FIREBASE_API_KEY=.' .env || { echo "::error::Add the FIREBASE_ENV repository secret (the contents of .env)"; exit 1; }
+          npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
