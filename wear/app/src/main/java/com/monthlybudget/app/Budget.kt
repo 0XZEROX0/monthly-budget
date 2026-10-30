@@ -106,10 +106,11 @@ object Budget {
 
     // effects() and balancesBefore() in src/data/summary.ts, up to the end of this month.
     private fun balances(doc: Map<String, Any?>?, history: List<Map<String, Any?>>): List<Balance> {
-        val accounts = (doc?.get("accounts") as? List<*>)?.mapNotNull { it as? Map<*, *> }
-            ?.mapNotNull { a -> (a["name"] as? String)?.let { it to (a["type"] as? String ?: "cash") } }
-            ?.takeIf { it.isNotEmpty() }
-            ?: listOf("Cash" to "cash", "Bank" to "bank", "Thndr" to "investment")
+        val accountMaps = (doc?.get("accounts") as? List<*>)?.mapNotNull { it as? Map<*, *> }.orEmpty()
+        val accounts = accountMaps
+            .mapNotNull { a -> (a["name"] as? String)?.let { it to (a["type"] as? String ?: "cash") } }
+            .ifEmpty { listOf("Cash" to "cash", "Bank" to "bank", "Thndr" to "investment") }
+        val interestPct = accountMaps.associate { (it["name"] as? String) to ((it["interestPct"] as? Double) ?: 0.0) }
         val opening = ((doc?.get("opening") as? Map<*, *>)?.get("accounts") as? Map<*, *>) ?: emptyMap<String, Any?>()
         val total = mutableMapOf<String, Double>()
         for ((k, v) in opening) if (k is String && v is Double) total[k] = v
@@ -131,7 +132,11 @@ object Budget {
                 "adjust" -> if ((t["debt"] as? String).isNullOrEmpty()) add(acc, amount)
             }
         }
-        return accounts.map { (name, type) -> Balance(name, type, total[name] ?: 0.0) }
+        // Investments show their value with the expected interest, as the phone's Summary does.
+        return accounts.map { (name, type) ->
+            val end = total[name] ?: 0.0
+            Balance(name, type, if (type == "investment") end + end * (interestPct[name] ?: 0.0) / 100 else end)
+        }
     }
 
     private fun parseSettings(doc: Map<String, Any?>?): WatchSettings {
