@@ -189,8 +189,6 @@ object Budget {
         val rows = (s.expense + actualBy.keys.filter { it !in s.expense })
             .map { CategoryRow(it, (plannedExpense[it] as? Double) ?: 0.0, actualBy[it] ?: 0.0) }
             .filter { it.planned > 0 || it.actual > 0 }
-            // Most spent first, as the watch only has room for a few.
-            .sortedByDescending { it.actual }
         val incomePlanned = s.income.sumOf { (plannedFor("income")[it] as? Double) ?: 0.0 }
         // Newest first; the web app has no time of day, so same-day entries keep Firestore's order.
         // Newest first; the web app has no time of day, so same-day entries keep Firestore's order.
@@ -295,7 +293,6 @@ object Budget {
                 val has = rows.any { it.category == e.category }
                 val rows = (if (has) rows else rows + CategoryRow(e.category, 0.0, 0.0))
                     .map { if (it.category == e.category) it.copy(actual = it.actual + e.amount) else it }
-                    .sortedByDescending { it.actual }
                 base.copy(rows = rows)
             }
             else -> base

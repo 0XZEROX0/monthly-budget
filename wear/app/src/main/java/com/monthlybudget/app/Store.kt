@@ -352,15 +352,7 @@ object Store {
     /** The account last picked for this kind, so the next entry starts there. */
     fun lastAccount(context: Context, kind: String): String? = prefs(context).getString("account:$kind", null)
 
-    /** Most recent first. */
-    fun recentCategories(context: Context, kind: String): List<String> =
-        prefs(context).getString("recent:$kind", "")!!.split('\n').filter { it.isNotEmpty() }
-
-    fun remember(context: Context, kind: String, category: String, account: String) {
-        val recent = (listOf(category) + recentCategories(context, kind).filter { it != category }).take(3)
-        prefs(context).edit()
-            .putString("account:$kind", account)
-            .putString("recent:$kind", recent.joinToString("\n"))
-            .apply()
+    fun rememberAccount(context: Context, kind: String, account: String) {
+        prefs(context).edit().putString("account:$kind", account).apply()
     }
 }

@@ -142,7 +142,7 @@ private fun App(start: String?, onStarted: () -> Unit, finish: () -> Unit) {
     val save: (Entry) -> Unit = { entry ->
         if (!saving) {
             saving = true
-            Store.remember(context, entry.kind, entry.category, entry.account)
+            Store.rememberAccount(context, entry.kind, entry.account)
             scope.launch {
                 val sent = Budget.add(context, entry)
                 saving = false
@@ -919,11 +919,8 @@ private fun CategoryScreen(kind: String, amount: Double, onSaved: (Boolean, Entr
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
     val settings = remember { Store.settings(context) }
-    val categories = remember {
-        val all = settings.categories(kind)
-        val recent = Store.recentCategories(context, kind).filter { it in all }
-        recent + all.filter { it !in recent }
-    }
+    // The phone's order: hold and drag a category there to change it.
+    val categories = remember { settings.categories(kind) }
     var account by remember {
         mutableStateOf(Store.lastAccount(context, kind)?.takeIf { it in settings.accounts } ?: settings.accounts.first())
     }
@@ -950,7 +947,7 @@ private fun CategoryScreen(kind: String, amount: Double, onSaved: (Boolean, Entr
                         if (saving) return@Chip
                         saving = true
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        Store.remember(context, kind, category, account)
+                        Store.rememberAccount(context, kind, account)
                         val entry = Entry(newId(), kind, amount, category, account, LocalDate.now().toString())
                         scope.launch { onSaved(Budget.add(context, entry), entry) }
                     },
