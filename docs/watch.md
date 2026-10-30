@@ -2,11 +2,11 @@
 
 A Wear OS companion for the budget, made for the Galaxy Watch 8 (it runs on any Wear OS 3+ watch).
 
-- **Pages**: swipe left and right between Summary, Transactions (this month, by day), Reports (last six months) and Settings, like the phone's tabs.
+- **Pages**: swipe left and right between Summary, Transactions (this month, by day), Accounts (balances and goals), Reports (last six months) and Settings, like the phone's tabs.
 - **Quick add**: tap **Add expense** or **Add income**, type the amount, tap a category. The chip at the top picks the account (Cash, Bank…). Your last category comes first.
 - **Glance**: left to spend this month with a ring for how much of the plan is used, the same figure as the phone's Summary.
 - **This month**: scroll down for income, spent, the categories you've spent most in (against their budgets) and your latest entries.
-- **Favorites**: hold a recent entry to pin it; tap a favorite to save it again. Until you pin some, entries you repeated this month are suggested.
+- **Favorites**: hold a recent entry to pin it; tap a favorite to save it again. 
 - **Due**: bills from the phone's Bills in their reminder days (instalments on days 1–5, cards on their day) until paid; tap one to pay it.
 - **Goals**: savings goals with progress and how much a month is still needed by the deadline.
 - **Daily allowance**: "≈ X a day" for the rest of the month (or "No daily allowance" once the month is over budget), and a warning after saving when a category or the month goes over budget.

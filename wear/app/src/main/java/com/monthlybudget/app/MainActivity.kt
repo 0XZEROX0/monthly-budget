@@ -388,26 +388,15 @@ private fun HomeScreen(
                             item { ListHeader { Text("Due") } }
                             items(d.due) { bill -> BillLine(bill, onClick = { onPayBill(bill) }) }
                         }
-                        val shown = favorites.ifEmpty { d?.suggested.orEmpty() }
-                        if (shown.isNotEmpty()) {
-                            item { ListHeader { Text(if (favorites.isEmpty()) "Suggested" else "Favorites") } }
-                            items(shown) { f ->
+                        if (favorites.isNotEmpty()) {
+                            item { ListHeader { Text("Favorites") } }
+                            items(favorites) { f ->
                                 FavoriteLine(
                                     f,
                                     onClick = { onSave(Entry(newId(), f.kind, f.amount, f.category, f.account, LocalDate.now().toString())) },
                                     onLongClick = { pin(f) },
                                 )
                             }
-                        }
-                        if (d != null && d.balances.isNotEmpty()) {
-                            item { ListHeader { Text("Accounts") } }
-                            val liquid = d.balances.filter { it.type != "investment" }
-                            if (liquid.size > 1) item { Line("Cash + bank", secret(liquid.sumOf { it.amount }), null, MaterialTheme.colors.onSurface) }
-                            items(d.balances) { b -> BalanceLine(b, secret(b.amount)) }
-                        }
-                        if (d != null && d.goals.isNotEmpty()) {
-                            item { ListHeader { Text("Goals") } }
-                            items(d.goals) { goal -> GoalLine(goal, hidden) }
                         }
                         if (d != null && g != null) {
                             item { ListHeader { Text("This month") } }
@@ -432,6 +421,24 @@ private fun HomeScreen(
                     for ((day, list) in recent.groupBy { it.date }) {
                         item { Text(dayHeader(day), style = MaterialTheme.typography.caption2, color = MaterialTheme.colors.primary, modifier = Modifier.padding(top = 4.dp)) }
                         items(list) { t -> TxnLine(t, onLongClick = pinOf(t)) }
+                    }
+                    item { PageDots(p) }
+                }
+
+                "Accounts" -> ScalingLazyColumn(state = lists[p], modifier = Modifier.fillMaxSize()) {
+                    if (d == null || (d.balances.isEmpty() && d.goals.isEmpty())) {
+                        item { ListHeader { Text("Accounts") } }
+                        item { Text("Loading…", style = MaterialTheme.typography.caption2) }
+                    }
+                    if (d != null && d.balances.isNotEmpty()) {
+                        item { ListHeader { Text("Accounts") } }
+                        val liquid = d.balances.filter { it.type != "investment" }
+                        if (liquid.size > 1) item { Line("Cash + bank", secret(liquid.sumOf { it.amount }), null, MaterialTheme.colors.onSurface) }
+                        items(d.balances) { b -> BalanceLine(b, secret(b.amount)) }
+                    }
+                    if (d != null && d.goals.isNotEmpty()) {
+                        item { ListHeader { Text("Goals") } }
+                        items(d.goals) { goal -> GoalLine(goal, hidden) }
                     }
                     item { PageDots(p) }
                 }
@@ -547,7 +554,7 @@ private fun HomeScreen(
     }
 }
 
-private val PAGES = listOf("Summary", "Transactions", "Reports", "Settings")
+private val PAGES = listOf("Summary", "Transactions", "Accounts", "Reports", "Settings")
 
 /** Which page this is, and that there are more to either side. */
 @Composable
