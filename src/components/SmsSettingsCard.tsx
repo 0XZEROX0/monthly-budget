@@ -63,12 +63,15 @@ export function SmsSettingsCard({ sms, settings, onSave }: Props) {
             ) : (
               <p className="muted small">No bank messages since that day yet. Pick an earlier day to look further back.</p>
             )}
-            <p className="muted small">CIB, NBE, Banque Misr, Banque du Caire, QNB and other Egyptian banks are recognised by their SMS sender.</p>
+            <p className="muted small">
+              Egyptian banks and e-wallets (Vodafone Cash, Orange Cash, Etisalat Cash, WE Pay, InstaPay) are recognised by their sender, and any other
+              sender whose messages show a card like ****1234. Pay-later apps such as TRU and valU are left out.
+            </p>
           </div>
           <AddSender onAdd={turnOn} />
           <TargetRow label="Cards not listed below" value={defaultTarget(settings)} settings={settings} onChange={(t) => set({ defaultTarget: t })} />
           {[...cards, ...pendingCards].map((c) => (
-            <TargetRow key={c} label={`Card or account ••${c}`} value={targetFor(c, settings)} settings={settings} onChange={(t) => set({ cards: { ...cfg.cards, [c]: t } })} />
+            <TargetRow key={c} label={/^\d{4}$/.test(c) ? `Card or account ••${c}` : c} value={targetFor(c, settings)} settings={settings} onChange={(t) => set({ cards: { ...cfg.cards, [c]: t } })} />
           ))}
           <button className="link" onClick={sms.refresh}>
             Check messages again

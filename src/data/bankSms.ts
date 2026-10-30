@@ -2,7 +2,7 @@ import { App } from '@capacitor/app'
 import type { PermissionState } from '@capacitor/core'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { SmsReader, smsAvailable } from '../native/smsReader'
-import { bankName, KNOWN_BANK_SENDERS, senderKey } from './egyptBanks'
+import { bankName, KNOWN_BANK_SENDERS, notABank, senderKey, walletName } from './egyptBanks'
 import { shiftMonth, today } from './month'
 import { parseBankSms, type ParsedSms, type SmsMessage } from './smsParser'
 import { alreadyRecorded } from './smsMatch'
@@ -18,8 +18,17 @@ export function defaultTarget(settings: Settings): SmsTarget {
   return settings.sms?.defaultTarget ?? `account:${bank?.name ?? 'Bank'}`
 }
 
-/** Where a card's (or account's) money goes. */
-export const targetFor = (card: string, settings: Settings): SmsTarget => settings.sms?.cards[card] ?? defaultTarget(settings)
+/** Where a card's (or account's, or e-wallet's) money goes. A wallet goes to the E-wallet account named like it, else the first one. */
+export function targetFor(card: string, settings: Settings): SmsTarget {
+  const saved = settings.sms?.cards[card]
+  if (saved) return saved
+  if (!/^\d{4}$/.test(card)) {
+    const wallets = settings.accounts.filter((a) => a.type === 'wallet')
+    const w = wallets.find((a) => a.name.toLowerCase().includes(card.split(' ')[0].toLowerCase())) ?? wallets[0]
+    if (w) return `account:${w.name}`
+  }
+  return defaultTarget(settings)
+}
 
 export const splitTarget = (t: SmsTarget) => {
   const i = t.indexOf(':')
@@ -59,7 +68,8 @@ export interface BankSms {
   requestPermission: () => Promise<void>
   /** Every sender with at least one card message since the start date. */
   detectedSenders: string[]
-  /** Whether messages from this sender are read: known banks and senders turned on, minus those turned off. */
+  /** Whether messages from this sender are read: known banks and wallets, senders turned on, and any other
+   * sender whose messages name a card or wallet (except pay-later apps and shops), minus those turned off. */
   isWatched: (sender: string) => boolean
   /** Messages from the chosen senders that aren't added or skipped yet, newest first. */
   pending: ParsedSms[]
@@ -111,25 +121,30 @@ export function useBankSms(backend: Backend, settings: Settings | null): BankSms
     return backend.watchRange(shiftMonth(since.slice(0, 7), -1), '9999-12', setTxns)
   }, [backend, since])
 
-  const parsed = useMemo(() => messages.map(parseBankSms).filter((p): p is ParsedSms => p !== null), [messages])
+  const parsed = useMemo(
+    () => messages.map((m) => parseBankSms(m, walletName(m.address))).filter((p): p is ParsedSms => p !== null),
+    [messages],
+  )
   const detectedSenders = useMemo(() => [...new Set(parsed.map((p) => p.sender))].sort(), [parsed])
   const on = (sms?.senders ?? []).map(senderKey).join('\n')
   const off = (sms?.excluded ?? []).map(senderKey).join('\n')
+  // Senders recognised by their messages: a masked card number or a finished wallet payment.
+  const found = detectedSenders.filter((x) => !notABank(x)).map(senderKey).join('\n')
   const isWatched = useCallback(
     (sender: string) => {
       const k = senderKey(sender)
-      return !off.split('\n').includes(k) && (bankName(sender) !== null || on.split('\n').includes(k))
+      return !off.split('\n').includes(k) && (bankName(sender) !== null || on.split('\n').includes(k) || found.split('\n').includes(k))
     },
-    [on, off],
+    [on, off, found],
   )
 
   // The phone matches senders the same way, to notify about new bank messages while the app is closed.
   useEffect(() => {
     if (!smsAvailable || permission !== 'granted') return
     const offList = off.split('\n')
-    const watched = [...KNOWN_BANK_SENDERS, ...on.split('\n')].filter((k) => k && !offList.includes(k))
+    const watched = [...KNOWN_BANK_SENDERS, ...on.split('\n'), ...found.split('\n')].filter((k) => k && !offList.includes(k))
     SmsReader.setWatchedSenders({ senders: watched }).catch(() => {})
-  }, [on, off, permission])
+  }, [on, off, found, permission])
 
   const pending = useMemo(() => {
     const ids = new Set(txns.map((t) => t.id))

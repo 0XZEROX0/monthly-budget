@@ -43,7 +43,7 @@ export function PendingSms({ sms, onAdd, onOpen }: Props) {
                 <span className="list-main">
                   <span>{describe(p)}</span>
                   <span className="muted small">
-                    {dayLabel(p.date)} · {p.sender} ••{p.card}
+                    {dayLabel(p.date)} · {p.wallet ?? `${p.sender} ••${p.card}`}
                   </span>
                 </span>
                 <strong className={p.direction === 'credit' ? 'amount-in' : ''}>

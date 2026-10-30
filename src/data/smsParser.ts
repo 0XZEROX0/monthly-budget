@@ -1,7 +1,7 @@
-// Turns a bank's card SMS into the parts of a transaction. Egyptian banks word these
-// messages differently (English and Arabic), so this looks for the pieces rather than
-// matching one bank's template: an amount with a currency, whether money went out or
-// came in, the card's last four digits, and the merchant.
+// Turns a bank's card SMS or an e-wallet's SMS into the parts of a transaction. Egyptian
+// banks and wallets word these messages differently (English and Arabic), so this looks for
+// the pieces rather than matching one template: an amount with a currency, whether money went
+// out or came in, the card's last four digits (or the wallet), and the merchant or person.
 
 export interface SmsMessage {
   id: string
@@ -22,8 +22,10 @@ export interface ParsedSms {
   /** ISO code, e.g. EGP or USD. */
   currency: string
   merchant: string
-  /** Last four digits of the card or account. */
+  /** Last four digits of the card or account, or the e-wallet's name, e.g. Vodafone Cash. */
   card: string
+  /** Set for e-wallet messages: the wallet's name. */
+  wallet?: string
   /** YYYY-MM-DD, from when the SMS arrived. */
   date: string
   body: string
@@ -50,15 +52,37 @@ const CREDIT = /\b(credited|refund(?:ed)?|reversal|reversed|deposit(?:ed)?|recei
 // "...to your account" (إلى حسابك) is money coming in.
 const INTO_ACCOUNT = /(?:إلى|الى|ل)\s*حسابك|to your (?:account|card)/i
 const TRANSFER = /\btransfer|تحويل/i
-const SPEND = /\b(purchase[ds]?|charged|debited|spent|paid|payment|pos|withdrawal|withdrawn|deducted|transaction|trx|txn|transfer(?:red)?|bought)\b|خصم|شراء|سحب|عملية|مشتريات|دفع|تحويل/i
+const SPEND = /\b(purchase[ds]?|charged|debited|spent|paid|payment|pos|withdrawal|withdrawn|deducted|transaction|trx|txn|transfer(?:red)?|bought|sent|used)\b|خصم|شراء|سحب|عملية|مشتريات|دفع|تحويل|شحن/i
 // An amount right after these words is a balance or limit, not what was paid.
 const BALANCE_BEFORE = /(balance|bal|limit|available|avl|avail|remaining|رصيد|المتاح|متاح|الحد)[^\d\n]{0,20}$/i
 
 const CARD = [
   /(?:ending(?:\s+(?:with|in))?|ends\s+with|card\s*(?:no\.?|number|#)?|acc(?:ount)?\s*(?:no\.?|number|#)?)\s*[:#]?\s*(?:[*xX•.]+\s*)?(\d{4})\b/i,
-  /[*xX•]{2,}\s*(\d{4})\b/,
+  // A masked number: ****1234, xx1234, XXXX-XXXX-XXXX-1234
+  /(?:[*xX•]{2,}[\s-]*)+(\d{4})\b/,
+  // Visa *1234, بطاقة ميزة *1234
+  /(?:visa|master\s?card|meeza|card|فيزا|ماستر\s?كارد|ميزة|بطاق\S*)[^\d\n]{0,15}?[*xX•]+\s*(\d{4})\b/i,
   /(?:المنتهية|المنتهي|ينتهي|رقم)\s*(?:ب|بـ|في)?\s*[*xX•]*\s*(\d{4})\b/,
 ]
+
+// E-wallet messages name a phone number instead of a card.
+const WALLET_WORDS: [RegExp, string][] = [
+  [/vodafone\s*cash|vf[\s-]?cash|فودافون\s*كاش/i, 'Vodafone Cash'],
+  [/orange\s*(?:cash|money)|[أا]ورنج\s*(?:كاش|موني)/i, 'Orange Cash'],
+  [/etisalat\s*cash|e&\s*(?:cash|money)|اتصالات\s*كاش|[إا]تصالات\s*كاش/i, 'Etisalat Cash'],
+  [/we\s*pay|وي\s*باي/i, 'WE Pay'],
+  [/insta\s*pay|[إا]نستا\s*باي/i, 'InstaPay'],
+  [/\bwallet\b|\be-?wallet\b|محفظ/i, 'E-wallet'],
+]
+// A wallet message reports something done. Without a card number, this tells it apart from an ad.
+const DONE = /(?:^|\s)تم\s|\byou have\b|\bha(?:s|ve) been\b|\bsuccessful(?:ly)?\b|بنجاح|رقم العملية|\btransaction (?:id|no|number|ref)/i
+const PROMO = /\b(get|win|offer|enjoy|up to|discount)\b|احصل|اكسب|استمتع|عرض|%/i
+// The person on the other side: "registered to AHMED ALI" / "المسجل باسم احمد علي", else their number.
+const NAMED = [
+  /(?:المسجل|المسجلة)\s*(?:باسم|بإسم|بأسم)\s*:?\s*([^\n.,،;؛]+?)(?=\s+(?:على|علي|رصيد|الرصيد|بتاريخ|في|يوم)(?:\s|$)|[\n.,،;؛]|$)/,
+  /\b(?:registered (?:to|under|as|in the name of)|name:)\s*([A-Za-z][A-Za-z .'-]{1,40}?)(?=\s+(?:on|at|with|your|balance|via)\b|[\n,;]|\.\s|\.?$)/i,
+]
+const PHONE = /(?:من|إلى|الى|لرقم|لـ|ل|to|from)\s*(?:رقم|number|mobile|wallet)?\s*:?\s*(\+?2?01\d{9})\b/i
 
 // The words before a merchant or person, and the words that end its name.
 const MERCHANT_EN = /\b(?:at|@|from|to|with|in)\s+([^\n]+?)(?=\s+(?:on|at|dated|date|for|via|using|is|was|has|card|with|ref|available|avl|bal|balance|total)\b|[,;]|\.\s|\.?$|\s+\d{1,2}[/-]\d{1,2}|\n)/gi
@@ -101,15 +125,41 @@ function findMerchant(body: string): string {
   return ''
 }
 
-export function parseBankSms(sms: SmsMessage): ParsedSms | null {
+function findPerson(body: string): string {
+  for (const re of NAMED) {
+    const name = re.exec(body)?.[1]?.replace(/\s+/g, ' ').trim()
+    if (name && name.length >= 2) return name.slice(0, 40)
+  }
+  return PHONE.exec(body)?.[1] ?? ''
+}
+
+/** `walletSender` is the wallet's name when the SMS comes from a known e-wallet sender. */
+export function parseBankSms(sms: SmsMessage, walletSender?: string | null): ParsedSms | null {
   const body = normalize(sms.body)
   if (IGNORE.test(body)) return null
   const credit = CREDIT.test(body) || INTO_ACCOUNT.test(body)
   if (!credit && !SPEND.test(body)) return null
   const found = findAmount(body)
+  if (!found) return null
   // Real card and account messages name the card; offers and ads don't.
   const card = CARD.map((re) => re.exec(body)?.[1]).find(Boolean)
-  if (!found || !card) return null
+  if (!card) {
+    // A wallet message instead: from a wallet, or naming one, and reporting a finished payment.
+    const wallet = walletSender ?? WALLET_WORDS.find(([re]) => re.test(body))?.[1]
+    if (!wallet || !DONE.test(body) || PROMO.test(body)) return null
+    return {
+      smsId: sms.id,
+      sender: sms.address,
+      direction: credit ? 'credit' : 'spend',
+      transfer: TRANSFER.test(body),
+      ...found,
+      merchant: findPerson(body) || findMerchant(body),
+      card: wallet,
+      wallet,
+      date: isoDate(sms.date),
+      body: sms.body,
+    }
+  }
   return {
     smsId: sms.id,
     sender: sms.address,
