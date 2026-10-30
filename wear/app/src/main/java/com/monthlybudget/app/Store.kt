@@ -48,7 +48,7 @@ data class Glance(
 data class CategoryRow(val category: String, val planned: Double, val actual: Double)
 
 /** An account's balance at the end of this month; type is cash, bank or investment. */
-data class Balance(val name: String, val type: String, val amount: Double)
+data class Balance(val name: String, val type: String, val amount: Double, val interest: Double = 0.0, val interestPct: Double = 0.0)
 
 /** An entry for the recent list, worded as the phone's Transactions tab words it. */
 data class Txn(
@@ -200,7 +200,7 @@ object Store {
                 }
         }
         val balances = o.optJSONArray("balances")?.let { a ->
-            (0 until a.length()).map { a.getJSONObject(it) }.map { Balance(it.getString("name"), it.getString("type"), it.getDouble("amount")) }
+            (0 until a.length()).map { a.getJSONObject(it) }.map { Balance(it.getString("name"), it.getString("type"), it.getDouble("amount"), it.optDouble("interest", 0.0), it.optDouble("interestPct", 0.0)) }
         } ?: emptyList()
         val suggested = o.optJSONArray("suggested")?.let(::favoritesFrom) ?: emptyList()
         val due = o.optJSONArray("due")?.let { a ->
@@ -243,7 +243,10 @@ object Store {
             )
         }
         val balances = JSONArray()
-        for (b in d.balances) balances.put(JSONObject().put("name", b.name).put("type", b.type).put("amount", b.amount))
+        for (b in d.balances) balances.put(
+                JSONObject().put("name", b.name).put("type", b.type).put("amount", b.amount)
+                    .put("interest", b.interest).put("interestPct", b.interestPct),
+            )
         val o = JSONObject()
             .put("incomePlanned", d.incomePlanned)
             .put("income", d.income)

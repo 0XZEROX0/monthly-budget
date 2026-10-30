@@ -505,7 +505,14 @@ private fun BalanceLine(b: Balance, amount: String) {
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         IconBadge(categoryIcon(b.name), tint)
-        Text(b.name, style = MaterialTheme.typography.caption1, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Column(Modifier.weight(1f)) {
+            Text(b.name, style = MaterialTheme.typography.caption1, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // As on the phone: an investment's value includes its expected interest.
+            if (b.interestPct > 0 && amount != MASK) {
+                val pct = String.format(Locale.US, "%.1f", b.interestPct).removeSuffix(".0")
+                Text("incl. ~${whole(b.interest)} interest ($pct%)", style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant)
+            }
+        }
         Text(amount, style = MaterialTheme.typography.caption1, color = if (b.amount < 0) ExpenseColor else MaterialTheme.colors.onSurface)
     }
 }

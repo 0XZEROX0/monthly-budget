@@ -135,7 +135,9 @@ object Budget {
         // Investments show their value with the expected interest, as the phone's Summary does.
         return accounts.map { (name, type) ->
             val end = total[name] ?: 0.0
-            Balance(name, type, if (type == "investment") end + end * (interestPct[name] ?: 0.0) / 100 else end)
+            val pct = if (type == "investment") interestPct[name] ?: 0.0 else 0.0
+            val interest = end * pct / 100
+            Balance(name, type, end + interest, interest, pct)
         }
     }
 
