@@ -4,4 +4,6 @@
     <string name="title_activity_main">Monthly Budget</string>
     <string name="package_name">com.monthlybudget.app</string>
     <string name="custom_url_scheme">com.monthlybudget.app</string>
+    <string name="widget_name">Left to spend</string>
+    <string name="widget_description">This month\'s budget at a glance, with a button to add an expense.</string>
 </resources>

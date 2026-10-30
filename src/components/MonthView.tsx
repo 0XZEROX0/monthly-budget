@@ -1,13 +1,20 @@
+import { App as CapApp } from '@capacitor/app'
+import { Capacitor } from '@capacitor/core'
 import type { User } from 'firebase/auth'
 import { useEffect, useState } from 'react'
 import { describe, draftFor, smsSettings, smsTxnId, useBankSms } from '../data/bankSms'
 import { emptyPlan } from '../data/defaults'
 import { usePlan, useRange, useSettings, useTransactions } from '../data/hooks'
-import { currentMonth, monthLabel, shiftMonth } from '../data/month'
-import { balancesBefore, summarize } from '../data/summary'
+import { currentMonth, formatWhole, monthLabel, shiftMonth } from '../data/month'
+import { balancesBefore, budgetAlerts, summarize, type MonthSummary } from '../data/summary'
 import { applyTheme } from '../data/theme'
 import type { ParsedSms } from '../data/smsParser'
+import { notifyNow, scheduleBillReminders } from '../native/notify'
 import { shareWithWatch } from '../native/wear'
+import { updateWidget } from '../native/widget'
+import { LockScreen, useAppLock } from './AppLock'
+import { ReportsView } from './ReportsView'
+import { UpdatePrompt } from './UpdateCard'
 import type { Backend, NewTransaction, Settings, SmsTarget, Transaction } from '../data/types'
 import { PendingSms } from './PendingSms'
 import { MonthPicker } from './MonthPicker'
@@ -18,7 +25,7 @@ import { SummaryView } from './SummaryView'
 import { TransactionForm } from './TransactionForm'
 import { TransactionList, type ListFocus } from './TransactionList'
 
-type Tab = 'summary' | 'transactions' | 'plan' | 'settings'
+type Tab = 'summary' | 'transactions' | 'plan' | 'reports' | 'settings'
 
 const PRIVACY_KEY = 'budget-app:privacy'
 
@@ -27,6 +34,7 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'summary', label: 'Summary', icon: 'M4 20V10M10 20V4M16 20v-7M22 20H2' },
   { id: 'transactions', label: 'Transactions', icon: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01' },
   { id: 'plan', label: 'Plan', icon: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z' },
+  { id: 'reports', label: 'Reports', icon: 'M3 17l6-6 4 4 8-8M15 7h6v6' },
   { id: 'settings', label: 'Settings', icon: 'M4 6h16M4 12h16M4 18h16M8 4v4M16 10v4M10 16v4' },
 ]
 
@@ -90,6 +98,34 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   const loading = !settings || plan === undefined || !txns || !history
   const summary = loading ? null : summarize(plan ?? emptyPlan(), settings, txns, balancesBefore(month, settings, history))
 
+  // Bill reminders follow this month's payments, whichever month is on screen.
+  const nowTxns = useTransactions(backend, currentMonth())
+  useEffect(() => {
+    if (settings && nowTxns) scheduleBillReminders(settings, nowTxns)
+  }, [settings, nowTxns])
+
+  // The home screen widget and budget alerts follow the current month.
+  const isNow = month === currentMonth()
+  useEffect(() => {
+    if (!summary || !settings || !isNow) return
+    updateWidget(widgetLines(summary, settings.currency, hidden))
+    if (!settings.alerts?.off) alertOnce(month, summary, settings.alerts?.pct ?? 80, settings.currency)
+  })
+
+  // The widget's + button opens monthlybudget://add.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return
+    const isAdd = (url?: string) => !!url && url.startsWith('monthlybudget://add')
+    CapApp.getLaunchUrl().then((r) => isAdd(r?.url) && setEditing('new')).catch(() => {})
+    const h = CapApp.addListener('appUrlOpen', ({ url }) => isAdd(url) && setEditing('new'))
+    return () => {
+      h.then((x) => x.remove())
+    }
+  }, [])
+
+  const lock = useAppLock()
+  if (lock.locked) return <LockScreen onUnlock={lock.unlock} />
+
   return (
     <div className="app" ref={scroller}>
       <div className="pull" ref={content}>
@@ -104,7 +140,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
             Back to current month
           </button>
         )}
-        {tab === 'summary' && (
+        {(tab === 'summary' || tab === 'reports') && (
           <button className="icon ghost privacy" onClick={togglePrivacy} aria-pressed={hidden} aria-label={hidden ? 'Show amounts' : 'Hide amounts'} title={hidden ? 'Show amounts' : 'Hide amounts'}>
             <svg viewBox="0 0 24 24" aria-hidden>
               <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
@@ -132,7 +168,11 @@ export function MonthView({ backend, user, onSignOut }: Props) {
               onPlan={() => setTab('plan')}
               onSelectMonth={setMonth}
               onOpen={openFocus}
-            hidden={hidden}
+              hidden={hidden}
+              onEditGoals={() => {
+                setTab('settings')
+                setTimeout(() => document.getElementById('goals')?.scrollIntoView({ behavior: 'smooth' }), 50)
+              }}
             />
           </div>
         ) : tab === 'transactions' ? (
@@ -152,14 +192,19 @@ export function MonthView({ backend, user, onSignOut }: Props) {
           </div>
         ) : tab === 'plan' ? (
           <PlanEditor backend={backend} month={month} plan={plan} settings={settings} />
+        ) : tab === 'reports' ? (
+          <ReportsView backend={backend} settings={settings} month={month} hidden={hidden} onSelectMonth={(m) => {
+            setMonth(m)
+            setTab('summary')
+          }} />
         ) : (
-          <SettingsView backend={backend} settings={settings} sms={sms} user={user} onSignOut={onSignOut} />
+          <SettingsView backend={backend} settings={settings} sms={sms} user={user} onSignOut={onSignOut} lock={lock} />
         )}
       </main>
       </div>
       {picking && <MonthPicker month={month} onPick={setMonth} onClose={() => setPicking(false)} />}
 
-      {tab !== 'settings' && tab !== 'plan' && (
+      {(tab === 'summary' || tab === 'transactions') && (
         <button className="fab" aria-label="Add transaction" onClick={() => setEditing('new')}>
           +
         </button>
@@ -189,6 +234,8 @@ export function MonthView({ backend, user, onSignOut }: Props) {
         />
       )}
 
+      <UpdatePrompt />
+
       {fromSms && settings && (
         <TransactionForm
           backend={backend}
@@ -202,6 +249,46 @@ export function MonthView({ backend, user, onSignOut }: Props) {
       )}
     </div>
   )
+}
+
+function widgetLines(s: MonthSummary, currency: string, hidden: boolean) {
+  const money = (n: number) => formatWhole(n, currency)
+  const budget = s.planned.expense
+  if (budget <= 0) return { label: 'Cash + bank', value: hidden ? '•••••' : money(s.liquidityEnd), sub: 'No budget set this month', pct: 0, over: false }
+  const left = budget - s.actual.expense
+  const pct = (s.actual.expense / budget) * 100
+  return {
+    label: left >= 0 ? 'Left to spend' : 'Over budget by',
+    value: money(Math.abs(left)),
+    sub: hidden ? `${Math.round(pct)}% of budget spent` : `${money(s.actual.expense)} spent of ${money(budget)}`,
+    pct: Math.min(100, Math.round(pct)),
+    over: left < 0,
+  }
+}
+
+const ALERTS_KEY = 'budget-app:alerts-sent'
+
+/** A notification the first time a category (or the whole budget) reaches the alert level, and again when it goes over. */
+function alertOnce(month: string, s: MonthSummary, pct: number, currency: string) {
+  let sent: string[] = []
+  try {
+    sent = JSON.parse(localStorage.getItem(ALERTS_KEY) || '[]')
+  } catch {
+    // Treat as none sent.
+  }
+  const fresh = budgetAlerts(s, pct).filter((a) => !sent.includes(`${month}|${a.category ?? '*'}|${a.level}`))
+  if (!fresh.length) return
+  const keep = sent.filter((k) => k.startsWith(month))
+  try {
+    localStorage.setItem(ALERTS_KEY, JSON.stringify([...keep, ...fresh.map((a) => `${month}|${a.category ?? '*'}|${a.level}`)]))
+  } catch {
+    return // Without storage it would repeat on every change, so stay quiet.
+  }
+  const money = (n: number) => formatWhole(n, currency)
+  const line = (a: (typeof fresh)[number]) =>
+    `${a.category ?? 'Whole budget'}: ${a.level === 'over' ? `over by ${money(a.actual - a.planned)}` : `${Math.round((a.actual / a.planned) * 100)}% used, ${money(a.planned - a.actual)} left`}`
+  const over = fresh.some((a) => a.level === 'over')
+  notifyNow(over ? 'Over budget' : `Budget ${pct}% used`, fresh.map(line).join('\n')).catch(() => {})
 }
 
 /** Saves the category picked for this merchant and the account picked for this card, for next time. */

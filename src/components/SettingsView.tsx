@@ -6,6 +6,10 @@ import { formatWhole, monthLabel } from '../data/month'
 import type { Account, AccountType, Backend, Debt, Kind, Settings } from '../data/types'
 import { NumberInput } from './NumberInput'
 import { ACCENTS, DEFAULT_THEME, applyTheme, type Theme, type ThemeMode } from '../data/theme'
+import { SecurityCard } from './AppLock'
+import { BackupCard } from './BackupCard'
+import { BillsEditor } from './Bills'
+import { GoalsEditor } from './Goals'
 import { SmsSettingsCard } from './SmsSettingsCard'
 import { UpdateCard } from './UpdateCard'
 
@@ -15,12 +19,13 @@ interface Props {
   sms: BankSms
   user: User | null | undefined
   onSignOut?: () => void
+  lock: { enabled: boolean; setEnabled: (on: boolean) => void }
 }
 
 const CURRENCIES = ['EGP', 'USD', 'EUR', 'GBP', 'SAR', 'AED', 'KWD', 'QAR', 'TRY']
 const fail = (e: Error) => alert(`Could not save: ${e.message}`)
 
-export function SettingsView({ backend, settings, sms, user, onSignOut }: Props) {
+export function SettingsView({ backend, settings, sms, user, onSignOut, lock }: Props) {
   const save = (s: Settings) => backend.saveSettings(s).catch(fail)
   const setCategories = (kind: Kind, list: string[]) => save({ ...settings, categories: { ...settings.categories, [kind]: list } })
 
@@ -40,9 +45,17 @@ export function SettingsView({ backend, settings, sms, user, onSignOut }: Props)
         )}
       </section>
 
+      <BillsEditor settings={settings} onSave={save} />
+      <GoalsEditor settings={settings} onSave={save} />
+      <AlertsCard settings={settings} onSave={save} />
+
       <SmsSettingsCard sms={sms} settings={settings} onSave={save} />
 
       <ThemeCard settings={settings} onSave={save} />
+
+      <SecurityCard enabled={lock.enabled} onChange={lock.setEnabled} />
+
+      <BackupCard backend={backend} settings={settings} />
 
       <ImportCard backend={backend} settings={settings} />
 
@@ -286,6 +299,35 @@ function CategoryEditor({ title, list, onChange }: { title: string; list: string
         ))}
       </ul>
       <AddRow placeholder="New category" value={name} onChange={setName} onAdd={add} />
+    </section>
+  )
+}
+
+function AlertsCard({ settings, onSave }: { settings: Settings; onSave: (s: Settings) => void }) {
+  const alerts = settings.alerts ?? {}
+  const set = (a: Partial<typeof alerts>) => onSave({ ...settings, alerts: { ...alerts, ...a } })
+  return (
+    <section className="card">
+      <h2>Budget alerts</h2>
+      <label className="edit-row toggle-row">
+        <span className="grow">
+          Warn me before I run out
+          <span className="muted small block">A notification and a card on the Summary when a category reaches the level below, and again when it goes over.</span>
+        </span>
+        <input type="checkbox" role="switch" checked={!alerts.off} onChange={(e) => set({ off: !e.target.checked })} />
+      </label>
+      {!alerts.off && (
+        <label className="edit-row">
+          <span className="grow">Alert at</span>
+          <select value={alerts.pct ?? 80} onChange={(e) => set({ pct: Number(e.target.value) })}>
+            {[50, 70, 75, 80, 90].map((p) => (
+              <option key={p} value={p}>
+                {p}% of budget
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
     </section>
   )
 }

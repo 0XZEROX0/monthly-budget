@@ -42,11 +42,17 @@ debts and categories of a real "Monthly budget" Google Sheet.
 | 🏦 **Accounts** | Cash, Bank and Thndr. Transfers move money between them without counting as spending, and Thndr shows estimated interest (5.2%) with an "Update value" button. |
 | 💳 **Debts** | Lenders with limits (e.g. TRU, Valu). Borrowing raises what you owe, repayments count toward your Instalment budget. |
 | 🔎 **Category drill-down** | Tap any category on the Summary to see just its transactions. |
-| 📈 **Trends** | Saved each month and income vs spending over the last six months. |
+| 📆 **Bills and reminders** | Instalments (TRU, Valu) remind you every day from the due day for as many days as you choose; a bank or credit card reminds you on its one day. Mark them paid from the Summary. |
+| 🎯 **Savings goals** | Targets for bank and investment accounts (e.g. Thndr by the end of the year), with an optional deadline and how much to put away each month. |
+| ⚠️ **Budget alerts** | A card and a notification when a category reaches 80% of its budget (adjustable), and again when it goes over. |
+| 📈 **Reports** | 3, 6 or 12 months of income vs spending, saved each month, capital over time, and spending by category against the period before. |
+| 💾 **Backup and export** | Back up everything to Google Drive (through Android's share menu), export transactions as CSV, and restore from a backup. |
+| 🔒 **App lock** | Fingerprint or the phone's PIN to open the Android app. |
+| 🏠 **Home screen widget** | Left to spend this month and a + button that opens the add form. |
 | 📩 **Bank SMS import** | On Android, reads card and transfer SMS from Egyptian banks (CIB and others) and holds each one under **Pending** so you review it and pick a category before it is added. |
 | 🎨 **Themes** | Seven accent colours, plus light, dark or follow-the-system. |
 | 🙈 **Privacy mode** | One tap on the eye hides balances and totals, handy in public. |
-| 🔄 **In-app updates** | The Android app updates itself: small web updates apply instantly, new APKs download inside the app. |
+| 🔄 **In-app updates** | The Android app updates itself: small web updates apply instantly, new APKs download inside the app. A popup at launch and a notification say when a new build is out. |
 | ☁️ **Sync and offline** | Sign in with Google to sync across phone and web through Firebase. Works offline too. |
 | 📥 **Google Sheets import** | Import past months from the sheet's .xlsx export, reconciled against the sheet's own totals. |
 
