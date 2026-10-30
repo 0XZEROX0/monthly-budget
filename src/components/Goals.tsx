@@ -59,17 +59,17 @@ export function GoalsCard({ settings, balances, hidden, onEdit }: { settings: Se
   )
 }
 
-/** Settings: goals for bank and investment accounts, with or without a deadline. */
+/** Settings: goals for any accounts, cash included, with or without a deadline. */
 export function GoalsEditor({ settings, onSave }: { settings: Settings; onSave: (s: Settings) => void }) {
   const goals = settings.goals ?? []
   const [editing, setEditing] = useState<Goal | null>(null)
   const set = (list: Goal[]) => onSave({ ...settings, goals: list })
-  const savers = settings.accounts.filter((a) => a.type !== 'cash' && a.type !== 'wallet').map((a) => a.name)
+  const savers = settings.accounts.map((a) => a.name)
   const money = (n: number) => formatWhole(n, settings.currency)
   return (
     <section className="card" id="goals">
       <h2>Savings goals</h2>
-      <p className="muted small">A target for your bank and investment accounts, like Thndr by the end of the year. Progress is their balance; the deadline is up to you.</p>
+      <p className="muted small">A target for any of your accounts, like Thndr by the end of the year or cash at home. Progress is their balance; the deadline is up to you.</p>
       {goals.map((g) => (
         <button className="edit-row row-link" key={g.id} onClick={() => setEditing(g)}>
           <span className="cat-icon plan-icon">{categoryIcon(g.accounts[0] ?? 'saving')}</span>
@@ -89,7 +89,7 @@ export function GoalsEditor({ settings, onSave }: { settings: Settings; onSave: 
       >
         + New goal
       </button>
-      {!savers.length && <p className="muted small">Add a bank or investment account first.</p>}
+      {!savers.length && <p className="muted small">Add an account first.</p>}
       {editing && (
         <GoalForm
           goal={editing}

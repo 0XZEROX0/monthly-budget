@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { defaultTarget, smsSettings, splitTarget, targetFor, type BankSms } from '../data/bankSms'
 import { bankName, senderKey } from '../data/egyptBanks'
 import type { Settings, SmsSettings, SmsTarget } from '../data/types'
+import { Picker } from './Picker'
 
 const RELEASE_URL = 'https://github.com/0XZEROX0/monthly-budget/releases/latest/download/monthly-budget.apk'
 
@@ -82,22 +83,19 @@ export function SmsSettingsCard({ sms, settings, onSave }: Props) {
 function TargetRow({ label, value, settings, onChange }: { label: string; value: SmsTarget; settings: Settings; onChange: (t: SmsTarget) => void }) {
   const known = splitTarget(value)
   return (
-    <label className="edit-row">
+    <div className="edit-row">
       <span className="grow">{label}</span>
-      <select value={value} onChange={(e) => onChange(e.target.value as SmsTarget)} style={{ width: 'auto' }}>
-        {settings.accounts.map((a) => (
-          <option key={a.name} value={`account:${a.name}`}>
-            {a.name}
-          </option>
-        ))}
-        {settings.debts.map((d) => (
-          <option key={d.name} value={`debt:${d.name}`}>
-            {d.name} (credit)
-          </option>
-        ))}
-        {!settings.accounts.some((a) => a.name === known.name) && !settings.debts.some((d) => d.name === known.name) && <option value={value}>{known.name}</option>}
-      </select>
-    </label>
+      <Picker
+        label={label}
+        value={value}
+        onChange={(v) => onChange(v as SmsTarget)}
+        options={[
+          ...settings.accounts.map((a) => ({ value: `account:${a.name}`, label: a.name })),
+          ...settings.debts.map((d) => ({ value: `debt:${d.name}`, label: `${d.name} (credit)` })),
+          ...(!settings.accounts.some((a) => a.name === known.name) && !settings.debts.some((d) => d.name === known.name) ? [{ value, label: known.name }] : []),
+        ]}
+      />
+    </div>
   )
 }
 

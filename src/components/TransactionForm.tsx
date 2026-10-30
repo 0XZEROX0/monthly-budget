@@ -6,7 +6,7 @@ import { categoryIcon } from '../data/icons'
 import { today } from '../data/month'
 import type { Backend, NewTransaction, Settings, Transaction, TxnKind } from '../data/types'
 import { ask, askForm, askText, showAlert } from './dialog'
-import { askRenameCategory } from './categoryRename'
+import { askEditCategory, askNewCategory } from './categoryRename'
 
 interface Props {
   backend: Backend
@@ -79,15 +79,15 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
     if (name === toAccount) setToAccount(accounts.find((x) => x !== name) ?? '')
   }
   const addCategory = async () => {
-    const name = (await askText(`It's added to your ${catKind} categories.`, { title: `New ${catKind} category`, placeholder: 'Category name' }))?.trim()
-    if (!name) return
-    if (!categories.includes(name)) saveSettings({ ...settings, categories: { ...settings.categories, [catKind]: [...categories, name] } })
-    setCategory(name)
+    const added = await askNewCategory(settings, catKind)
+    if (!added) return
+    saveSettings(added.settings)
+    setCategory(added.name)
   }
-  // Tapping the picked category again renames it.
+  // Tapping the picked category again changes its name or icon.
   const pickCategory = async (c: string) => {
     if (c !== category) return setCategory(c)
-    const to = await askRenameCategory(backend, settings, catKind, c)
+    const to = await askEditCategory(backend, settings, catKind, c)
     if (!to) return
     setSettings({ ...settings, categories: { ...settings.categories, [catKind]: categories.map((x) => (x === c ? to : x)) } })
     setCategory(to)
@@ -243,7 +243,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
         {(tab === 'expense' || tab === 'income') && (
           <div className="field">
             <span className="field-label">
-              Category <span className="muted small">· tap again to rename, hold to reorder</span>
+              Category <span className="muted small">· tap again to edit, hold to reorder</span>
             </span>
             <div className="cat-grid" role="radiogroup">
               {!categories.includes(category) && category && (
