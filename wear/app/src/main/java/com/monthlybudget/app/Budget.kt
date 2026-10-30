@@ -31,14 +31,19 @@ object Budget {
         val link = link(context) ?: return null
         flush(context)
         val db = Firestore(link)
-        val settings = parseSettings(db.get("settings/main"))
+        val settingsDoc = db.get("settings/main")
+        val settings = parseSettings(settingsDoc)
         Store.saveSettings(context, settings)
         val month = currentMonth()
         val plan = db.get("plans/$month")
-        val txns = db.where("transactions", "month", month)
+        // Balances need every entry since the opening balances; this month's are among them.
+        val openingMonth = ((settingsDoc?.get("opening") as? Map<*, *>)?.get("month") as? String)?.takeIf { it <= month }
+        val history = if (openingMonth != null) db.where("transactions", "month", openingMonth, "GREATER_THAN_OR_EQUAL") else null
+        val txns = history?.filter { it["month"] == month } ?: db.where("transactions", "month", month)
         val glance = summarize(month, settings, plan, txns) + Store.queue(context)
         Store.saveGlance(context, glance)
-        Store.saveDetail(context, detail(settings, plan, txns))
+        val balances = balances(settingsDoc, history?.filter { (it["month"] as? String ?: "") <= month } ?: txns)
+        Store.saveDetail(context, detail(settings, plan, txns).copy(balances = balances))
         return glance
     }
 
@@ -88,6 +93,36 @@ object Budget {
             Store.saveQueue(context, left)
         }
         true
+    }
+
+    // effects() and balancesBefore() in src/data/summary.ts, up to the end of this month.
+    private fun balances(doc: Map<String, Any?>?, history: List<Map<String, Any?>>): List<Balance> {
+        val accounts = (doc?.get("accounts") as? List<*>)?.mapNotNull { it as? Map<*, *> }
+            ?.mapNotNull { a -> (a["name"] as? String)?.let { it to (a["type"] as? String ?: "cash") } }
+            ?.takeIf { it.isNotEmpty() }
+            ?: listOf("Cash" to "cash", "Bank" to "bank", "Thndr" to "investment")
+        val opening = ((doc?.get("opening") as? Map<*, *>)?.get("accounts") as? Map<*, *>) ?: emptyMap<String, Any?>()
+        val total = mutableMapOf<String, Double>()
+        for ((k, v) in opening) if (k is String && v is Double) total[k] = v
+        fun add(name: String?, v: Double) {
+            if (!name.isNullOrEmpty()) total[name] = (total[name] ?: 0.0) + v
+        }
+        for (t in history) {
+            val amount = (t["amount"] as? Double) ?: 0.0
+            val account = t["account"] as? String
+            val acc = account ?: accounts.first().first
+            when (t["kind"]) {
+                "expense", "repay" -> add(acc, -amount)
+                "income" -> add(acc, amount)
+                "transfer" -> {
+                    add(acc, -amount)
+                    add(t["toAccount"] as? String, amount)
+                }
+                "borrow" -> add(account, amount)
+                "adjust" -> if ((t["debt"] as? String).isNullOrEmpty()) add(acc, amount)
+            }
+        }
+        return accounts.map { (name, type) -> Balance(name, type, total[name] ?: 0.0) }
     }
 
     private fun parseSettings(doc: Map<String, Any?>?): WatchSettings {
@@ -177,12 +212,14 @@ object Budget {
 
     private operator fun Detail.plus(e: Entry): Detail {
         val txn = txn(mapOf("kind" to e.kind, "date" to e.date, "amount" to e.amount, "category" to e.category, "account" to e.account))
-        if (e.kind == "income") return copy(income = income + e.amount, recent = listOf(txn) + recent)
+        val sign = if (e.kind == "income") 1 else -1
+        val balances = balances.map { if (it.name == e.account) it.copy(amount = it.amount + sign * e.amount) else it }
+        if (e.kind == "income") return copy(income = income + e.amount, recent = listOf(txn) + recent, balances = balances)
         val has = rows.any { it.category == e.category }
         val rows = (if (has) rows else rows + CategoryRow(e.category, 0.0, 0.0))
             .map { if (it.category == e.category) it.copy(actual = it.actual + e.amount) else it }
             .sortedByDescending { it.actual }
-        return copy(rows = rows, recent = listOf(txn) + recent)
+        return copy(rows = rows, recent = listOf(txn) + recent, balances = balances)
     }
 
     /** Adds entries that Firestore doesn't have yet. */

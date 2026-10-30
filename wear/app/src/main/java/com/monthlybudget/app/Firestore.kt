@@ -89,8 +89,8 @@ class Firestore(private val link: Link) {
             if (e.code == 404) null else throw e
         }
 
-    /** Documents in a collection under users/{uid} whose `field` equals `value`. */
-    suspend fun where(collection: String, field: String, value: String): List<Map<String, Any?>> {
+    /** Documents in a collection under users/{uid} whose `field` compares to `value`, e.g. op GREATER_THAN_OR_EQUAL. */
+    suspend fun where(collection: String, field: String, value: String, op: String = "EQUAL"): List<Map<String, Any?>> {
         val query = JSONObject().put(
             "structuredQuery",
             JSONObject()
@@ -101,7 +101,7 @@ class Firestore(private val link: Link) {
                         "fieldFilter",
                         JSONObject()
                             .put("field", JSONObject().put("fieldPath", field))
-                            .put("op", "EQUAL")
+                            .put("op", op)
                             .put("value", JSONObject().put("stringValue", value)),
                     ),
                 ),

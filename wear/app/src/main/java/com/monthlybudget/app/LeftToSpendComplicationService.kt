@@ -16,7 +16,7 @@ import androidx.wear.watchface.complications.datasource.SuspendingComplicationDa
 class LeftToSpendComplicationService : SuspendingComplicationDataSourceService() {
     override suspend fun onComplicationRequest(request: ComplicationRequest): ComplicationData? {
         val glance = Budget.glanceForSurface(this) ?: return NoDataComplicationData()
-        return data(this, request.complicationType, glance, Store.link(this)?.hidden == true)
+        return data(this, request.complicationType, glance, Store.hidden(this))
     }
 
     override fun getPreviewData(type: ComplicationType): ComplicationData? =

@@ -20,7 +20,6 @@ import androidx.wear.compose.material.CompactChip
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.abs
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -143,7 +142,7 @@ private fun HomeScreen(onAdd: (String) -> Unit) {
     var detail by remember { mutableStateOf(Store.detail(context)) }
     var link by remember { mutableStateOf(Store.link(context)) }
     var status by remember { mutableStateOf<String?>(null) }
-    var revealed by remember { mutableStateOf(false) }
+    var hidden by remember { mutableStateOf(Store.hidden(context)) }
     var update by remember { mutableStateOf<WatchRelease?>(null) }
     var updating by remember { mutableStateOf<String?>(null) }
     val waiting = remember(glance) { Store.queue(context).size }
@@ -162,6 +161,8 @@ private fun HomeScreen(onAdd: (String) -> Unit) {
                 if (glance == null) "Can't reach your budget. Check the connection." else "Offline: showing saved figures"
             }
             link = Store.link(context)
+            // The phone may have switched privacy mode while the app was closed.
+            hidden = Store.hidden(context)
             Surfaces.update(context)
             update = runCatching { Updater.check(context) }.getOrNull()
         }
@@ -191,7 +192,6 @@ private fun HomeScreen(onAdd: (String) -> Unit) {
                 }
                 return@ScalingLazyColumn
             }
-            val hidden = link?.hidden == true && !revealed
             val secret = { n: Double -> if (hidden) MASK else whole(n) }
             if (g != null) {
                 item { Text(leftLabel(g), style = MaterialTheme.typography.caption2, color = MaterialTheme.colors.onSurfaceVariant) }
@@ -200,8 +200,6 @@ private fun HomeScreen(onAdd: (String) -> Unit) {
                         if (hidden) MASK else whole(abs(if (g.planned > 0) g.left else g.spent)),
                         style = MaterialTheme.typography.title1,
                         color = if (g.left < 0) ExpenseColor else MaterialTheme.colors.onSurface,
-                        // Privacy mode: tap to show the amounts here, until the app closes.
-                        modifier = Modifier.clickable(enabled = link?.hidden == true) { revealed = !revealed },
                     )
                 }
                 item {
@@ -214,8 +212,23 @@ private fun HomeScreen(onAdd: (String) -> Unit) {
                 }
             }
             item {
-                Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     AddButton("−", "Add expense", ExpenseColor) { onAdd("expense") }
+                    // Privacy mode, like the eye on the phone's Summary; the tile and complication follow it.
+                    Button(
+                        onClick = {
+                            hidden = !hidden
+                            Store.setHidden(context, hidden)
+                            Surfaces.update(context)
+                        },
+                        modifier = Modifier
+                            .size(ButtonDefaults.ExtraSmallButtonSize)
+                            .align(Alignment.CenterVertically)
+                            .semantics { contentDescription = if (hidden) "Show amounts" else "Hide amounts" },
+                        colors = ButtonDefaults.secondaryButtonColors(),
+                    ) {
+                        Text(if (hidden) "🙈" else "👁", fontSize = 14.sp)
+                    }
                     AddButton("+", "Add income", IncomeColor) { onAdd("income") }
                 }
             }
@@ -245,6 +258,12 @@ private fun HomeScreen(onAdd: (String) -> Unit) {
             }
 
             val d = detail
+            if (d != null && d.balances.isNotEmpty()) {
+                item { ListHeader { Text("Accounts") } }
+                val liquid = d.balances.filter { it.type != "investment" }
+                if (liquid.size > 1) item { Line("Cash + bank", secret(liquid.sumOf { it.amount }), null, MaterialTheme.colors.onSurface) }
+                items(d.balances) { b -> BalanceLine(b, secret(b.amount)) }
+            }
             if (d != null && g != null) {
                 item { ListHeader { Text("This month") } }
                 item { Line("Income", secret(d.income), if (d.incomePlanned > 0) "of ${secret(d.incomePlanned)}" else null, IncomeColor) }
@@ -335,6 +354,24 @@ private fun TxnLine(t: Txn) {
             )
         }
         Text(t.sign + whole(t.amount), style = MaterialTheme.typography.caption1, color = color)
+    }
+}
+
+@Composable
+private fun BalanceLine(b: Balance, amount: String) {
+    val tint = if (b.type == "investment") MaterialTheme.colors.secondary else MaterialTheme.colors.primary
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colors.surface.copy(alpha = 0.5f))
+            .padding(horizontal = 8.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        IconBadge(categoryIcon(b.name), tint)
+        Text(b.name, style = MaterialTheme.typography.caption1, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Text(amount, style = MaterialTheme.typography.caption1, color = if (b.amount < 0) ExpenseColor else MaterialTheme.colors.onSurface)
     }
 }
 

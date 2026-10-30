@@ -47,6 +47,9 @@ data class Glance(
 /** A category's plan and spending this month. */
 data class CategoryRow(val category: String, val planned: Double, val actual: Double)
 
+/** An account's balance at the end of this month; type is cash, bank or investment. */
+data class Balance(val name: String, val type: String, val amount: Double)
+
 /** An entry for the recent list, worded as the phone's Transactions tab words it. */
 data class Txn(val date: String, val amount: Double, val title: String, val sub: String, val icon: String, val sign: String)
 
@@ -56,6 +59,7 @@ data class Detail(
     val income: Double,
     val rows: List<CategoryRow>,
     val recent: List<Txn>,
+    val balances: List<Balance> = emptyList(),
 )
 
 /** One quick-add entry, kept until Firestore has it. */
@@ -108,6 +112,16 @@ object Store {
         Auth.forget()
     }
 
+    /**
+     * Privacy mode: amounts show as •••• or percentages. Follows the phone's eye button
+     * when it changes there, and the watch's own eye button sets it here.
+     */
+    fun hidden(context: Context): Boolean = prefs(context).getBoolean("hidden", false)
+
+    fun setHidden(context: Context, hidden: Boolean) {
+        prefs(context).edit().putBoolean("hidden", hidden).apply()
+    }
+
     fun glance(context: Context): Glance? {
         val o = prefs(context).getString("glance", null)?.let(::JSONObject) ?: return null
         return Glance(o.getString("month"), o.getString("currency"), o.getDouble("planned"), o.getDouble("spent"), o.getLong("updatedAt"))
@@ -141,7 +155,10 @@ object Store {
                     )
                 }
         }
-        return Detail(o.getDouble("incomePlanned"), o.getDouble("income"), rows, recent)
+        val balances = o.optJSONArray("balances")?.let { a ->
+            (0 until a.length()).map { a.getJSONObject(it) }.map { Balance(it.getString("name"), it.getString("type"), it.getDouble("amount")) }
+        } ?: emptyList()
+        return Detail(o.getDouble("incomePlanned"), o.getDouble("income"), rows, recent, balances)
     }
 
     fun saveDetail(context: Context, d: Detail) {
@@ -159,7 +176,14 @@ object Store {
                     .put("sign", t.sign),
             )
         }
-        val o = JSONObject().put("incomePlanned", d.incomePlanned).put("income", d.income).put("rows", rows).put("recent", recent)
+        val balances = JSONArray()
+        for (b in d.balances) balances.put(JSONObject().put("name", b.name).put("type", b.type).put("amount", b.amount))
+        val o = JSONObject()
+            .put("incomePlanned", d.incomePlanned)
+            .put("income", d.income)
+            .put("rows", rows)
+            .put("recent", recent)
+            .put("balances", balances)
         prefs(context).edit().putString("detail", o.toString()).apply()
     }
 

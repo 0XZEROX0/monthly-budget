@@ -37,7 +37,7 @@ class BudgetTileService : TileService() {
         SuspendToFutureAdapter.launchFuture(Dispatchers.IO) {
             val context = this@BudgetTileService
             val glance = Budget.glanceForSurface(context)
-            val hidden = Store.link(context)?.hidden == true
+            val hidden = Store.hidden(context)
             val device = requestParams.deviceConfiguration
             val layout = if (glance == null) unlinked(context, device) else budget(context, device, glance, hidden)
             TileBuilders.Tile.Builder()
