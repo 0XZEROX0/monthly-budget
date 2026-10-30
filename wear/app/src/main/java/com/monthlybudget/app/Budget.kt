@@ -36,13 +36,18 @@ object Budget {
         Store.saveSettings(context, settings)
         val month = currentMonth()
         val plan = db.get("plans/$month")
-        // Balances need every entry since the opening balances; this month's are among them.
+        // Balances need every entry since the opening balances, and Reports the last twelve
+        // months; this month's entries are among them.
         val openingMonth = ((settingsDoc?.get("opening") as? Map<*, *>)?.get("month") as? String)?.takeIf { it <= month }
-        val history = if (openingMonth != null) db.where("transactions", "month", openingMonth, "GREATER_THAN_OR_EQUAL") else null
-        val txns = history?.filter { it["month"] == month } ?: db.where("transactions", "month", month)
+        val reportFrom = shiftMonth(month, -(2 * Report.PERIOD - 1))
+        val since = if (openingMonth != null && openingMonth < reportFrom) openingMonth else reportFrom
+        val history = db.where("transactions", "month", since, "GREATER_THAN_OR_EQUAL")
+        val txns = history.filter { it["month"] == month }
         val glance = summarize(month, settings, plan, txns) + Store.queue(context)
         Store.saveGlance(context, glance)
-        val balances = balances(settingsDoc, history?.filter { (it["month"] as? String ?: "") <= month } ?: txns)
+        val sinceOpening = if (openingMonth != null) history.filter { (it["month"] as? String ?: "") in openingMonth..month } else txns
+        val balances = balances(settingsDoc, sinceOpening)
+        Store.saveReport(context, buildReport(month, accountTypes(settingsDoc), settings.debtCategory, history))
         Store.saveDetail(
             context,
             detail(settings, plan, txns).copy(
@@ -105,33 +110,20 @@ object Budget {
     }
 
     // effects() and balancesBefore() in src/data/summary.ts, up to the end of this month.
-    private fun balances(doc: Map<String, Any?>?, history: List<Map<String, Any?>>): List<Balance> {
-        val accountMaps = (doc?.get("accounts") as? List<*>)?.mapNotNull { it as? Map<*, *> }.orEmpty()
-        val accounts = accountMaps
+    /** Every account as name to type (cash, bank or investment). */
+    private fun accountTypes(doc: Map<String, Any?>?): List<Pair<String, String>> =
+        (doc?.get("accounts") as? List<*>)?.mapNotNull { it as? Map<*, *> }.orEmpty()
             .mapNotNull { a -> (a["name"] as? String)?.let { it to (a["type"] as? String ?: "cash") } }
             .ifEmpty { listOf("Cash" to "cash", "Bank" to "bank", "Thndr" to "investment") }
+
+    private fun balances(doc: Map<String, Any?>?, history: List<Map<String, Any?>>): List<Balance> {
+        val accountMaps = (doc?.get("accounts") as? List<*>)?.mapNotNull { it as? Map<*, *> }.orEmpty()
+        val accounts = accountTypes(doc)
         val interestPct = accountMaps.associate { (it["name"] as? String) to ((it["interestPct"] as? Double) ?: 0.0) }
         val opening = ((doc?.get("opening") as? Map<*, *>)?.get("accounts") as? Map<*, *>) ?: emptyMap<String, Any?>()
         val total = mutableMapOf<String, Double>()
         for ((k, v) in opening) if (k is String && v is Double) total[k] = v
-        fun add(name: String?, v: Double) {
-            if (!name.isNullOrEmpty()) total[name] = (total[name] ?: 0.0) + v
-        }
-        for (t in history) {
-            val amount = (t["amount"] as? Double) ?: 0.0
-            val account = t["account"] as? String
-            val acc = account ?: accounts.first().first
-            when (t["kind"]) {
-                "expense", "repay" -> add(acc, -amount)
-                "income" -> add(acc, amount)
-                "transfer" -> {
-                    add(acc, -amount)
-                    add(t["toAccount"] as? String, amount)
-                }
-                "borrow" -> add(account, amount)
-                "adjust" -> if ((t["debt"] as? String).isNullOrEmpty()) add(acc, amount)
-            }
-        }
+        for (t in history) for ((k, v) in accountEffects(t, accounts.first().first)) total[k] = (total[k] ?: 0.0) + v
         // Investments show their value with the expected interest, as the phone's Summary does.
         return accounts.map { (name, type) ->
             val end = total[name] ?: 0.0
@@ -202,7 +194,7 @@ object Budget {
         val incomePlanned = s.income.sumOf { (plannedFor("income")[it] as? Double) ?: 0.0 }
         // Newest first; the web app has no time of day, so same-day entries keep Firestore's order.
         // Newest first; the web app has no time of day, so same-day entries keep Firestore's order.
-        val recent = txns.sortedByDescending { it["date"] as? String ?: "" }.take(15).map(::txn)
+        val recent = txns.sortedByDescending { it["date"] as? String ?: "" }.take(100).map(::txn)
         return Detail(incomePlanned, income, rows, recent)
     }
 

@@ -137,6 +137,7 @@ object Store {
             if (!sameUser) {
                 remove("glance")
                 remove("detail")
+                remove("report")
                 remove("settings")
                 remove("queue")
             }

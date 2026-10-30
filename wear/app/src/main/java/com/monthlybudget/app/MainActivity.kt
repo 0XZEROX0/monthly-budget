@@ -11,6 +11,8 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.layout.size
@@ -120,6 +122,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun App(start: String?, onStarted: () -> Unit, finish: () -> Unit) {
     var screen by remember { mutableStateOf<Screen>(Screen.Home) }
+    // The page Home was on, so coming back from adding an entry returns there.
+    var homePage by remember { mutableStateOf(0) }
     // Opened from the tile for one entry: close once it's saved.
     var quick by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -152,6 +156,8 @@ private fun App(start: String?, onStarted: () -> Unit, finish: () -> Unit) {
             onSave = save,
             onConfirm = { entry, title -> screen = Screen.Confirm(entry, title) },
             onPickCategory = { kind, amount -> screen = Screen.Category(kind, amount) },
+            page = homePage,
+            onPage = { homePage = it },
             onPayBill = { bill ->
                 val entry = billEntry(context, bill, bill.amount)
                 screen = if (bill.amount > 0) Screen.Confirm(entry, "Pay ${bill.name}") else Screen.Amount("expense", bill)
@@ -223,11 +229,14 @@ private fun HomeScreen(
     onConfirm: (Entry, String) -> Unit,
     onPickCategory: (String, Double) -> Unit,
     onPayBill: (Bill) -> Unit,
+    page: Int,
+    onPage: (Int) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var glance by remember { mutableStateOf(Store.glance(context)) }
     var detail by remember { mutableStateOf(Store.detail(context)) }
+    var report by remember { mutableStateOf(Store.report(context)) }
     var link by remember { mutableStateOf(Store.link(context)) }
     var status by remember { mutableStateOf<String?>(null) }
     var hidden by remember { mutableStateOf(Store.hidden(context)) }
@@ -250,6 +259,7 @@ private fun HomeScreen(
             status = try {
                 glance = Budget.refresh(context)
                 detail = Store.detail(context)
+                report = Store.report(context)
                 null
             } catch (e: SignedOutException) {
                 "Sign in again in the phone app"
@@ -264,148 +274,359 @@ private fun HomeScreen(
         }
     }
 
-    val listState = rememberScalingLazyListState()
-    Scaffold(timeText = { TimeText() }, positionIndicator = { PositionIndicator(scalingLazyListState = listState) }) {
-        val g = glance
-        if (g != null && g.planned > 0) {
-            CircularProgressIndicator(
-                progress = g.fractionSpent,
-                modifier = Modifier.fillMaxSize().padding(2.dp),
-                startAngle = 300f,
-                endAngle = 240f,
-                indicatorColor = if (g.left < 0) ExpenseColor else MaterialTheme.colors.primary,
-                strokeWidth = 4.dp,
-            )
-        }
-        ScalingLazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-            if (link == null) {
-                item {
-                    Text(
-                        "Open Monthly Budget on your phone, signed in, to link this watch.",
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.body2,
-                    )
+    val pager = rememberPagerState(initialPage = page) { PAGES.size }
+    LaunchedEffect(pager.currentPage) { onPage(pager.currentPage) }
+    val lists = List(PAGES.size) { rememberScalingLazyListState() }
+    val toggleHidden = {
+        hidden = !hidden
+        Store.setHidden(context, hidden)
+        Surfaces.update(context)
+    }
+    val secret = { n: Double -> if (hidden) MASK else whole(n) }
+    val pinOf = { t: Txn ->
+        if (t.kind == "expense" || t.kind == "income") {
+            { pin(Favorite(t.kind, t.amount, t.category, t.account)) }
+        } else null
+    }
+    val installUpdate = { release: WatchRelease ->
+        if (updating == null) {
+            updating = "Downloading…"
+            scope.launch {
+                updating = try {
+                    Updater.install(context, release) { updating = "Downloading ${(it * 100).toInt()}%" }
+                    "Installing…"
+                } catch (e: Exception) {
+                    null.also { status = "Update failed. Try again on Wi-Fi." }
                 }
-                return@ScalingLazyColumn
             }
-            val secret = { n: Double -> if (hidden) MASK else whole(n) }
-            if (g != null) {
-                item { Text(leftLabel(g), style = MaterialTheme.typography.caption2, color = MaterialTheme.colors.onSurfaceVariant) }
-                item {
-                    Text(
-                        if (hidden) MASK else whole(abs(if (g.planned > 0) g.left else g.spent)),
-                        style = MaterialTheme.typography.title1,
-                        color = if (g.left < 0) ExpenseColor else MaterialTheme.colors.onSurface,
-                        // Privacy mode, like the eye on the phone's Summary: tap the number to
-                        // hide or show amounts here, on the tile and on the complication.
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable {
-                                hidden = !hidden
-                                Store.setHidden(context, hidden)
-                                Surfaces.update(context)
+        }
+    }
+
+    Scaffold(timeText = { TimeText() }, positionIndicator = { PositionIndicator(scalingLazyListState = lists[pager.currentPage]) }) {
+        val g = glance
+        val d = detail
+        // Pages like the phone's tabs, minus Plan: swipe left and right.
+        HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { p ->
+            if (link == null) {
+                Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+                    Text("Open Monthly Budget on your phone, signed in, to link this watch.", textAlign = TextAlign.Center, style = MaterialTheme.typography.body2)
+                }
+                return@HorizontalPager
+            }
+            when (PAGES[p]) {
+                "Summary" -> Box(Modifier.fillMaxSize()) {
+                    if (g != null && g.planned > 0) {
+                        CircularProgressIndicator(
+                            progress = g.fractionSpent,
+                            modifier = Modifier.fillMaxSize().padding(2.dp),
+                            startAngle = 300f,
+                            endAngle = 240f,
+                            indicatorColor = if (g.left < 0) ExpenseColor else MaterialTheme.colors.primary,
+                            strokeWidth = 4.dp,
+                        )
+                    }
+                    ScalingLazyColumn(state = lists[p], modifier = Modifier.fillMaxSize()) {
+                        if (g != null) {
+                            item { Text(leftLabel(g), style = MaterialTheme.typography.caption2, color = MaterialTheme.colors.onSurfaceVariant) }
+                            item {
+                                Text(
+                                    if (hidden) MASK else whole(abs(if (g.planned > 0) g.left else g.spent)),
+                                    style = MaterialTheme.typography.title1,
+                                    color = if (g.left < 0) ExpenseColor else MaterialTheme.colors.onSurface,
+                                    // Privacy mode, like the eye on the phone's Summary: tap the number to
+                                    // hide or show amounts here, on the tile and on the complication.
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable(onClick = toggleHidden)
+                                        .padding(horizontal = 8.dp)
+                                        .semantics { contentDescription = if (hidden) "Show amounts" else "Hide amounts" },
+                                )
                             }
-                            .padding(horizontal = 8.dp)
-                            .semantics { contentDescription = if (hidden) "Show amounts" else "Hide amounts" },
-                    )
+                            item {
+                                val pct = (g.fractionSpent * 100).toInt()
+                                Text(
+                                    if (hidden) "$pct% spent" else "${whole(g.spent)} of ${whole(g.planned)} ${g.currency}",
+                                    style = MaterialTheme.typography.caption3,
+                                    color = MaterialTheme.colors.onSurfaceVariant,
+                                )
+                            }
+                            // Daily allowance: what's left spread over the rest of the month, today included.
+                            // Over budget there's nothing left to spread, so it says so instead.
+                            if (g.planned > 0 && g.month == currentMonth()) {
+                                val today = LocalDate.now()
+                                val days = today.lengthOfMonth() - today.dayOfMonth + 1
+                                val daysText = if (days == 1) "last day" else "$days days left"
+                                item {
+                                    Text(
+                                        when {
+                                            g.left <= 0 -> "No daily allowance · $daysText"
+                                            hidden -> daysText
+                                            else -> "≈ ${whole(g.left / days)} a day · $daysText"
+                                        },
+                                        style = MaterialTheme.typography.caption3,
+                                        color = if (g.left <= 0) ExpenseColor else MaterialTheme.colors.primary,
+                                    )
+                                }
+                            }
+                        }
+                        item {
+                            Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                                AddButton("−", "Add expense", ExpenseColor) { onAdd("expense") }
+                                AddButton("+", "Add income", IncomeColor) { onAdd("income") }
+                            }
+                        }
+                        if (waiting > 0) {
+                            item { Text("$waiting waiting to sync", style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant) }
+                        }
+                        status?.let { item { Text(it, style = MaterialTheme.typography.caption3, textAlign = TextAlign.Center, color = MaterialTheme.colors.onSurfaceVariant) } }
+                        update?.let { release ->
+                            item {
+                                CompactChip(onClick = { installUpdate(release) }, label = { Text(updating ?: "Update watch app") }, colors = ChipDefaults.primaryChipColors())
+                            }
+                        }
+                        if (d != null && d.due.isNotEmpty()) {
+                            item { ListHeader { Text("Due") } }
+                            items(d.due) { bill -> BillLine(bill, onClick = { onPayBill(bill) }) }
+                        }
+                        val shown = favorites.ifEmpty { d?.suggested.orEmpty() }
+                        if (shown.isNotEmpty()) {
+                            item { ListHeader { Text(if (favorites.isEmpty()) "Suggested" else "Favorites") } }
+                            items(shown) { f ->
+                                FavoriteLine(
+                                    f,
+                                    onClick = { onSave(Entry(newId(), f.kind, f.amount, f.category, f.account, LocalDate.now().toString())) },
+                                    onLongClick = { pin(f) },
+                                )
+                            }
+                        }
+                        if (d != null && d.balances.isNotEmpty()) {
+                            item { ListHeader { Text("Accounts") } }
+                            val liquid = d.balances.filter { it.type != "investment" }
+                            if (liquid.size > 1) item { Line("Cash + bank", secret(liquid.sumOf { it.amount }), null, MaterialTheme.colors.onSurface) }
+                            items(d.balances) { b -> BalanceLine(b, secret(b.amount)) }
+                        }
+                        if (d != null && d.goals.isNotEmpty()) {
+                            item { ListHeader { Text("Goals") } }
+                            items(d.goals) { goal -> GoalLine(goal, hidden) }
+                        }
+                        if (d != null && g != null) {
+                            item { ListHeader { Text("This month") } }
+                            item { Line("Income", secret(d.income), if (d.incomePlanned > 0) "of ${secret(d.incomePlanned)}" else null, IncomeColor) }
+                            item { Line("Spent", secret(g.spent), if (g.planned > 0) "of ${secret(g.planned)}" else null, ExpenseColor) }
+                            // Category budgets stay visible in privacy mode, as on the phone.
+                            items(d.rows) { row -> CategoryLine(row) }
+                        }
+                        item { PageDots(p) }
+                    }
                 }
-                item {
-                    val pct = (g.fractionSpent * 100).toInt()
-                    Text(
-                        if (hidden) "$pct% spent" else "${whole(g.spent)} of ${whole(g.planned)} ${g.currency}",
-                        style = MaterialTheme.typography.caption3,
-                        color = MaterialTheme.colors.onSurfaceVariant,
-                    )
+
+                "Transactions" -> ScalingLazyColumn(state = lists[p], modifier = Modifier.fillMaxSize()) {
+                    item { ListHeader { Text(monthName(currentMonth())) } }
+                    val recent = d?.recent.orEmpty()
+                    if (recent.isEmpty()) {
+                        item { Text("No entries yet this month", style = MaterialTheme.typography.caption2, color = MaterialTheme.colors.onSurfaceVariant) }
+                    } else {
+                        item { Text("Hold an entry to pin it", style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant) }
+                    }
+                    // Grouped by day, newest first, as on the phone's Transactions tab.
+                    for ((day, list) in recent.groupBy { it.date }) {
+                        item { Text(dayHeader(day), style = MaterialTheme.typography.caption2, color = MaterialTheme.colors.primary, modifier = Modifier.padding(top = 4.dp)) }
+                        items(list) { t -> TxnLine(t, onLongClick = pinOf(t)) }
+                    }
+                    item { PageDots(p) }
                 }
-                // Daily allowance: what's left spread over the rest of the month, today included.
-                // Over budget there's nothing left to spread, so it says so instead.
-                if (g.planned > 0 && g.month == currentMonth()) {
-                    val today = LocalDate.now()
-                    val days = today.lengthOfMonth() - today.dayOfMonth + 1
-                    val daysText = if (days == 1) "last day" else "$days days left"
+
+                "Reports" -> ScalingLazyColumn(state = lists[p], modifier = Modifier.fillMaxSize()) {
+                    val r = report
+                    item { ListHeader { Text("Last ${Report.PERIOD} months") } }
+                    if (r == null) {
+                        item { Text("Loading…", style = MaterialTheme.typography.caption2) }
+                    } else {
+                        item { Line("Income", if (hidden) MASK else compact(r.income), if (hidden) null else "${compact(r.income / Report.PERIOD)}/mo", IncomeColor) }
+                        item { Line("Spent", if (hidden) MASK else compact(r.spent), if (hidden) null else "${compact(r.spent / Report.PERIOD)}/mo", ExpenseColor) }
+                        item {
+                            Line(
+                                if (r.saved >= 0) "Saved" else "Overspent",
+                                compact(abs(r.saved)),
+                                r.rate?.let { "${it.toInt()}%" },
+                                if (r.saved >= 0) IncomeColor else ExpenseColor,
+                            )
+                        }
+                        item { ListHeader { Text("Income vs spending") } }
+                        item {
+                            if (hidden) {
+                                Text("Hidden in privacy mode", style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant)
+                            } else {
+                                MonthsChart(r.months)
+                            }
+                        }
+                        if (r.categories.isNotEmpty()) {
+                            item { ListHeader { Text("By category") } }
+                            val top = r.categories.first().total.takeIf { it > 0 } ?: 1.0
+                            items(r.categories) { c -> ReportCategoryLine(c, top) }
+                        }
+                    }
+                    item { PageDots(p) }
+                }
+
+                else -> ScalingLazyColumn(state = lists[p], modifier = Modifier.fillMaxSize()) {
+                    item { ListHeader { Text("Settings") } }
+                    item {
+                        Chip(
+                            onClick = toggleHidden,
+                            label = { Text("Hide amounts") },
+                            secondaryLabel = { Text(if (hidden) "On · tap the big number too" else "Off") },
+                            icon = { Text(if (hidden) "🙈" else "👁", fontSize = 16.sp) },
+                            colors = ChipDefaults.secondaryChipColors(),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    item {
+                        Chip(
+                            onClick = {
+                                val release = update
+                                if (release != null) {
+                                    installUpdate(release)
+                                } else {
+                                    status = "Checking…"
+                                    scope.launch {
+                                        update = runCatching { Updater.check(context) }.getOrNull()
+                                        status = if (update == null) "Up to date" else null
+                                    }
+                                }
+                            },
+                            label = { Text(updating ?: if (update != null) "Update watch app" else "Check for updates") },
+                            secondaryLabel = {
+                                Text(update?.let { "Build ${it.build} is out" } ?: "Build ${Updater.installedBuild(context)}" + (status?.let { " · $it" } ?: ""))
+                            },
+                            icon = { Text("⬇", fontSize = 16.sp) },
+                            colors = if (update != null) ChipDefaults.primaryChipColors() else ChipDefaults.secondaryChipColors(),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    item {
+                        Chip(
+                            onClick = {
+                                status = "Refreshing…"
+                                scope.launch {
+                                    status = try {
+                                        glance = Budget.refresh(context)
+                                        detail = Store.detail(context)
+                                        report = Store.report(context)
+                                        Surfaces.update(context)
+                                        "Up to date"
+                                    } catch (e: Exception) {
+                                        "Can't reach your budget"
+                                    }
+                                }
+                            },
+                            label = { Text("Refresh now") },
+                            secondaryLabel = { Text(glance?.let { "Updated ${timeOf(it.updatedAt)}" } ?: "Not loaded yet") },
+                            icon = { Text("↻", fontSize = 16.sp) },
+                            colors = ChipDefaults.secondaryChipColors(),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    if (favorites.isNotEmpty()) {
+                        item { ListHeader { Text("Favorites · tap to remove") } }
+                        items(favorites) { f -> FavoriteLine(f, onClick = { pin(f) }, onLongClick = { pin(f) }) }
+                    }
                     item {
                         Text(
-                            when {
-                                g.left <= 0 -> "No daily allowance · $daysText"
-                                hidden -> daysText
-                                else -> "≈ ${whole(g.left / days)} a day · $daysText"
-                            },
+                            "Linked to the account signed in on your phone. Sign out there to unlink.",
                             style = MaterialTheme.typography.caption3,
-                            color = if (g.left <= 0) ExpenseColor else MaterialTheme.colors.primary,
+                            color = MaterialTheme.colors.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(top = 6.dp),
+                        )
+                    }
+                    item { PageDots(p) }
+                }
+            }
+        }
+    }
+}
+
+private val PAGES = listOf("Summary", "Transactions", "Reports", "Settings")
+
+/** Which page this is, and that there are more to either side. */
+@Composable
+private fun PageDots(current: Int) {
+    Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+        for (i in PAGES.indices) {
+            Box(
+                Modifier
+                    .size(if (i == current) 7.dp else 5.dp)
+                    .clip(CircleShape)
+                    .background(if (i == current) MaterialTheme.colors.onSurface else MaterialTheme.colors.onSurfaceVariant.copy(alpha = 0.5f)),
+            )
+        }
+    }
+}
+
+private fun monthName(month: String): String =
+    runCatching { java.time.YearMonth.parse(month).format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.US)) }.getOrDefault(month)
+
+private fun dayHeader(date: String): String {
+    val d = runCatching { LocalDate.parse(date) }.getOrNull() ?: return date
+    return when (d) {
+        LocalDate.now() -> "Today"
+        LocalDate.now().minusDays(1) -> "Yesterday"
+        else -> d.format(DateTimeFormatter.ofPattern("EEE, MMM d", Locale.US))
+    }
+}
+
+private fun timeOf(millis: Long): String =
+    java.time.Instant.ofEpochMilli(millis).atZone(java.time.ZoneId.systemDefault()).toLocalTime()
+        .format(DateTimeFormatter.ofPattern("HH:mm", Locale.US))
+
+/** Income and spending side by side for each month, newest on the right. */
+@Composable
+private fun MonthsChart(months: List<MonthBar>) {
+    val top = months.maxOfOrNull { maxOf(it.income, it.spent) }?.takeIf { it > 0 } ?: 1.0
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        for (m in months) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Row(Modifier.height(56.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                    for ((v, c) in listOf(m.income to IncomeColor, m.spent to ExpenseColor)) {
+                        Box(
+                            Modifier
+                                .width(6.dp)
+                                .height((56 * (v / top)).coerceAtLeast(1.0).dp)
+                                .clip(RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp))
+                                .background(c),
                         )
                     }
                 }
+                Text(monthShort(m.month).take(1), style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant)
             }
-            item {
-                Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    AddButton("−", "Add expense", ExpenseColor) { onAdd("expense") }
-                    AddButton("+", "Add income", IncomeColor) { onAdd("income") }
-                }
-            }
-            if (waiting > 0) {
-                item { Text("$waiting waiting to sync", style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant) }
-            }
-            status?.let { item { Text(it, style = MaterialTheme.typography.caption3, textAlign = TextAlign.Center, color = MaterialTheme.colors.onSurfaceVariant) } }
-            update?.let { release ->
-                item {
-                    CompactChip(
-                        onClick = {
-                            if (updating != null) return@CompactChip
-                            updating = "Downloading…"
-                            scope.launch {
-                                updating = try {
-                                    Updater.install(context, release) { updating = "Downloading ${(it * 100).toInt()}%" }
-                                    "Installing…"
-                                } catch (e: Exception) {
-                                    null.also { status = "Update failed. Try again on Wi-Fi." }
-                                }
-                            }
-                        },
-                        label = { Text(updating ?: "Update watch app") },
-                        colors = ChipDefaults.primaryChipColors(),
-                    )
-                }
-            }
+        }
+    }
+}
 
-            val d = detail
-            if (d != null && d.due.isNotEmpty()) {
-                item { ListHeader { Text("Due") } }
-                items(d.due) { bill -> BillLine(bill, onClick = { onPayBill(bill) }) }
-            }
-            val shown = favorites.ifEmpty { d?.suggested.orEmpty() }
-            if (shown.isNotEmpty()) {
-                item { ListHeader { Text(if (favorites.isEmpty()) "Suggested" else "Favorites") } }
-                items(shown) { f ->
-                    FavoriteLine(
-                        f,
-                        onClick = { onSave(Entry(newId(), f.kind, f.amount, f.category, f.account, LocalDate.now().toString())) },
-                        onLongClick = { pin(f) },
-                    )
-                }
-            }
-            if (d != null && d.balances.isNotEmpty()) {
-                item { ListHeader { Text("Accounts") } }
-                val liquid = d.balances.filter { it.type != "investment" }
-                if (liquid.size > 1) item { Line("Cash + bank", secret(liquid.sumOf { it.amount }), null, MaterialTheme.colors.onSurface) }
-                items(d.balances) { b -> BalanceLine(b, secret(b.amount)) }
-            }
-            if (d != null && d.goals.isNotEmpty()) {
-                item { ListHeader { Text("Goals") } }
-                items(d.goals) { goal -> GoalLine(goal, hidden) }
-            }
-            if (d != null && g != null) {
-                item { ListHeader { Text("This month") } }
-                item { Line("Income", secret(d.income), if (d.incomePlanned > 0) "of ${secret(d.incomePlanned)}" else null, IncomeColor) }
-                item { Line("Spent", secret(g.spent), if (g.planned > 0) "of ${secret(g.planned)}" else null, ExpenseColor) }
-                // Category budgets stay visible in privacy mode, as on the phone.
-                items(d.rows.take(6)) { row -> CategoryLine(row) }
-                if (d.recent.isNotEmpty()) item { ListHeader { Text("Recent") } }
-                // Hold an entry to pin it to favorites.
-                items(d.recent.take(10)) { t ->
-                    TxnLine(t, onLongClick = if (t.kind == "expense" || t.kind == "income") {
-                        { pin(Favorite(t.kind, t.amount, t.category, t.account)) }
-                    } else null)
-                }
+@Composable
+private fun ReportCategoryLine(c: ReportCategory, top: Double) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 2.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(categoryIcon(c.category) + " ", fontSize = 12.sp)
+            Text(c.category, style = MaterialTheme.typography.caption2, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Text(compact(c.total), style = MaterialTheme.typography.caption3)
+        }
+        Box(Modifier.padding(top = 2.dp).fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(MaterialTheme.colors.surface)) {
+            Box(Modifier.fillMaxWidth((c.total / top).toFloat().coerceIn(0f, 1f)).height(3.dp).background(MaterialTheme.colors.primary))
+        }
+        Row {
+            Text("${compact(c.perMonth)}/mo", style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant)
+            c.change?.let {
+                Text(
+                    " · ${if (it > 0) "▲" else "▼"} ${abs(it).toInt()}%",
+                    style = MaterialTheme.typography.caption3,
+                    color = if (it > 0) ExpenseColor else IncomeColor,
+                )
             }
         }
     }
