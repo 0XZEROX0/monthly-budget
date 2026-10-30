@@ -36,20 +36,15 @@ jobs:
           echo "VITE_NATIVE_HASH=$( (git ls-files -s android; echo "$plugins") | sha1sum | cut -c1-12)" >> "$GITHUB_ENV"
           echo "VITE_BUILD=${{ github.run_number }}" >> "$GITHUB_ENV"
 
-      # Firebase web config comes from repository secrets (.env is not committed).
-      # Stops here rather than shipping a build without sync when the secrets are missing.
+      # .env is not committed: the FIREBASE_ENV repository secret holds the whole file
+      # (same lines as .env.example). Stops here rather than shipping a build without sync.
       - name: Build web app
-        run: |
-          test -n "$VITE_FIREBASE_API_KEY" || { echo "::error::Add the VITE_FIREBASE_* repository secrets (see .env.example)"; exit 1; }
-          npm run build
         env:
-          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
-          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
-          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
-          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
-          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
-          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
-          VITE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.VITE_GOOGLE_WEB_CLIENT_ID }}
+          FIREBASE_ENV: ${{ secrets.FIREBASE_ENV }}
+        run: |
+          printf '%s\n' "$FIREBASE_ENV" | tr -d '\r' > .env
+          grep -q '^VITE_FIREBASE_API_KEY=.' .env || { echo "::error::Add the FIREBASE_ENV repository secret (the contents of .env)"; exit 1; }
+          npm run build
       - run: npx cap sync android
       - name: Zip the web files
         run: cd dist && zip -qr "$RUNNER_TEMP/web.zip" .

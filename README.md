@@ -103,7 +103,7 @@ app runs in local mode (this browser only).
 
 1. Create a Firebase project and enable **Authentication › Google** and **Firestore**.
 2. Copy `.env.example` to `.env` and fill in the web app config. `.env` is not committed: the GitHub
-   Actions builds read the same keys from repository secrets with the same names.
+   Actions builds write it from the `FIREBASE_ENV` repository secret, which holds the whole file.
 3. Deploy `firestore.rules` so each user can only access their own data.
 
 ## Android app
