@@ -698,7 +698,6 @@ private fun TxnLine(t: Txn, onLongClick: (() -> Unit)? = null) {
         "−" -> ExpenseColor
         else -> MaterialTheme.colors.onSurface
     }
-    val day = runCatching { LocalDate.parse(t.date).format(dayFormat) }.getOrDefault(t.date)
     Row(
         Modifier
             .fillMaxWidth()
@@ -713,7 +712,7 @@ private fun TxnLine(t: Txn, onLongClick: (() -> Unit)? = null) {
         Column(Modifier.weight(1f)) {
             Text(t.title, style = MaterialTheme.typography.caption1, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                listOf(day, t.sub).filter { it.isNotEmpty() }.joinToString(" · "),
+                listOf(t.time, t.sub).filter { it.isNotEmpty() }.joinToString(" · "),
                 style = MaterialTheme.typography.caption3,
                 color = MaterialTheme.colors.onSurfaceVariant,
                 maxLines = 1,

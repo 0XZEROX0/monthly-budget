@@ -61,6 +61,8 @@ data class Txn(
     val kind: String = "",
     val category: String = "",
     val account: String = "",
+    /** HH:MM when the phone or watch recorded it; older entries have none. */
+    val time: String = "",
 )
 
 /** A bill in its reminder days and not paid yet; dueBy is its last reminder day. */
@@ -111,6 +113,8 @@ data class Entry(
     val date: String,
     /** Set for a bill paid toward a debt: saved as a repayment. */
     val debt: String = "",
+    /** HH:MM, so the phone can order same-day entries. */
+    val time: String = java.time.LocalTime.now().toString().take(5),
 )
 
 /** Everything the watch keeps on itself. */
@@ -197,6 +201,7 @@ object Store {
                         it.optString("kind"),
                         it.optString("category"),
                         it.optString("account"),
+                        it.optString("time"),
                     )
                 }
         }
@@ -240,7 +245,8 @@ object Store {
                     .put("sign", t.sign)
                     .put("kind", t.kind)
                     .put("category", t.category)
-                    .put("account", t.account),
+                    .put("account", t.account)
+                    .put("time", t.time),
             )
         }
         val balances = JSONArray()
@@ -307,7 +313,7 @@ object Store {
         val a = prefs(context).getString("queue", null)?.let(::JSONArray) ?: return emptyList()
         return (0 until a.length()).map {
             val o = a.getJSONObject(it)
-            Entry(o.getString("id"), o.getString("kind"), o.getDouble("amount"), o.getString("category"), o.getString("account"), o.getString("date"), o.optString("debt"))
+            Entry(o.getString("id"), o.getString("kind"), o.getDouble("amount"), o.getString("category"), o.getString("account"), o.getString("date"), o.optString("debt"), o.optString("time"))
         }
     }
 
@@ -322,7 +328,8 @@ object Store {
                     .put("category", e.category)
                     .put("account", e.account)
                     .put("date", e.date)
-                    .put("debt", e.debt),
+                    .put("debt", e.debt)
+                    .put("time", e.time),
             )
         }
         prefs(context).edit().putString("queue", a.toString()).apply()

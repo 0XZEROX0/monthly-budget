@@ -95,6 +95,7 @@ object Budget {
                 buildMap {
                     put("kind", e.kind)
                     put("date", e.date)
+                    if (e.time.isNotEmpty()) put("time", e.time)
                     put("month", e.date.substring(0, 7))
                     put("amount", e.amount)
                     put("description", "")
@@ -159,7 +160,8 @@ object Budget {
         val actualBy = mutableMapOf<String, Double>()
         for (t in txns) {
             val cat = when (t["kind"]) {
-                "expense" -> t["category"] as? String
+                // "Don't count as an expense" entries leave the account but not the budget.
+                "expense" -> if (t["notSpending"] == true) null else t["category"] as? String
                 "repay" -> debtRow
                 else -> null
             } ?: continue
@@ -181,7 +183,7 @@ object Budget {
             val amount = (t["amount"] as? Double) ?: 0.0
             when (t["kind"]) {
                 "income" -> income += amount
-                "expense" -> (t["category"] as? String)?.let { actualBy[it] = (actualBy[it] ?: 0.0) + amount }
+                "expense" -> if (t["notSpending"] != true) (t["category"] as? String)?.let { actualBy[it] = (actualBy[it] ?: 0.0) + amount }
                 "repay" -> debtRow?.let { actualBy[it] = (actualBy[it] ?: 0.0) + amount }
             }
         }
@@ -192,7 +194,8 @@ object Budget {
         val incomePlanned = s.income.sumOf { (plannedFor("income")[it] as? Double) ?: 0.0 }
         // Newest first; the web app has no time of day, so same-day entries keep Firestore's order.
         // Newest first; the web app has no time of day, so same-day entries keep Firestore's order.
-        val recent = txns.sortedByDescending { it["date"] as? String ?: "" }.take(100).map(::txn)
+        // Newest first by date, then time, as the phone sorts them.
+        val recent = txns.sortedByDescending { (it["date"] as? String ?: "") + " " + (it["time"] as? String ?: "") }.take(100).map(::txn)
         return Detail(incomePlanned, income, rows, recent)
     }
 
@@ -250,7 +253,7 @@ object Budget {
             val kind = t["kind"] as? String
             val category = t["category"] as? String
             val amount = t["amount"] as? Double
-            if ((kind == "expense" || kind == "income") && !category.isNullOrEmpty() && amount != null) {
+            if ((kind == "expense" || kind == "income") && t["notSpending"] != true && !category.isNullOrEmpty() && amount != null) {
                 Favorite(kind, amount, category, t["account"] as? String ?: "")
             } else null
         }
@@ -270,19 +273,20 @@ object Budget {
         val amount = (t["amount"] as? Double) ?: 0.0
         val date = str("date")
         val kind = str("kind")
-        val catSub = if (note.isNotEmpty()) "$category · " else ""
+        val catSub = (if (t["notSpending"] == true) "Not counted · " else "") + if (note.isNotEmpty()) "$category · " else ""
+        val time = str("time")
         return when (kind) {
-            "expense" -> Txn(date, amount, note.ifEmpty { category }, catSub + account, categoryIcon(category), "−", kind, category, account)
-            "income" -> Txn(date, amount, note.ifEmpty { category }, "${catSub}into $account", categoryIcon(category), "+", kind, category, account)
-            "transfer" -> Txn(date, amount, "$account → ${str("toAccount")}", note.ifEmpty { "Transfer" }, "⇄", "")
-            "repay" -> Txn(date, amount, note.ifEmpty { "Paid $debt" }, "Debt payment · $account", categoryIcon(debt.ifEmpty { "debt" }), "−")
-            "borrow" -> Txn(date, amount, note.ifEmpty { "Borrowed · $debt" }, if (account.isNotEmpty()) "into $account" else "Debt", categoryIcon(debt.ifEmpty { "debt" }), "")
-            else -> Txn(date, kotlin.math.abs(amount), note.ifEmpty { "Balance update" }, debt.ifEmpty { account }, categoryIcon(debt.ifEmpty { account }), if (amount >= 0) "+" else "−")
+            "expense" -> Txn(date, amount, note.ifEmpty { category }, catSub + account, categoryIcon(category), "−", kind, category, account, time)
+            "income" -> Txn(date, amount, note.ifEmpty { category }, "${catSub}into $account", categoryIcon(category), "+", kind, category, account, time)
+            "transfer" -> Txn(date, amount, "$account → ${str("toAccount")}", note.ifEmpty { "Transfer" }, "⇄", "", time = time)
+            "repay" -> Txn(date, amount, note.ifEmpty { "Paid $debt" }, "Debt payment · $account", categoryIcon(debt.ifEmpty { "debt" }), "−", time = time)
+            "borrow" -> Txn(date, amount, note.ifEmpty { "Borrowed · $debt" }, if (account.isNotEmpty()) "into $account" else "Debt", categoryIcon(debt.ifEmpty { "debt" }), "", time = time)
+            else -> Txn(date, kotlin.math.abs(amount), note.ifEmpty { "Balance update" }, debt.ifEmpty { account }, categoryIcon(debt.ifEmpty { account }), if (amount >= 0) "+" else "−", time = time)
         }
     }
 
     private operator fun Detail.plus(e: Entry): Detail {
-        val txn = txn(mapOf("kind" to e.kind, "date" to e.date, "amount" to e.amount, "category" to e.category, "account" to e.account, "debt" to e.debt))
+        val txn = txn(mapOf("kind" to e.kind, "date" to e.date, "amount" to e.amount, "category" to e.category, "account" to e.account, "debt" to e.debt, "time" to e.time))
         val sign = if (e.kind == "income") 1 else -1
         val balances = balances.map { if (it.name == e.account) it.copy(amount = it.amount + sign * e.amount) else it }
         // A bill paid from the watch stops showing as due.

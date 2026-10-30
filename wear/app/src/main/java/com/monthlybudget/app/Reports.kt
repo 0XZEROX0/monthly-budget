@@ -79,7 +79,7 @@ fun buildReport(month: String, accounts: List<Pair<String, String>>, debtCategor
         MonthBar(
             m,
             list.filter { it["kind"] == "income" }.sumOf(::amount),
-            list.filter { it["kind"] == "expense" || it["kind"] == "repay" }.sumOf(::amount),
+            list.filter { (it["kind"] == "expense" && it["notSpending"] != true) || it["kind"] == "repay" }.sumOf(::amount),
             saved,
         )
     }
@@ -88,7 +88,7 @@ fun buildReport(month: String, accounts: List<Pair<String, String>>, debtCategor
         val out = mutableMapOf<String, Double>()
         for (t in list) {
             val cat = when (t["kind"]) {
-                "expense" -> (t["category"] as? String).takeUnless { it.isNullOrEmpty() } ?: "Other"
+                "expense" -> if (t["notSpending"] == true) null else (t["category"] as? String).takeUnless { it.isNullOrEmpty() } ?: "Other"
                 "repay" -> debtCategory.takeUnless { it.isNullOrEmpty() } ?: "Debt payments"
                 else -> null
             } ?: continue
