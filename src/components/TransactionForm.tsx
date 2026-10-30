@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { categoryIcon } from '../data/icons'
 import { today } from '../data/month'
-import type { Backend, NewTransaction, Settings, Transaction, TxnKind } from '../data/types'
+import type { AccountType, Backend, NewTransaction, Settings, Transaction, TxnKind } from '../data/types'
 
 interface Props {
   backend: Backend
@@ -35,7 +35,17 @@ const shiftDay = (iso: string, days: number) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-export function TransactionForm({ backend, settings, month, existing, draft, onSaved, onClose }: Props) {
+/** A sensible type for an account added from the form; it can be changed in Settings. */
+const guessType = (name: string): AccountType => (/cash|wallet|pocket/i.test(name) ? 'cash' : /invest|thndr|thunder|stock|fund|gold/i.test(name) ? 'investment' : 'bank')
+
+export function TransactionForm({ backend, settings: saved, month, existing, draft, onSaved, onClose }: Props) {
+  // Accounts and categories added here show at once, before the saved settings come back.
+  const [settings, setSettings] = useState(saved)
+  if (saved !== settings && saved.accounts.length >= settings.accounts.length && saved.categories.expense.length >= settings.categories.expense.length && saved.categories.income.length >= settings.categories.income.length) setSettings(saved)
+  const saveSettings = (next: Settings) => {
+    setSettings(next)
+    report(backend.saveSettings(next))
+  }
   const accounts = settings.accounts.map((a) => a.name)
   const liquid = settings.accounts.filter((a) => a.type !== 'investment').map((a) => a.name)
   const defaultDate = today().startsWith(month) ? today() : `${month}-01`
@@ -54,6 +64,19 @@ export function TransactionForm({ backend, settings, month, existing, draft, onS
 
   const catKind = tab === 'income' ? 'income' : 'expense'
   const categories = settings.categories[catKind]
+  const addAccount = () => {
+    const name = prompt('New account name (for example Wallet, CIB card, Instapay):')?.trim()
+    if (!name) return
+    if (!accounts.includes(name)) saveSettings({ ...settings, accounts: [...settings.accounts, { name, type: guessType(name) }] })
+    setAccount(name)
+    if (name === toAccount) setToAccount(accounts.find((x) => x !== name) ?? '')
+  }
+  const addCategory = () => {
+    const name = prompt(`New ${catKind} category:`)?.trim()
+    if (!name) return
+    if (!categories.includes(name)) saveSettings({ ...settings, categories: { ...settings.categories, [catKind]: [...categories, name] } })
+    setCategory(name)
+  }
   const switchTab = (t: Tab) => {
     setTab(t)
     const kind = t === 'income' ? 'income' : 'expense'
@@ -137,6 +160,8 @@ export function TransactionForm({ backend, settings, month, existing, draft, onS
             setAccount(a)
             if (a === toAccount) setToAccount(accounts.find((x) => x !== a) ?? '')
           }}
+          onAdd={addAccount}
+          addLabel="New account"
         />
         {tab === 'transfer' && <Chips label="To" options={accounts.filter((a) => a !== account)} value={toAccount} onChange={setToAccount} />}
 
@@ -150,6 +175,10 @@ export function TransactionForm({ backend, settings, month, existing, draft, onS
                   <span className="cat-name">{c.replace('/', '/​')}</span>
                 </button>
               ))}
+              <button type="button" className="cat-add" onClick={addCategory} aria-label={`New ${catKind} category`}>
+                <span className="cat-icon">+</span>
+                <span className="cat-name">New</span>
+              </button>
             </div>
           </div>
         )}
@@ -183,7 +212,7 @@ export function TransactionForm({ backend, settings, month, existing, draft, onS
   )
 }
 
-function Chips({ label, options, value, onChange }: { label: string; options: string[]; value: string; onChange: (v: string) => void }) {
+function Chips({ label, options, value, onChange, onAdd, addLabel }: { label: string; options: string[]; value: string; onChange: (v: string) => void; onAdd?: () => void; addLabel?: string }) {
   return (
     <div className="field">
       <span className="field-label">{label}</span>
@@ -193,6 +222,11 @@ function Chips({ label, options, value, onChange }: { label: string; options: st
             {categoryIcon(o)} {o}
           </button>
         ))}
+        {onAdd && (
+          <button type="button" className="chip chip-add" onClick={onAdd} aria-label={addLabel}>
+            + New
+          </button>
+        )}
       </div>
     </div>
   )
