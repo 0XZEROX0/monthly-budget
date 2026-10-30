@@ -2,11 +2,8 @@ package com.monthlybudget.app
 
 import android.content.Intent
 import android.Manifest
-import android.content.ActivityNotFoundException
 import android.content.pm.PackageManager
 import android.os.Build
-import android.speech.RecognizerIntent
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -116,9 +113,8 @@ class MainActivity : ComponentActivity() {
         start = startOf(intent)
     }
 
-    /** "voice" when opened as Budget voice (the VoiceAdd alias), or the tile's expense/income. */
-    private fun startOf(intent: Intent): String? =
-        if (intent.component?.className?.endsWith(".VoiceAdd") == true) "voice" else intent.getStringExtra("kind")
+    /** The tile's expense or income button. */
+    private fun startOf(intent: Intent): String? = intent.getStringExtra("kind")
 }
 
 @Composable
@@ -127,35 +123,10 @@ private fun App(start: String?, onStarted: () -> Unit, finish: () -> Unit) {
     // Opened from the tile for one entry: close once it's saved.
     var quick by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    // Budget voice: "Hey Google, open Budget voice", then say "50 food cash".
-    val listen = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
-        if (spoken == null) {
-            finish()
-            return@rememberLauncherForActivityResult
-        }
-        val draft = parseSpoken(spoken, Store.settings(context)) { Store.lastAccount(context, it) }
-        screen = when {
-            draft.amount == null || draft.amount <= 0 -> Screen.Amount(draft.kind)
-            draft.category == null -> Screen.Category(draft.kind, draft.amount)
-            else -> Screen.Confirm(Entry(newId(), draft.kind, draft.amount, draft.category, draft.account, LocalDate.now().toString()), "“$spoken”")
-        }
-    }
     LaunchedEffect(start) {
         if (start != null) {
             quick = true
-            if (start == "voice") {
-                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                    .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                    .putExtra(RecognizerIntent.EXTRA_PROMPT, "Say “50 food cash”")
-                try {
-                    listen.launch(intent)
-                } catch (e: ActivityNotFoundException) {
-                    screen = Screen.Amount("expense")
-                }
-            } else {
-                screen = Screen.Amount(start)
-            }
+            screen = Screen.Amount(start)
             onStarted()
         }
     }
@@ -347,14 +318,20 @@ private fun HomeScreen(
                     )
                 }
                 // Daily allowance: what's left spread over the rest of the month, today included.
-                if (g.planned > 0 && g.left > 0 && g.month == currentMonth()) {
+                // Over budget there's nothing left to spread, so it says so instead.
+                if (g.planned > 0 && g.month == currentMonth()) {
                     val today = LocalDate.now()
                     val days = today.lengthOfMonth() - today.dayOfMonth + 1
+                    val daysText = if (days == 1) "last day" else "$days days left"
                     item {
                         Text(
-                            (if (hidden) "" else "≈ ${whole(g.left / days)} a day · ") + if (days == 1) "last day" else "$days days left",
+                            when {
+                                g.left <= 0 -> "No daily allowance · $daysText"
+                                hidden -> daysText
+                                else -> "≈ ${whole(g.left / days)} a day · $daysText"
+                            },
                             style = MaterialTheme.typography.caption3,
-                            color = MaterialTheme.colors.primary,
+                            color = if (g.left <= 0) ExpenseColor else MaterialTheme.colors.primary,
                         )
                     }
                 }
