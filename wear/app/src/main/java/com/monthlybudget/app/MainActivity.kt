@@ -424,7 +424,7 @@ private fun HomeScreen(
                     // Grouped by day, newest first, as on the phone's Transactions tab.
                     for ((day, list) in recent.groupBy { it.date }) {
                         item { Text(dayHeader(day), style = MaterialTheme.typography.caption2, color = MaterialTheme.colors.primary, modifier = Modifier.padding(top = 4.dp)) }
-                        items(list) { t -> TxnLine(t, onLongClick = pinOf(t)) }
+                        items(list) { t -> TxnLine(t, Store.settings(context).clock12, onLongClick = pinOf(t)) }
                     }
                     item { PageDots(p) }
                 }
@@ -698,7 +698,7 @@ private fun CategoryLine(row: CategoryRow) {
 private val dayFormat = DateTimeFormatter.ofPattern("MMM d", Locale.US)
 
 @Composable
-private fun TxnLine(t: Txn, onLongClick: (() -> Unit)? = null) {
+private fun TxnLine(t: Txn, clock12: Boolean, onLongClick: (() -> Unit)? = null) {
     val color = when (t.sign) {
         "+" -> IncomeColor
         "−" -> ExpenseColor
@@ -718,7 +718,7 @@ private fun TxnLine(t: Txn, onLongClick: (() -> Unit)? = null) {
         Column(Modifier.weight(1f)) {
             Text(t.title, style = MaterialTheme.typography.caption1, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                listOf(t.time, t.sub).filter { it.isNotEmpty() }.joinToString(" · "),
+                listOf(clock(t.time, clock12), t.sub).filter { it.isNotEmpty() }.joinToString(" · "),
                 style = MaterialTheme.typography.caption3,
                 color = MaterialTheme.colors.onSurfaceVariant,
                 maxLines = 1,

@@ -23,4 +23,11 @@ fun compact(n: Double): String {
 private fun trim(n: Double) = if (n >= 100) String.format(Locale.US, "%.0f", n) else String.format(Locale.US, "%.1f", n).removeSuffix(".0")
 
 /** "Left to spend" or "Over budget by", as on the phone's Summary. */
+/** An entry's "HH:MM" time, as "8:30 PM" when [clock12] is on. */
+fun clock(time: String, clock12: Boolean): String {
+    if (!clock12 || time.isEmpty()) return time
+    val (h, m) = time.split(":").let { (it.getOrNull(0)?.toIntOrNull() ?: return time) to (it.getOrNull(1) ?: "00") }
+    return "${if (h % 12 == 0) 12 else h % 12}:$m ${if (h < 12) "AM" else "PM"}"
+}
+
 fun leftLabel(g: Glance) = if (g.planned <= 0) "No plan this month" else if (g.left >= 0) "Left to spend" else "Over budget by"

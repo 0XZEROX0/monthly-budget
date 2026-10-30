@@ -157,6 +157,7 @@ object Budget {
             accounts = accounts?.takeIf { it.isNotEmpty() } ?: d.accounts,
             // Like withDefaults in the web app: missing means the default.
             debtCategory = if (doc.containsKey("debtCategory")) doc["debtCategory"] as? String else d.debtCategory,
+            clock12 = doc["clock12"] == true,
         )
     }
 

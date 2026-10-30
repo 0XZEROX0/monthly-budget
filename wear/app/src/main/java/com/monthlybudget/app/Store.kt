@@ -12,6 +12,8 @@ data class WatchSettings(
     /** Cash and bank accounts; investments aren't spent from directly. */
     val accounts: List<String>,
     val debtCategory: String?,
+    /** Show entry times as "8:30 PM" instead of "20:30", like the phone. */
+    val clock12: Boolean = false,
 ) {
     fun categories(kind: String) = if (kind == "income") income else expense
 
@@ -297,6 +299,7 @@ object Store {
             list("income"),
             list("accounts"),
             if (o.isNull("debtCategory")) null else o.getString("debtCategory"),
+            o.optBoolean("clock12"),
         )
     }
 
@@ -307,6 +310,7 @@ object Store {
             .put("income", JSONArray(s.income))
             .put("accounts", JSONArray(s.accounts))
             .put("debtCategory", s.debtCategory ?: JSONObject.NULL)
+            .put("clock12", s.clock12)
         prefs(context).edit().putString("settings", o.toString()).apply()
     }
 
