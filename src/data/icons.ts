@@ -5,6 +5,7 @@ const ICONS: [RegExp, string][] = [
   [/thndr|thunder|stock|invest/i, '📈'],
   [/loan to|lend/i, '🤝'],
   [/debt|loan|credit|tru|valu/i, '💳'],
+  [/coffee|caf[eé]/i, '☕'],
   [/fee/i, '🧾'],
   [/instal/i, '📆'],
   [/^car$/i, '🚙'],
