@@ -1,5 +1,5 @@
 import type { User } from 'firebase/auth'
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import type { BankSms } from '../data/bankSms'
 import { ACCOUNT_TYPES, guessType } from '../data/accounts'
 import { categoryIcon } from '../data/icons'
@@ -15,7 +15,8 @@ import { SmsSettingsCard } from './SmsSettingsCard'
 import { UpdateCard } from './UpdateCard'
 import { useReorder } from './useReorder'
 import { ask, askText, showAlert } from './dialog'
-import { askRenameCategory } from './categoryRename'
+import { askEditCategory } from './categoryRename'
+import { Picker } from './Picker'
 
 interface Props {
   backend: Backend
@@ -24,14 +25,32 @@ interface Props {
   user: User | null | undefined
   onSignOut?: () => void
   lock: { enabled: boolean; setEnabled: (on: boolean) => void }
+  /** A group to open, like 'planning' when coming from the goals card. */
+  initialGroup?: string
 }
 
 const CURRENCIES = ['EGP', 'USD', 'EUR', 'GBP', 'SAR', 'AED', 'KWD', 'QAR', 'TRY']
 const fail = (e: Error) => showAlert(`Could not save: ${e.message}`)
 
-export function SettingsView({ backend, settings, sms, user, onSignOut, lock }: Props) {
+export function SettingsView({ backend, settings, sms, user, onSignOut, lock, initialGroup }: Props) {
   const save = (s: Settings) => backend.saveSettings(s).catch(fail)
   const setCategories = (kind: Kind, list: string[]) => save({ ...settings, categories: { ...settings.categories, [kind]: list } })
+  // One group open at a time keeps the page short; the last one opened is remembered.
+  const [open, setOpen] = useState<string | null>(() => initialGroup ?? readGroup())
+  const toggle = (id: string) => {
+    const next = open === id ? null : id
+    setOpen(next)
+    try {
+      localStorage.setItem(GROUP_KEY, next ?? '')
+    } catch {
+      /* not saved, which is fine */
+    }
+  }
+  const group = (id: string, title: string, hint: string, icon: string, children: ReactNode) => (
+    <SettingsGroup id={id} title={title} hint={hint} icon={icon} open={open === id} onToggle={() => toggle(id)}>
+      {children}
+    </SettingsGroup>
+  )
 
   return (
     <div className="stack">
@@ -49,54 +68,128 @@ export function SettingsView({ backend, settings, sms, user, onSignOut, lock }: 
         )}
       </section>
 
-      <BillsEditor settings={settings} onSave={save} />
-      <GoalsEditor settings={settings} onSave={save} />
-      <AlertsCard settings={settings} onSave={save} />
+      {group(
+        'money',
+        'Money',
+        'Currency, decimals, accounts, debts and opening balances',
+        '💰',
+        <>
+          <section className="card">
+            <div className="edit-row">
+              <span className="grow">Currency</span>
+              <Picker label="Currency" value={settings.currency} options={[...new Set([settings.currency, ...CURRENCIES])].map((c) => ({ value: c, label: c }))} onChange={(c) => save({ ...settings, currency: c })} />
+            </div>
+            <label className="edit-row toggle-row">
+              <span className="grow">
+                Show decimals
+                <span className="muted small block">Amounts like 1,284.50 instead of 1,285.</span>
+              </span>
+              <input type="checkbox" role="switch" checked={!!settings.decimals} onChange={(e) => save({ ...settings, decimals: e.target.checked })} />
+            </label>
+          </section>
+          <AccountsEditor settings={settings} onSave={save} />
+          <DebtsEditor settings={settings} onSave={save} />
+          <OpeningEditor settings={settings} onSave={save} />
+        </>,
+      )}
 
-      <SmsSettingsCard sms={sms} settings={settings} onSave={save} />
+      {group(
+        'categories',
+        'Categories',
+        'Names, icons and order',
+        '🏷️',
+        <>
+          <CategoryEditor title="Expense categories" list={settings.categories.expense} onChange={(l) => setCategories('expense', l)} onEdit={(c) => askEditCategory(backend, settings, 'expense', c)} />
+          <CategoryEditor title="Income categories" list={settings.categories.income} onChange={(l) => setCategories('income', l)} onEdit={(c) => askEditCategory(backend, settings, 'income', c)} />
+        </>,
+      )}
 
-      <ThemeCard settings={settings} onSave={save} />
+      {group(
+        'planning',
+        'Bills, goals and alerts',
+        'Reminders, savings goals and budget warnings',
+        '📆',
+        <>
+          <BillsEditor settings={settings} onSave={save} />
+          <GoalsEditor settings={settings} onSave={save} />
+          <AlertsCard settings={settings} onSave={save} />
+        </>,
+      )}
 
-      <SecurityCard enabled={lock.enabled} onChange={lock.setEnabled} />
+      {group('sms', 'Bank SMS', 'Add entries from your bank and wallet messages', '✉️', <SmsSettingsCard sms={sms} settings={settings} onSave={save} />)}
 
-      <BackupCard backend={backend} settings={settings} />
+      {group(
+        'look',
+        'Look and security',
+        'Theme colour, dark mode and app lock',
+        '🎨',
+        <>
+          <ThemeCard settings={settings} onSave={save} />
+          <SecurityCard enabled={lock.enabled} onChange={lock.setEnabled} />
+        </>,
+      )}
 
-      <ImportCard backend={backend} settings={settings} />
+      {group(
+        'data',
+        'Backup and import',
+        'Google Drive backup, CSV export and Excel import',
+        '☁️',
+        <>
+          <BackupCard backend={backend} settings={settings} />
+          <ImportCard backend={backend} settings={settings} />
+        </>,
+      )}
 
-      <section className="card">
-        <label>
-          Currency
-          <select value={settings.currency} onChange={(e) => save({ ...settings, currency: e.target.value })}>
-            {[...new Set([settings.currency, ...CURRENCIES])].map((c) => (
-              <option key={c}>{c}</option>
-            ))}
-          </select>
-        </label>
-      </section>
+      {group(
+        'app',
+        'App',
+        'Updates and erasing your data',
+        '⚙️',
+        <>
+          <UpdateCard />
+          <section className="card">
+            <h2>Danger zone</h2>
+            <p className="muted small">Erase every transaction, plan and setting, on all your devices.</p>
+            <button
+              className="danger"
+              onClick={() => {
+                askText('Type ERASE to delete all your budget data, on all your devices.', { title: 'Erase all data', ok: 'Erase', danger: true, placeholder: 'ERASE' }).then((v) => {
+                  if (v?.trim() === 'ERASE') backend.clearAll().catch(fail)
+                })
+              }}
+            >
+              Erase all data
+            </button>
+          </section>
+        </>,
+      )}
+    </div>
+  )
+}
 
-      <AccountsEditor settings={settings} onSave={save} />
-      <DebtsEditor settings={settings} onSave={save} />
-      <OpeningEditor settings={settings} onSave={save} />
+const GROUP_KEY = 'budget-app:settings-group'
+const readGroup = () => {
+  try {
+    return localStorage.getItem(GROUP_KEY) || null
+  } catch {
+    return null
+  }
+}
 
-      <CategoryEditor title="Expense categories" list={settings.categories.expense} onChange={(l) => setCategories('expense', l)} onRename={(c) => askRenameCategory(backend, settings, 'expense', c)} />
-      <CategoryEditor title="Income categories" list={settings.categories.income} onChange={(l) => setCategories('income', l)} onRename={(c) => askRenameCategory(backend, settings, 'income', c)} />
-
-      <UpdateCard />
-
-      <section className="card">
-        <h2>Danger zone</h2>
-        <p className="muted small">Erase every transaction, plan and setting, on all your devices.</p>
-        <button
-          className="danger"
-          onClick={() => {
-            askText('Type ERASE to delete all your budget data, on all your devices.', { title: 'Erase all data', ok: 'Erase', danger: true, placeholder: 'ERASE' }).then((v) => {
-              if (v?.trim() === 'ERASE') backend.clearAll().catch(fail)
-            })
-          }}
-        >
-          Erase all data
-        </button>
-      </section>
+function SettingsGroup({ id, title, hint, icon, open, onToggle, children }: { id: string; title: string; hint: string; icon: string; open: boolean; onToggle: () => void; children: ReactNode }) {
+  return (
+    <div className={`settings-group ${open ? 'open' : ''}`} id={`settings-${id}`}>
+      <button className="card settings-group-head" aria-expanded={open} onClick={onToggle}>
+        <span className="cat-icon plan-icon">{icon}</span>
+        <span className="grow list-main">
+          <strong>{title}</strong>
+          <span className="muted small">{hint}</span>
+        </span>
+        <span className="chevron" aria-hidden>
+          ›
+        </span>
+      </button>
+      {open && <div className="stack settings-group-body">{children}</div>}
     </div>
   )
 }
@@ -194,14 +287,15 @@ function AccountsEditor({ settings, onSave }: { settings: Settings; onSave: (s: 
         <div className="edit-row">
           <span className="cat-icon plan-icon">{categoryIcon(a.name)}</span>
           <strong className="grow">{a.name}</strong>
-          <select value={a.type} onChange={(e) => setType(i, e.target.value)} aria-label={`${a.name} type`}>
-            {[...types, ...(types.some((t) => t.id === a.type) ? [] : [{ id: a.type, label: a.type }])].map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.label}
-              </option>
-            ))}
-            <option value={NEW_TYPE}>+ New type…</option>
-          </select>
+          <Picker
+            label={`${a.name} type`}
+            value={a.type}
+            onChange={(v) => setType(i, v)}
+            options={[
+              ...[...types, ...(types.some((t) => t.id === a.type) ? [] : [{ id: a.type, label: a.type }])].map((t) => ({ value: t.id, label: t.label })),
+              { value: NEW_TYPE, label: '+ New type…' },
+            ]}
+          />
           <button className="icon ghost" aria-label={`Remove ${a.name}`} onClick={() => ask(`Remove ${a.name}? Its past entries stay.`, { ok: 'Remove', danger: true }).then((ok) => ok && set(settings.accounts.filter((_, j) => j !== i)))}>
             ×
           </button>
@@ -246,15 +340,15 @@ function DebtsEditor({ settings, onSave }: { settings: Settings; onSave: (s: Set
           </button>
         </div>
       ))}
-      <label className="edit-row">
+      <div className="edit-row">
         <span className="grow">Payments count as</span>
-        <select value={settings.debtCategory ?? ''} onChange={(e) => onSave({ ...settings, debtCategory: e.target.value })} aria-label="Category debt payments count toward">
-          <option value="">Their own row</option>
-          {settings.categories.expense.map((c) => (
-            <option key={c}>{c}</option>
-          ))}
-        </select>
-      </label>
+        <Picker
+          label="Payments count as"
+          value={settings.debtCategory ?? ''}
+          onChange={(v) => onSave({ ...settings, debtCategory: v })}
+          options={[{ value: '', label: 'Their own row' }, ...settings.categories.expense.map((c) => ({ value: c, label: c, icon: categoryIcon(c) }))]}
+        />
+      </div>
       <AddRow placeholder="New lender" value={name} onChange={setName} onAdd={() => {
         const n = name.trim()
         if (n && !settings.debts.some((d) => d.name === n)) set([...settings.debts, { name: n, limit: 0 }])
@@ -316,7 +410,7 @@ function AddRow({ placeholder, value, onChange, onAdd }: { placeholder: string; 
   )
 }
 
-function CategoryEditor({ title, list, onChange, onRename }: { title: string; list: string[]; onChange: (l: string[]) => void; onRename: (c: string) => void }) {
+function CategoryEditor({ title, list, onChange, onEdit }: { title: string; list: string[]; onChange: (l: string[]) => void; onEdit: (c: string) => void }) {
   const [name, setName] = useState('')
   const add = () => {
     const n = name.trim()
@@ -327,11 +421,11 @@ function CategoryEditor({ title, list, onChange, onRename }: { title: string; li
   return (
     <section className="card">
       <h2>{title}</h2>
-      <p className="muted small">Tap a category to rename it. Hold and drag it to change the order.</p>
+      <p className="muted small">Tap a category to change its name or icon. Hold and drag it to change the order.</p>
       <ul className="chips">
         {reorder.order.map((c) => (
           <li key={c} {...reorder.itemProps(c)}>
-            <button className="chip-name" aria-label={`Rename ${c}`} onClick={() => onRename(c)}>
+            <button className="chip-name" aria-label={`Edit ${c}`} onClick={() => onEdit(c)}>
               {categoryIcon(c)} {c}
             </button>
             <button aria-label={`Remove ${c}`} onClick={() => ask(`Remove "${c}"? Past entries keep it.`, { ok: 'Remove', danger: true }).then((ok) => ok && onChange(list.filter((x) => x !== c)))}>
@@ -359,16 +453,10 @@ function AlertsCard({ settings, onSave }: { settings: Settings; onSave: (s: Sett
         <input type="checkbox" role="switch" checked={!alerts.off} onChange={(e) => set({ off: !e.target.checked })} />
       </label>
       {!alerts.off && (
-        <label className="edit-row">
+        <div className="edit-row">
           <span className="grow">Alert at</span>
-          <select value={alerts.pct ?? 80} onChange={(e) => set({ pct: Number(e.target.value) })}>
-            {[50, 70, 75, 80, 90].map((p) => (
-              <option key={p} value={p}>
-                {p}% of budget
-              </option>
-            ))}
-          </select>
-        </label>
+          <Picker label="Alert at" value={String(alerts.pct ?? 80)} onChange={(v) => set({ pct: Number(v) })} options={[50, 70, 75, 80, 90].map((p) => ({ value: String(p), label: `${p}% of budget` }))} />
+        </div>
       )}
     </section>
   )

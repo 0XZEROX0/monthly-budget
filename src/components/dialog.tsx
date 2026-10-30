@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 // system's plain grey dialog. Call them from anywhere; <DialogHost /> shows them.
 
 interface Request {
-  kind: 'alert' | 'confirm' | 'prompt' | 'form'
+  kind: 'alert' | 'confirm' | 'prompt' | 'form' | 'choice'
   message: string
   title?: string
   ok?: string
@@ -13,15 +13,26 @@ interface Request {
   initial?: string
   inputMode?: 'text' | 'decimal'
   fields?: Field[]
+  choices?: Choice[]
+  current?: string
   resolve: (v: Answer) => void
 }
 
-/** One input of a form dialog. */
+/** One input of a form dialog; an icon field shows a grid of icons to tap. */
 export interface Field {
   key: string
   label: string
   placeholder?: string
   inputMode?: 'text' | 'decimal'
+  initial?: string
+  icons?: string[]
+}
+
+/** One option of a choice dialog. */
+export interface Choice {
+  value: string
+  label: string
+  icon?: string
 }
 type Answer = string | boolean | Record<string, string> | null
 
@@ -42,6 +53,9 @@ export const showAlert = (message: string, opts: Opts = {}) => open({ kind: 'ale
 export const ask = (message: string, opts: Opts = {}) => open({ kind: 'confirm', message, ...opts }).then((v) => v === true)
 export const askText = (message: string, opts: Opts & { placeholder?: string; initial?: string; inputMode?: 'text' | 'decimal' } = {}) =>
   open({ kind: 'prompt', message, ...opts }).then((v) => (typeof v === 'string' ? v : null))
+/** A list to pick one from, in place of the system's dropdown; resolves with its value, or null. */
+export const askChoice = (title: string, choices: Choice[], current?: string) =>
+  open({ kind: 'choice', message: '', title, choices, current }).then((v) => (typeof v === 'string' ? v : null))
 /** Several inputs at once; resolves with the typed values by key, or null if cancelled. */
 export const askForm = (message: string, fields: Field[], opts: Opts = {}) =>
   open({ kind: 'form', message, fields, ...opts }).then((v) => (v && typeof v === 'object' ? v : null))
@@ -67,10 +81,10 @@ export function DialogHost() {
 
 function Dialog({ req, onDone }: { req: Request; onDone: (v: Answer) => void }) {
   const [text, setText] = useState(req.initial ?? '')
-  const [values, setValues] = useState<Record<string, string>>({})
+  const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries((req.fields ?? []).filter((f) => f.initial != null).map((f) => [f.key, f.initial!])))
   const input = useRef<HTMLInputElement>(null)
   const typed = req.kind === 'prompt' || req.kind === 'form'
-  const cancel = () => onDone(typed ? null : false)
+  const cancel = () => onDone(typed || req.kind === 'choice' ? null : false)
   const accept = () => onDone(req.kind === 'form' ? values : req.kind === 'prompt' ? text : true)
   useEffect(() => {
     // Opens the keyboard straight away for a question that needs typing.
@@ -92,11 +106,34 @@ function Dialog({ req, onDone }: { req: Request; onDone: (v: Answer) => void }) 
         }}
       >
         {req.title && <h2>{req.title}</h2>}
-        <p className={req.title ? 'muted small' : ''}>{req.message}</p>
+        {req.message && <p className={req.title ? 'muted small' : ''}>{req.message}</p>}
+        {req.choices && (
+          <div className="choice-list" role="listbox" aria-label={req.title}>
+            {req.choices.map((c) => (
+              <button type="button" role="option" aria-selected={c.value === req.current} key={c.value} className={c.value === req.current ? 'active' : ''} onClick={() => onDone(c.value)}>
+                {c.icon && <span className="choice-icon">{c.icon}</span>}
+                <span className="grow">{c.label}</span>
+                {c.value === req.current && <span aria-hidden>✓</span>}
+              </button>
+            ))}
+          </div>
+        )}
         {req.kind === 'prompt' && (
           <input ref={input} value={text} onChange={(e) => setText(e.target.value)} placeholder={req.placeholder} inputMode={req.inputMode} enterKeyHint="done" />
         )}
-        {req.fields?.map((f, i) => (
+        {req.fields?.map((f, i) =>
+          f.icons ? (
+            <div className="field" key={f.key}>
+              <span className="field-label">{f.label}</span>
+              <div className="icon-grid" role="radiogroup" aria-label={f.label}>
+                {f.icons.map((ic) => (
+                  <button type="button" role="radio" aria-checked={values[f.key] === ic} key={ic} className={values[f.key] === ic ? 'active' : ''} onClick={() => setValues((v) => ({ ...v, [f.key]: ic }))}>
+                    {ic}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
           <label className="field" key={f.key}>
             <span className="field-label">{f.label}</span>
             <input
@@ -107,14 +144,15 @@ function Dialog({ req, onDone }: { req: Request; onDone: (v: Answer) => void }) 
               inputMode={f.inputMode}
             />
           </label>
-        ))}
+          ),
+        )}
         <div className="row">
           {req.kind !== 'alert' && (
             <button type="button" className="grow" onClick={cancel}>
               Cancel
             </button>
           )}
-          <button className={`grow ${req.danger ? 'danger solid' : 'primary'}`}>{req.ok ?? (req.kind === 'alert' ? 'OK' : typed ? 'Add' : 'OK')}</button>
+          {req.kind !== 'choice' && <button className={`grow ${req.danger ? 'danger solid' : 'primary'}`}>{req.ok ?? (req.kind === 'alert' ? 'OK' : typed ? 'Add' : 'OK')}</button>}
         </div>
       </form>
     </div>

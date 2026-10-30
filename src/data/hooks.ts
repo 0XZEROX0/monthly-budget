@@ -1,9 +1,20 @@
 import { useEffect, useState } from 'react'
+import { setCustomIcons } from './icons'
+import { setShowDecimals } from './month'
 import type { Backend, MonthPlan, Settings, Transaction } from './types'
 
 export function useSettings(backend: Backend) {
   const [settings, setSettings] = useState<Settings | null>(null)
-  useEffect(() => backend.watchSettings(setSettings), [backend])
+  useEffect(
+    () =>
+      backend.watchSettings((s) => {
+        // Display choices that every amount and icon reads, set before the next render.
+        setShowDecimals(!!s.decimals)
+        setCustomIcons(s.icons)
+        setSettings(s)
+      }),
+    [backend],
+  )
   return settings
 }
 

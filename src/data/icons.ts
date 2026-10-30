@@ -46,7 +46,22 @@ const ICONS: [RegExp, string][] = [
   [/مصاريف/, '💸'],
 ]
 
+let custom: Record<string, string> = {}
+/** Icons the user picked; set from their settings. */
+export const setCustomIcons = (icons: Record<string, string> | undefined) => {
+  custom = icons ?? {}
+}
+
+/** Icons offered when picking one for a category or account. */
+export const ICON_CHOICES = [
+  '🛒', '🍔', '☕', '🍕', '🏠', '💡', '📱', '🌐', '🚗', '🚙', '⛽', '🚌',
+  '✈️', '🏖️', '💊', '🏥', '🛍️', '👕', '💄', '💇', '🎁', '🎉', '🎬', '🎮',
+  '📚', '🎓', '🧸', '🐾', '🏋️', '⚽', '🎵', '📺', '🧾', '📆', '💳', '🏦',
+  '💵', '💰', '💼', '📈', '🪙', '🤝', '🕌', '❤️', '🔧', '🧹', '📦', '💸',
+]
+
 export function categoryIcon(name: string): string {
+  if (custom[name]) return custom[name]
   for (const [re, icon] of ICONS) if (re.test(name)) return icon
   return name.trim().charAt(0).toUpperCase() || '•'
 }

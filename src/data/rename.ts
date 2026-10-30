@@ -11,6 +11,10 @@ export async function renameCategory(backend: Backend, settings: Settings, kind:
     ...settings,
     categories: { ...settings.categories, [kind]: settings.categories[kind].map((c) => (c === from ? to : c)) },
   }
+  if (settings.icons?.[from]) {
+    const { [from]: icon, ...icons } = settings.icons
+    next.icons = { ...icons, [to]: icon }
+  }
   if (kind === 'expense') {
     next.debtCategory = swap(settings.debtCategory)
     if (settings.bills) next.bills = settings.bills.map((b) => (b.category === from ? { ...b, category: to } : b))

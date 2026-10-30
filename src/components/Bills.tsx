@@ -6,6 +6,7 @@ import type { Backend, Bill, BillType, Settings, Transaction } from '../data/typ
 import { notificationsAllowed } from '../native/notify'
 import { NumberInput } from './NumberInput'
 import { ask, askText, showAlert } from './dialog'
+import { Picker } from './Picker'
 
 const fail = (e: Error) => showAlert(`Could not save: ${e.message}`)
 
@@ -205,33 +206,35 @@ function BillForm({ bill, settings, onSave, onRemove, onClose }: { bill: Bill; s
             </span>
           </label>
         )}
-        <label className="edit-row">
+        <div className="edit-row">
           <span className="grow">Pays down debt</span>
-          <select value={b.debt ?? ''} onChange={(e) => up({ debt: e.target.value || undefined })}>
-            <option value="">None</option>
-            {settings.debts.map((d) => (
-              <option key={d.name}>{d.name}</option>
-            ))}
-          </select>
-        </label>
+          <Picker
+            label="Pays down debt"
+            value={b.debt ?? ''}
+            options={[{ value: '', label: 'None' }, ...settings.debts.map((d) => ({ value: d.name, label: d.name, icon: categoryIcon(d.name) }))]}
+            onChange={(v) => up({ debt: v || undefined })}
+          />
+        </div>
         {!b.debt && (
-          <label className="edit-row">
+          <div className="edit-row">
             <span className="grow">Category</span>
-            <select value={b.category ?? 'Other'} onChange={(e) => up({ category: e.target.value })}>
-              {[...new Set([...settings.categories.expense, b.category ?? 'Other'])].map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-            </select>
-          </label>
+            <Picker
+              label="Category"
+              value={b.category ?? 'Other'}
+              options={[...new Set([...settings.categories.expense, b.category ?? 'Other'])].map((c) => ({ value: c, label: c, icon: categoryIcon(c) }))}
+              onChange={(v) => up({ category: v })}
+            />
+          </div>
         )}
-        <label className="edit-row">
+        <div className="edit-row">
           <span className="grow">Paid from</span>
-          <select value={b.account ?? ''} onChange={(e) => up({ account: e.target.value || undefined })}>
-            {settings.accounts.map((a) => (
-              <option key={a.name}>{a.name}</option>
-            ))}
-          </select>
-        </label>
+          <Picker
+            label="Paid from"
+            value={b.account ?? ''}
+            options={settings.accounts.map((a) => ({ value: a.name, label: a.name, icon: categoryIcon(a.name) }))}
+            onChange={(v) => up({ account: v || undefined })}
+          />
+        </div>
         <div className="row">
           {onRemove && (
             <button className="danger" onClick={() => ask(`Remove ${bill.name}? Its reminders stop.`, { ok: 'Remove', danger: true }).then((ok) => ok && (onRemove(), onClose()))}>

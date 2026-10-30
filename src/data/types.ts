@@ -61,6 +61,10 @@ export interface Settings {
   categories: Record<Kind, string[]>
   accounts: Account[]
   debts: Debt[]
+  /** Show amounts with two decimals; whole numbers otherwise. */
+  decimals?: boolean
+  /** Icons the user picked, by category or account name. */
+  icons?: Record<string, string>
   /** Account types the user added, besides Cash, Bank, E-wallet and Investment. */
   accountTypes?: string[]
   opening: Opening

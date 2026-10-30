@@ -17,7 +17,15 @@ export function monthLabel(month: string): string {
   return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
 }
 
+let decimals = false
+/** Whether amounts show two decimals; set from the user's settings. */
+export const setShowDecimals = (on: boolean) => {
+  decimals = on
+}
+
 export function formatMoney(amount: number, currency: string, opts: Intl.NumberFormatOptions = {}): string {
+  const digits = decimals ? 2 : 0
+  if (opts.notation !== 'compact') opts = { ...opts, minimumFractionDigits: digits, maximumFractionDigits: digits }
   try {
     return new Intl.NumberFormat(undefined, { style: 'currency', currency, ...opts }).format(amount)
   } catch {
@@ -25,7 +33,7 @@ export function formatMoney(amount: number, currency: string, opts: Intl.NumberF
   }
 }
 
-/** Whole units, for headline figures: $1,284 */
+/** Headline figures: $1,284, or $1,284.50 with decimals on. */
 export const formatWhole = (amount: number, currency: string) =>
   formatMoney(amount, currency, { maximumFractionDigits: 0, minimumFractionDigits: 0 })
 

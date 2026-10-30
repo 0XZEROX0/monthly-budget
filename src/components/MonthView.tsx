@@ -82,6 +82,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   const [fromSms, setFromSms] = useState<ParsedSms | null>(null)
 
   const settings = useSettings(backend)
+  const [settingsGroup, setSettingsGroup] = useState<string>()
   // Apply the synced theme once settings arrive (main.tsx already applied this device's last one).
   const theme = settings?.theme
   useEffect(() => {
@@ -171,6 +172,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
               onOpen={openFocus}
               hidden={hidden}
               onEditGoals={() => {
+                setSettingsGroup('planning')
                 setTab('settings')
                 setTimeout(() => document.getElementById('goals')?.scrollIntoView({ behavior: 'smooth' }), 50)
               }}
@@ -201,7 +203,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
             setTab('summary')
           }} />
         ) : (
-          <SettingsView backend={backend} settings={settings} sms={sms} user={user} onSignOut={onSignOut} lock={lock} />
+          <SettingsView backend={backend} settings={settings} sms={sms} user={user} onSignOut={onSignOut} lock={lock} initialGroup={settingsGroup} />
         )}
       </main>
       </div>
