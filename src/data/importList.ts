@@ -18,6 +18,19 @@ function num(c: Cell): number {
   return Number.isFinite(n) ? n : NaN
 }
 
+/** HH:MM from a date-and-time cell, when it has a time. */
+function timeOf(c: Cell): string | undefined {
+  if (c instanceof Date) return c.getHours() || c.getMinutes() ? `${pad(c.getHours())}:${pad(c.getMinutes())}` : undefined
+  if (typeof c === 'number' && c > 20000 && c % 1) {
+    const mins = Math.round((c % 1) * 1440) % 1440
+    return `${pad(Math.floor(mins / 60))}:${pad(mins % 60)}`
+  }
+  const m = text(c).match(/\b(\d{1,2}):(\d{2})(?::\d{2})?\s*([ap]m)?/i)
+  if (!m) return undefined
+  const h = (+m[1] % 12) + (m[3]?.toLowerCase() === 'pm' ? 12 : m[3] ? 0 : +m[1] >= 12 ? 12 : 0)
+  return `${pad(h)}:${m[2]}`
+}
+
 /** YYYY-MM-DD, from a date cell, a spreadsheet serial number, or text like 30/10/2026 or 2026-10-30. */
 function isoDate(c: Cell): string | null {
   if (c instanceof Date) return `${c.getFullYear()}-${pad(c.getMonth() + 1)}-${pad(c.getDate())}`
@@ -113,7 +126,8 @@ export function importList(grid: Grid, cols: Columns, current: Settings, existin
     const cell = (i: number) => (i >= 0 ? text(row[i]) : '')
     const cat = cell(cols.category)
     const note = [cell(cols.sub), cell(cols.note), cell(cols.description)].filter((s) => s && s !== '..').join(' · ')
-    const base = { date, month: date.slice(0, 7), description: note, category: '' }
+    const time = timeOf(row[cols.date])
+    const base = { date, ...(time && { time }), month: date.slice(0, 7), description: note, category: '' }
     const from = account(cell(cols.account))
     let t: Omit<Transaction, 'id'>
     if (type.startsWith('transfer')) {

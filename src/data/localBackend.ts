@@ -1,4 +1,5 @@
 import { DEFAULT_SETTINGS, withDefaults } from './defaults'
+import { newestFirst } from './summary'
 import type { Backend, MonthPlan, NewTransaction, Settings, Transaction } from './types'
 
 // Browser-only storage, used when no Firebase project is configured.
@@ -56,7 +57,7 @@ export function createLocalBackend(): Backend {
       return commit()
     },
     watchTransactions: (month, cb) =>
-      watch(() => cb(db.transactions.filter((t) => t.month === month).sort((a, b) => b.date.localeCompare(a.date)))),
+      watch(() => cb(db.transactions.filter((t) => t.month === month).sort(newestFirst))),
     watchRange: (from, to, cb) => watch(() => cb(db.transactions.filter((t) => t.month >= from && t.month <= to))),
     addTransaction: (t) => {
       db = { ...db, transactions: [...db.transactions, toTxn(crypto.randomUUID(), t)] }

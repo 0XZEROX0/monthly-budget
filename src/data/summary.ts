@@ -105,8 +105,14 @@ export function savedIn(txns: Transaction[], settings: Settings): number {
   return saved
 }
 
+/** Expenses and debt repayments, except those marked as not spending. */
+export const countsAsSpending = (t: Transaction) => (t.kind === 'expense' || t.kind === 'repay') && !t.notSpending
+
 /** Expenses plus debt repayments. */
-export const spentIn = (txns: Transaction[]) => sum(txns.filter((t) => t.kind === 'expense' || t.kind === 'repay').map((t) => t.amount))
+export const spentIn = (txns: Transaction[]) => sum(txns.filter(countsAsSpending).map((t) => t.amount))
+
+/** Newest first: by date, then by time within the day. */
+export const newestFirst = (a: Transaction, b: Transaction) => b.date.localeCompare(a.date) || (b.time ?? '').localeCompare(a.time ?? '')
 
 // Mirrors a month tab of the sheet: planned vs actual per category, account and
 // debt balances, liquidity (cash + bank), saved this month and capital.
@@ -116,6 +122,7 @@ export function summarize(plan: MonthPlan, settings: Settings, txns: Transaction
   const rowsFor = (kind: Kind): CategoryRow[] => {
     const actualBy: Record<string, number> = {}
     for (const t of txns) {
+      if (t.notSpending) continue
       const cat = t.kind === kind ? t.category : kind === 'expense' && t.kind === 'repay' ? debtRow : null
       if (cat) actualBy[cat] = (actualBy[cat] ?? 0) + t.amount
     }
@@ -130,7 +137,7 @@ export function summarize(plan: MonthPlan, settings: Settings, txns: Transaction
   const rows = { expense: rowsFor('expense'), income: rowsFor('income') }
   const planned = { expense: sum(rows.expense.map((r) => r.planned)), income: sum(rows.income.map((r) => r.planned)) }
   const actual = { expense: sum(rows.expense.map((r) => r.actual)), income: sum(rows.income.map((r) => r.actual)) }
-  const debtPayments = sum(txns.filter((t) => t.kind === 'repay').map((t) => t.amount))
+  const debtPayments = sum(txns.filter((t) => t.kind === 'repay' && !t.notSpending).map((t) => t.amount))
   const spent = actual.expense + (debtRow ? 0 : debtPayments)
   const end = apply(start, txns, settings)
 
