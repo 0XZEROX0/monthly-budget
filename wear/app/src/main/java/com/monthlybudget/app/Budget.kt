@@ -43,7 +43,15 @@ object Budget {
         val glance = summarize(month, settings, plan, txns) + Store.queue(context)
         Store.saveGlance(context, glance)
         val balances = balances(settingsDoc, history?.filter { (it["month"] as? String ?: "") <= month } ?: txns)
-        Store.saveDetail(context, detail(settings, plan, txns).copy(balances = balances))
+        Store.saveDetail(
+            context,
+            detail(settings, plan, txns).copy(
+                balances = balances,
+                suggested = suggested(txns),
+                due = dueBills(settingsDoc, txns, month),
+                goals = goals(settingsDoc, balances),
+            ),
+        )
         return glance
     }
 
@@ -79,15 +87,16 @@ object Budget {
             db.create(
                 "transactions",
                 e.id,
-                mapOf(
-                    "kind" to e.kind,
-                    "date" to e.date,
-                    "month" to e.date.substring(0, 7),
-                    "amount" to e.amount,
-                    "description" to "",
-                    "category" to e.category,
-                    "account" to e.account,
-                ),
+                buildMap {
+                    put("kind", e.kind)
+                    put("date", e.date)
+                    put("month", e.date.substring(0, 7))
+                    put("amount", e.amount)
+                    put("description", "")
+                    put("category", e.category)
+                    put("account", e.account)
+                    if (e.debt.isNotEmpty()) put("debt", e.debt)
+                },
             )
             left = left.drop(1)
             Store.saveQueue(context, left)
@@ -190,6 +199,70 @@ object Budget {
         return Detail(incomePlanned, income, rows, recent)
     }
 
+    // Bills in their reminder days that aren't paid yet; the phone app (Settings › Bills)
+    // marks one paid with the entry id bill-{id}-{month}, or a repayment of its debt counts.
+    private fun dueBills(doc: Map<String, Any?>?, txns: List<Map<String, Any?>>, month: String): List<Bill> {
+        val today = LocalDate.now()
+        val last = today.lengthOfMonth()
+        return (doc?.get("bills") as? List<*>).orEmpty().mapNotNull { it as? Map<*, *> }.mapNotNull { b ->
+            val id = b["id"] as? String ?: return@mapNotNull null
+            val type = b["type"] as? String ?: "card"
+            val day = ((b["day"] as? Double)?.toInt() ?: 1).coerceIn(1, 31)
+            val window = (b["windowDays"] as? Double)?.toInt() ?: if (type == "instalment") 5 else 1
+            val start = minOf(day, last)
+            val end = minOf(day + window - 1, last).coerceAtLeast(start)
+            if (today.dayOfMonth !in start..end) return@mapNotNull null
+            val debt = b["debt"] as? String
+            val paid = txns.any {
+                it["__id"] == "bill-$id-$month" || (!debt.isNullOrEmpty() && it["kind"] == "repay" && it["debt"] == debt)
+            }
+            if (paid) return@mapNotNull null
+            Bill(
+                id,
+                b["name"] as? String ?: "Bill",
+                type,
+                (b["amount"] as? Double) ?: 0.0,
+                debt ?: "",
+                b["account"] as? String ?: "",
+                b["category"] as? String ?: "",
+                today.withDayOfMonth(end).toString(),
+            )
+        }
+    }
+
+    private fun goals(doc: Map<String, Any?>?, balances: List<Balance>): List<Goal> {
+        val month = LocalDate.now().withDayOfMonth(1)
+        return (doc?.get("goals") as? List<*>).orEmpty().mapNotNull { it as? Map<*, *> }.map { g ->
+            val accounts = (g["accounts"] as? List<*>).orEmpty().filterIsInstance<String>()
+            val saved = balances.filter { it.name in accounts }.sumOf { it.amount }
+            val target = (g["target"] as? Double) ?: 0.0
+            val deadline = (g["deadline"] as? String)?.takeIf { it.length >= 7 }
+            // Months left including this one, as the phone counts them.
+            val perMonth = deadline?.let {
+                val end = LocalDate.parse(it.take(7) + "-01")
+                val months = ((end.year - month.year) * 12 + end.monthValue - month.monthValue + 1).coerceAtLeast(1)
+                maxOf(0.0, target - saved) / months
+            }
+            Goal(g["name"] as? String ?: "Goal", accounts, saved, target, deadline, perMonth)
+        }
+    }
+
+    /** The expense or income entries made at least twice this month, most repeated first. */
+    private fun suggested(txns: List<Map<String, Any?>>): List<Favorite> =
+        txns.mapNotNull { t ->
+            val kind = t["kind"] as? String
+            val category = t["category"] as? String
+            val amount = t["amount"] as? Double
+            if ((kind == "expense" || kind == "income") && !category.isNullOrEmpty() && amount != null) {
+                Favorite(kind, amount, category, t["account"] as? String ?: "")
+            } else null
+        }
+            .groupingBy { it }.eachCount()
+            .filter { it.value >= 2 }
+            .entries.sortedByDescending { it.value }
+            .take(4)
+            .map { it.key }
+
     // Mirrors describe() in src/components/TransactionList.tsx.
     private fun txn(t: Map<String, Any?>): Txn {
         fun str(key: String) = t[key] as? String ?: ""
@@ -199,10 +272,11 @@ object Budget {
         val debt = str("debt")
         val amount = (t["amount"] as? Double) ?: 0.0
         val date = str("date")
+        val kind = str("kind")
         val catSub = if (note.isNotEmpty()) "$category · " else ""
-        return when (str("kind")) {
-            "expense" -> Txn(date, amount, note.ifEmpty { category }, catSub + account, categoryIcon(category), "−")
-            "income" -> Txn(date, amount, note.ifEmpty { category }, "${catSub}into $account", categoryIcon(category), "+")
+        return when (kind) {
+            "expense" -> Txn(date, amount, note.ifEmpty { category }, catSub + account, categoryIcon(category), "−", kind, category, account)
+            "income" -> Txn(date, amount, note.ifEmpty { category }, "${catSub}into $account", categoryIcon(category), "+", kind, category, account)
             "transfer" -> Txn(date, amount, "$account → ${str("toAccount")}", note.ifEmpty { "Transfer" }, "⇄", "")
             "repay" -> Txn(date, amount, note.ifEmpty { "Paid $debt" }, "Debt payment · $account", categoryIcon(debt.ifEmpty { "debt" }), "−")
             "borrow" -> Txn(date, amount, note.ifEmpty { "Borrowed · $debt" }, if (account.isNotEmpty()) "into $account" else "Debt", categoryIcon(debt.ifEmpty { "debt" }), "")
@@ -211,15 +285,22 @@ object Budget {
     }
 
     private operator fun Detail.plus(e: Entry): Detail {
-        val txn = txn(mapOf("kind" to e.kind, "date" to e.date, "amount" to e.amount, "category" to e.category, "account" to e.account))
+        val txn = txn(mapOf("kind" to e.kind, "date" to e.date, "amount" to e.amount, "category" to e.category, "account" to e.account, "debt" to e.debt))
         val sign = if (e.kind == "income") 1 else -1
         val balances = balances.map { if (it.name == e.account) it.copy(amount = it.amount + sign * e.amount) else it }
-        if (e.kind == "income") return copy(income = income + e.amount, recent = listOf(txn) + recent, balances = balances)
-        val has = rows.any { it.category == e.category }
-        val rows = (if (has) rows else rows + CategoryRow(e.category, 0.0, 0.0))
-            .map { if (it.category == e.category) it.copy(actual = it.actual + e.amount) else it }
-            .sortedByDescending { it.actual }
-        return copy(rows = rows, recent = listOf(txn) + recent, balances = balances)
+        // A bill paid from the watch stops showing as due.
+        val base = copy(recent = listOf(txn) + recent, balances = balances, due = due.filter { e.id != "bill-${it.id}-${e.date.take(7)}" })
+        return when (e.kind) {
+            "income" -> base.copy(income = income + e.amount)
+            "expense" -> {
+                val has = rows.any { it.category == e.category }
+                val rows = (if (has) rows else rows + CategoryRow(e.category, 0.0, 0.0))
+                    .map { if (it.category == e.category) it.copy(actual = it.actual + e.amount) else it }
+                    .sortedByDescending { it.actual }
+                base.copy(rows = rows)
+            }
+            else -> base
+        }
     }
 
     /** Adds entries that Firestore doesn't have yet. */

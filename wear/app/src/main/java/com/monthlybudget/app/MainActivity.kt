@@ -1,6 +1,13 @@
 package com.monthlybudget.app
 
 import android.content.Intent
+import android.Manifest
+import android.content.ActivityNotFoundException
+import android.content.pm.PackageManager
+import android.os.Build
+import android.speech.RecognizerIntent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -75,8 +82,11 @@ private val IncomeColor = Color(0xFF81C995)
 
 private sealed interface Screen {
     data object Home : Screen
-    data class Amount(val kind: String) : Screen
+    /** With a bill: its amount wasn't set, so it's typed here and then confirmed. */
+    data class Amount(val kind: String, val bill: Bill? = null) : Screen
     data class Category(val kind: String, val amount: Double) : Screen
+    /** A spoken entry or a bill payment, shown before it's saved. */
+    data class Confirm(val entry: Entry, val title: String) : Screen
     data class Done(val sent: Boolean, val entry: Entry) : Screen
 }
 
@@ -84,9 +94,16 @@ class MainActivity : ComponentActivity() {
     /** Set by the tile's + and − buttons: go straight to the amount. */
     private var start by mutableStateOf<String?>(null)
 
+    private val askNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         start = intent.getStringExtra("kind")
+        // For the "update ready" notification.
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        UpdateWorker.schedule(this)
         setContent {
             MaterialTheme {
                 App(start, onStarted = { start = null }, finish = ::finish)
@@ -115,28 +132,98 @@ private fun App(start: String?, onStarted: () -> Unit, finish: () -> Unit) {
     val home: () -> Unit = {
         if (quick) finish() else { screen = Screen.Home }
     }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var saving by remember { mutableStateOf(false) }
+    val save: (Entry) -> Unit = { entry ->
+        if (!saving) {
+            saving = true
+            Store.remember(context, entry.kind, entry.category, entry.account)
+            scope.launch {
+                val sent = Budget.add(context, entry)
+                saving = false
+                screen = Screen.Done(sent, entry)
+            }
+        }
+    }
     when (val s = screen) {
-        Screen.Home -> HomeScreen(onAdd = { quick = false; screen = Screen.Amount(it) })
+        Screen.Home -> HomeScreen(
+            onAdd = { quick = false; screen = Screen.Amount(it) },
+            onSave = save,
+            onConfirm = { entry, title -> screen = Screen.Confirm(entry, title) },
+            onPickCategory = { kind, amount -> screen = Screen.Category(kind, amount) },
+            onPayBill = { bill ->
+                val entry = billEntry(context, bill, bill.amount)
+                screen = if (bill.amount > 0) Screen.Confirm(entry, "Pay ${bill.name}") else Screen.Amount("expense", bill)
+            },
+        )
         is Screen.Amount -> {
             BackHandler { home() }
-            AmountScreen(s.kind, onNext = { screen = Screen.Category(s.kind, it) })
+            AmountScreen(s.kind, onNext = { amount ->
+                screen = if (s.bill != null) Screen.Confirm(billEntry(context, s.bill, amount), "Pay ${s.bill.name}") else Screen.Category(s.kind, amount)
+            })
         }
         is Screen.Category -> {
             BackHandler { screen = Screen.Amount(s.kind) }
             CategoryScreen(s.kind, s.amount, onSaved = { sent, entry -> screen = Screen.Done(sent, entry) })
         }
+        is Screen.Confirm -> {
+            BackHandler { home() }
+            ConfirmScreen(
+                s.title,
+                s.entry,
+                onSave = { save(s.entry) },
+                onChange = if (s.entry.debt.isEmpty() && !s.entry.id.startsWith("bill-")) {
+                    { screen = Screen.Category(s.entry.kind, s.entry.amount) }
+                } else null,
+            )
+        }
         is Screen.Done -> {
+            val warning = remember(s) { overBudget(context, s.entry) }
+            val haptics = LocalHapticFeedback.current
             LaunchedEffect(s) {
-                delay(1200)
+                if (warning != null) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                delay(if (warning != null) 3000 else 1200)
                 home()
             }
-            DoneScreen(s.sent, s.entry)
+            DoneScreen(s.sent, s.entry, warning)
         }
     }
 }
 
+/** The entry that pays a bill: a repayment of its debt, or an expense in its category. */
+private fun billEntry(context: android.content.Context, bill: Bill, amount: Double): Entry {
+    val settings = Store.settings(context)
+    val today = LocalDate.now().toString()
+    return Entry(
+        id = "bill-${bill.id}-${today.take(7)}",
+        kind = if (bill.debt.isNotEmpty()) "repay" else "expense",
+        amount = amount,
+        category = bill.category.ifEmpty { if (bill.debt.isNotEmpty()) "" else "Other" },
+        account = bill.account.ifEmpty { settings.accounts.first() },
+        date = today,
+        debt = bill.debt,
+    )
+}
+
+/** After saving an expense: its category, or the month, gone over budget. */
+private fun overBudget(context: android.content.Context, e: Entry): String? {
+    if (e.kind != "expense") return null
+    val row = Store.detail(context)?.rows?.firstOrNull { it.category == e.category }
+    if (row != null && row.planned > 0 && row.actual > row.planned) return "${e.category} is ${whole(row.actual - row.planned)} over budget"
+    val g = Store.glance(context) ?: return null
+    if (g.planned > 0 && g.left < 0) return "This month is ${whole(-g.left)} over budget"
+    return null
+}
+
 @Composable
-private fun HomeScreen(onAdd: (String) -> Unit) {
+private fun HomeScreen(
+    onAdd: (String) -> Unit,
+    onSave: (Entry) -> Unit,
+    onConfirm: (Entry, String) -> Unit,
+    onPickCategory: (String, Double) -> Unit,
+    onPayBill: (Bill) -> Unit,
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var glance by remember { mutableStateOf(Store.glance(context)) }
@@ -147,6 +234,26 @@ private fun HomeScreen(onAdd: (String) -> Unit) {
     var update by remember { mutableStateOf<WatchRelease?>(null) }
     var updating by remember { mutableStateOf<String?>(null) }
     val waiting = remember(glance) { Store.queue(context).size }
+    var favorites by remember { mutableStateOf(Store.favorites(context)) }
+    val haptics = LocalHapticFeedback.current
+    val listen = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull() ?: return@rememberLauncherForActivityResult
+        val draft = parseSpoken(spoken, Store.settings(context)) { Store.lastAccount(context, it) }
+        when {
+            draft.amount == null || draft.amount <= 0 -> status = "Heard “$spoken”. Say an amount, like “50 food cash”."
+            draft.category == null -> onPickCategory(draft.kind, draft.amount)
+            else -> onConfirm(
+                Entry(newId(), draft.kind, draft.amount, draft.category, draft.account, LocalDate.now().toString()),
+                "“$spoken”",
+            )
+        }
+    }
+    val pin: (Favorite) -> Unit = { f ->
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        favorites = if (f in favorites) favorites - f else (listOf(f) + favorites).take(6)
+        Store.saveFavorites(context, favorites)
+        status = if (f in favorites) "Pinned to favorites" else "Removed from favorites"
+    }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(Unit) {
         // Refresh every time the app comes back on screen.
@@ -222,10 +329,41 @@ private fun HomeScreen(onAdd: (String) -> Unit) {
                         color = MaterialTheme.colors.onSurfaceVariant,
                     )
                 }
+                // Daily allowance: what's left spread over the rest of the month, today included.
+                if (g.planned > 0 && g.left > 0 && g.month == currentMonth()) {
+                    val today = LocalDate.now()
+                    val days = today.lengthOfMonth() - today.dayOfMonth + 1
+                    item {
+                        Text(
+                            (if (hidden) "" else "≈ ${whole(g.left / days)} a day · ") + if (days == 1) "last day" else "$days days left",
+                            style = MaterialTheme.typography.caption3,
+                            color = MaterialTheme.colors.primary,
+                        )
+                    }
+                }
             }
             item {
                 Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     AddButton("−", "Add expense", ExpenseColor) { onAdd("expense") }
+                    Button(
+                        onClick = {
+                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                                .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                .putExtra(RecognizerIntent.EXTRA_PROMPT, "Say “50 food cash”")
+                            try {
+                                listen.launch(intent)
+                            } catch (e: ActivityNotFoundException) {
+                                status = "No speech input on this watch"
+                            }
+                        },
+                        modifier = Modifier
+                            .size(ButtonDefaults.ExtraSmallButtonSize)
+                            .align(Alignment.CenterVertically)
+                            .semantics { contentDescription = "Add by voice" },
+                        colors = ButtonDefaults.secondaryButtonColors(),
+                    ) {
+                        Text("🎤", fontSize = 14.sp)
+                    }
                     AddButton("+", "Add income", IncomeColor) { onAdd("income") }
                 }
             }
@@ -255,11 +393,30 @@ private fun HomeScreen(onAdd: (String) -> Unit) {
             }
 
             val d = detail
+            if (d != null && d.due.isNotEmpty()) {
+                item { ListHeader { Text("Due") } }
+                items(d.due) { bill -> BillLine(bill, onClick = { onPayBill(bill) }) }
+            }
+            val shown = favorites.ifEmpty { d?.suggested.orEmpty() }
+            if (shown.isNotEmpty()) {
+                item { ListHeader { Text(if (favorites.isEmpty()) "Suggested" else "Favorites") } }
+                items(shown) { f ->
+                    FavoriteLine(
+                        f,
+                        onClick = { onSave(Entry(newId(), f.kind, f.amount, f.category, f.account, LocalDate.now().toString())) },
+                        onLongClick = { pin(f) },
+                    )
+                }
+            }
             if (d != null && d.balances.isNotEmpty()) {
                 item { ListHeader { Text("Accounts") } }
                 val liquid = d.balances.filter { it.type != "investment" }
                 if (liquid.size > 1) item { Line("Cash + bank", secret(liquid.sumOf { it.amount }), null, MaterialTheme.colors.onSurface) }
                 items(d.balances) { b -> BalanceLine(b, secret(b.amount)) }
+            }
+            if (d != null && d.goals.isNotEmpty()) {
+                item { ListHeader { Text("Goals") } }
+                items(d.goals) { goal -> GoalLine(goal, hidden) }
             }
             if (d != null && g != null) {
                 item { ListHeader { Text("This month") } }
@@ -268,7 +425,12 @@ private fun HomeScreen(onAdd: (String) -> Unit) {
                 // Category budgets stay visible in privacy mode, as on the phone.
                 items(d.rows.take(6)) { row -> CategoryLine(row) }
                 if (d.recent.isNotEmpty()) item { ListHeader { Text("Recent") } }
-                items(d.recent.take(10)) { t -> TxnLine(t) }
+                // Hold an entry to pin it to favorites.
+                items(d.recent.take(10)) { t ->
+                    TxnLine(t, onLongClick = if (t.kind == "expense" || t.kind == "income") {
+                        { pin(Favorite(t.kind, t.amount, t.category, t.account)) }
+                    } else null)
+                }
             }
         }
     }
@@ -323,7 +485,7 @@ private fun CategoryLine(row: CategoryRow) {
 private val dayFormat = DateTimeFormatter.ofPattern("MMM d", Locale.US)
 
 @Composable
-private fun TxnLine(t: Txn) {
+private fun TxnLine(t: Txn, onLongClick: (() -> Unit)? = null) {
     val color = when (t.sign) {
         "+" -> IncomeColor
         "−" -> ExpenseColor
@@ -335,6 +497,7 @@ private fun TxnLine(t: Txn) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colors.surface.copy(alpha = 0.5f))
+            .combinedClickable(enabled = onLongClick != null, onClick = {}, onLongClick = onLongClick)
             .padding(horizontal = 8.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -369,6 +532,99 @@ private fun BalanceLine(b: Balance, amount: String) {
         IconBadge(categoryIcon(b.name), tint)
         Text(b.name, style = MaterialTheme.typography.caption1, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         Text(amount, style = MaterialTheme.typography.caption1, color = if (b.amount < 0) ExpenseColor else MaterialTheme.colors.onSurface)
+    }
+}
+
+@Composable
+private fun BillLine(bill: Bill, onClick: () -> Unit) {
+    val by = runCatching { LocalDate.parse(bill.dueBy).format(dayFormat) }.getOrDefault(bill.dueBy)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(ExpenseColor.copy(alpha = 0.18f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        IconBadge(if (bill.type == "instalment") "📆" else "💳", ExpenseColor)
+        Column(Modifier.weight(1f)) {
+            Text(bill.name, style = MaterialTheme.typography.caption1, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("by $by · tap to pay", style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant)
+        }
+        if (bill.amount > 0) Text(whole(bill.amount), style = MaterialTheme.typography.caption1, color = ExpenseColor)
+    }
+}
+
+/** Tap to save it again; hold to pin or unpin. */
+@Composable
+private fun FavoriteLine(f: Favorite, onClick: () -> Unit, onLongClick: () -> Unit) {
+    val color = if (f.kind == "income") IncomeColor else ExpenseColor
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colors.surface)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .padding(horizontal = 8.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        IconBadge(categoryIcon(f.category), color)
+        Column(Modifier.weight(1f)) {
+            Text(f.category, style = MaterialTheme.typography.caption1, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (f.account.isNotEmpty()) Text(f.account, style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant)
+        }
+        Text((if (f.kind == "income") "+" else "−") + whole(f.amount), style = MaterialTheme.typography.caption1, color = color)
+    }
+}
+
+private val monthFormat = DateTimeFormatter.ofPattern("MMM yyyy", Locale.US)
+
+@Composable
+private fun GoalLine(goal: Goal, hidden: Boolean) {
+    val fraction = if (goal.target > 0) (goal.saved / goal.target).toFloat().coerceIn(0f, 1f) else 0f
+    val pct = (fraction * 100).toInt()
+    Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 3.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("🎯 ", fontSize = 12.sp)
+            Text(goal.name, style = MaterialTheme.typography.caption1, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Text(if (hidden) "$pct%" else "${compact(goal.saved)} / ${compact(goal.target)}", style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant)
+        }
+        Box(Modifier.padding(top = 2.dp).fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)).background(MaterialTheme.colors.surface)) {
+            Box(Modifier.fillMaxWidth(fraction).height(4.dp).background(IncomeColor))
+        }
+        val by = goal.deadline?.let { runCatching { LocalDate.parse(it).format(monthFormat) }.getOrDefault(it) }
+        val note = when {
+            fraction >= 1f -> "Reached 🎉"
+            by != null && goal.perMonth != null && !hidden -> "${whole(goal.perMonth)} a month until $by"
+            by != null -> "by $by"
+            else -> null
+        }
+        note?.let { Text(it, style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.primary) }
+    }
+}
+
+@Composable
+private fun ConfirmScreen(title: String, entry: Entry, onSave: () -> Unit, onChange: (() -> Unit)?) {
+    val color = if (entry.kind == "income") IncomeColor else ExpenseColor
+    val label = entry.category.ifEmpty { entry.debt }
+    Column(
+        Modifier.fillMaxSize().padding(horizontal = 22.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
+    ) {
+        Text(title, style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant, maxLines = 2, textAlign = TextAlign.Center)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            IconBadge(categoryIcon(label.ifEmpty { "debt" }), color, 32.dp)
+            Text((if (entry.kind == "income") "+" else "−") + whole(entry.amount), style = MaterialTheme.typography.title2, color = color)
+        }
+        Text("$label · ${entry.account}", style = MaterialTheme.typography.caption2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
+            onChange?.let { CompactChip(onClick = it, label = { Text("Change") }, colors = ChipDefaults.secondaryChipColors()) }
+            CompactChip(onClick = onSave, label = { Text("Save") }, colors = ChipDefaults.primaryChipColors(backgroundColor = color, contentColor = Color.Black))
+        }
     }
 }
 
@@ -497,17 +753,18 @@ private fun CategoryScreen(kind: String, amount: Double, onSaved: (Boolean, Entr
 
 
 @Composable
-private fun DoneScreen(sent: Boolean, entry: Entry) {
+private fun DoneScreen(sent: Boolean, entry: Entry, warning: String?) {
     val color = if (entry.kind == "income") IncomeColor else ExpenseColor
     Column(
         Modifier.fillMaxSize().padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
     ) {
-        IconBadge(categoryIcon(entry.category), color, 52.dp)
+        IconBadge(categoryIcon(entry.category.ifEmpty { entry.debt.ifEmpty { "debt" } }), color, 52.dp)
         Text((if (entry.kind == "income") "+" else "−") + whole(entry.amount), style = MaterialTheme.typography.title2, color = color)
-        Text("${entry.category} · ${entry.account}", style = MaterialTheme.typography.caption2, color = MaterialTheme.colors.onSurfaceVariant)
+        Text("${entry.category.ifEmpty { entry.debt }} · ${entry.account}", style = MaterialTheme.typography.caption2, color = MaterialTheme.colors.onSurfaceVariant)
         Text(if (sent) "✓ Saved" else "✓ Saved · syncs when online", style = MaterialTheme.typography.caption2, textAlign = TextAlign.Center)
+        warning?.let { Text("⚠ $it", style = MaterialTheme.typography.caption2, color = ExpenseColor, textAlign = TextAlign.Center) }
     }
 }
 

@@ -107,7 +107,9 @@ class Firestore(private val link: Link) {
                 ),
         )
         val rows = JSONArray(call(":runQuery", "POST", query))
-        return (0 until rows.length()).mapNotNull { rows.getJSONObject(it).optJSONObject("document") }.map { fields(it.optJSONObject("fields")) }
+        // "__id" carries the document id, e.g. to spot a bill marked paid as bill-{id}-{month}.
+        return (0 until rows.length()).mapNotNull { rows.getJSONObject(it).optJSONObject("document") }
+            .map { fields(it.optJSONObject("fields")) + ("__id" to it.optString("name").substringAfterLast('/')) }
     }
 
     /** Creates collection/id. Already there counts as done, so a retried entry isn't added twice. */
