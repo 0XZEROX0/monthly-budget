@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useReorder } from './useReorder'
 import { guessType } from '../data/accounts'
+import { defaultFee, feeCategory, feeFor, FEES, type FeeKind } from '../data/fees'
 import { categoryIcon } from '../data/icons'
 import { today } from '../data/month'
 import type { Backend, NewTransaction, Settings, Transaction, TxnKind } from '../data/types'
@@ -59,6 +60,10 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
   const [category, setCategory] = useState(draft ? draft.txn.category : existing?.category || settings.categories.expense[0] || '')
   const [account, setAccount] = useState(init?.account ?? liquid[0] ?? accounts[0] ?? '')
   const [toAccount, setToAccount] = useState(init?.toAccount ?? accounts.find((a) => a !== account) ?? '')
+  // A transfer fee, saved as its own expense; only offered when adding money going out.
+  const [fee, setFee] = useState<FeeKind>(() => (init ? 'none' : defaultFee(account)))
+  const [customFee, setCustomFee] = useState('')
+  const [feeTouched, setFeeTouched] = useState(false)
   const [debt, setDebt] = useState(init?.debt ?? settings.debts[0]?.name ?? '')
 
   const catKind = tab === 'income' ? 'income' : 'expense'
@@ -68,6 +73,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
     if (!name) return
     if (!accounts.includes(name)) saveSettings({ ...settings, accounts: [...settings.accounts, { name, type: guessType(name) }] })
     setAccount(name)
+    if (!feeTouched) setFee(defaultFee(name))
     if (name === toAccount) setToAccount(accounts.find((x) => x !== name) ?? '')
   }
   const addCategory = () => {
@@ -83,6 +89,11 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
     const kind = t === 'income' ? 'income' : 'expense'
     if ((t === 'expense' || t === 'income') && !settings.categories[kind].includes(category)) setCategory(settings.categories[kind][0] ?? '')
   }
+
+  const sendsMoney = tab === 'expense' || tab === 'transfer' || (tab === 'debt' && debtMode === 'repay')
+  const showFee = !existing && sendsMoney
+  const amountValue = Number(amount.replace(',', '.'))
+  const feeValue = !showFee ? 0 : fee === 'custom' ? Number(customFee.replace(',', '.')) || 0 : feeFor(fee, amountValue)
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
@@ -100,7 +111,23 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
     // Keep an imported entry's month unless the date moved it to another month.
     if (existing && existing.date.slice(0, 7) !== existing.month && date === existing.date) t.month = existing.month
     const id = existing?.id ?? draft?.id
-    report(id ? backend.updateTransaction(id, t) : backend.addTransaction(t))
+    if (feeValue > 0) {
+      // The fee is its own expense from the same account, saved next to the entry it belongs to.
+      const mainId = id ?? crypto.randomUUID()
+      const label = FEES.find((f) => f.id === fee)?.label ?? 'Transfer'
+      report(backend.updateTransaction(mainId, t))
+      report(
+        backend.updateTransaction(`${mainId}-fee`, {
+          kind: 'expense',
+          amount: feeValue,
+          date,
+          ...(t.month ? { month: t.month } : {}),
+          category: feeCategory(settings.categories.expense),
+          account,
+          description: `${fee === 'custom' ? 'Transfer' : label} fee${t.description ? ` · ${t.description}` : ''}`,
+        }),
+      )
+    } else report(id ? backend.updateTransaction(id, t) : backend.addTransaction(t))
     onSaved?.(t)
     onClose()
   }
@@ -159,6 +186,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
             // Borrowed money doesn't have to land in an account: tapping the chosen one clears it.
             if (tab === 'debt' && debtMode === 'borrow' && a === account) return setAccount('')
             setAccount(a)
+            if (!feeTouched) setFee(defaultFee(a))
             if (a === toAccount) setToAccount(accounts.find((x) => x !== a) ?? '')
           }}
           onAdd={addAccount}
@@ -189,6 +217,36 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
                 <span className="cat-name">New</span>
               </button>
             </div>
+          </div>
+        )}
+
+        {showFee && (
+          <div className="field">
+            <span className="field-label">
+              Fee{feeValue > 0 && <span className="muted small"> · {settings.currency} {feeValue.toLocaleString(undefined, { maximumFractionDigits: 2 })} from {account}</span>}
+            </span>
+            <div className="row wrap" role="radiogroup" aria-label="Fee">
+              {FEES.map((f) => (
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={fee === f.id}
+                  key={f.id}
+                  className={`chip ${fee === f.id ? 'active' : ''}`}
+                  onClick={() => {
+                    setFee(f.id)
+                    setFeeTouched(true)
+                  }}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            {fee === 'custom' ? (
+              <input inputMode="decimal" value={customFee} onChange={(e) => setCustomFee(e.target.value)} placeholder="Fee amount" aria-label="Fee amount" />
+            ) : (
+              fee !== 'none' && <span className="muted small">{FEES.find((f) => f.id === fee)?.hint}</span>
+            )}
           </div>
         )}
 

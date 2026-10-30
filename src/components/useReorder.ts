@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
 
 const HOLD_MS = 350
 /** Moving further than this before the hold ends means a scroll, not a drag. */
 const SLOP = 8
+const SLIDE = 'translate 220ms cubic-bezier(0.2, 0.8, 0.2, 1)'
 
 const move = <T,>(list: T[], from: number, to: number) => {
   const next = [...list]
@@ -11,18 +12,68 @@ const move = <T,>(list: T[], from: number, to: number) => {
   return next
 }
 
+type Pt = { x: number; y: number }
+const center = (el: HTMLElement): Pt => {
+  const r = el.getBoundingClientRect()
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+}
+
 /**
- * Hold an item, then drag it to a new place: the list rearranges under your finger
- * and the new order is saved when you let go. A quick tap still works as a tap.
+ * Hold an item and it lifts under your finger; drag it and the others slide out of the
+ * way; let go and it settles into its new place, which is saved. A quick tap still
+ * works as a tap. Items are found by their data-reorder-key inside the same parent.
  */
 export function useReorder(items: string[], onReorder: (next: string[]) => void) {
   const [drag, setDrag] = useState<{ key: string; to: number } | null>(null)
-  const hold = useRef<{ timer: number; x: number; y: number; key: string } | null>(null)
+  const hold = useRef<{ timer: number; x: number; y: number } | null>(null)
   // The tap that ends a drag shouldn't also select the item.
   const swallowClick = useRef(false)
+  const dragged = useRef<HTMLElement | null>(null)
+  const pointer = useRef<Pt>({ x: 0, y: 0 })
+  /** Where the finger is from the item's centre, so it doesn't jump to the finger. */
+  const grab = useRef<Pt>({ x: 0, y: 0 })
+  /** Each item's position on screen just before the order changed, to slide from. */
+  const before = useRef<Map<HTMLElement, Pt> | null>(null)
 
+  // The new order, shown from the drop until the saved list comes back, so nothing jumps back.
+  const [pending, setPending] = useState<{ base: string[]; order: string[] } | null>(null)
   const from = drag ? items.indexOf(drag.key) : -1
-  const order = drag && from >= 0 ? move(items, from, drag.to) : items
+  const order = drag && from >= 0 ? move(items, from, drag.to) : pending?.base === items ? pending.order : items
+
+  const siblings = () => [...(dragged.current?.parentElement?.querySelectorAll<HTMLElement>('[data-reorder-key]') ?? [])]
+
+  /** Puts the held item under the finger, wherever its slot in the list is now. */
+  const follow = () => {
+    const el = dragged.current
+    if (!el) return
+    el.style.translate = 'none'
+    const c = center(el)
+    el.style.translate = `${pointer.current.x - grab.current.x - c.x}px ${pointer.current.y - grab.current.y - c.y}px`
+  }
+
+  // After the order changes: the others slide from where they were to their new slots.
+  useLayoutEffect(() => {
+    const prev = before.current
+    before.current = null
+    if (prev) {
+      for (const el of siblings()) {
+        if (el === dragged.current) continue
+        const was = prev.get(el)
+        if (!was) continue
+        el.style.transition = 'none'
+        el.style.translate = 'none'
+        const now = center(el)
+        const dx = was.x - now.x
+        const dy = was.y - now.y
+        if (!dx && !dy) continue
+        el.style.translate = `${dx}px ${dy}px`
+        void el.offsetWidth
+        el.style.transition = SLIDE
+        el.style.translate = '0px 0px'
+      }
+    }
+    follow()
+  }, [drag?.to]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // While dragging, stop the page from scrolling under the finger.
   useEffect(() => {
@@ -37,40 +88,66 @@ export function useReorder(items: string[], onReorder: (next: string[]) => void)
     hold.current = null
   }
 
+  const settle = () => {
+    const el = dragged.current
+    dragged.current = null
+    if (!el) return
+    // Glide from under the finger into its slot.
+    el.style.transition = `${SLIDE}, scale 180ms ease`
+    el.style.translate = '0px 0px'
+    window.setTimeout(() => {
+      for (const s of [el, ...siblings()]) {
+        s.style.transition = ''
+        s.style.translate = ''
+      }
+    }, 260)
+  }
+
   const itemProps = (key: string, className = '') => ({
     'data-reorder-key': key,
-    className: `${className} reorder-item ${drag?.key === key ? 'reorder-dragging' : ''}`.trim(),
+    className: `${className} reorder-item ${drag?.key === key ? 'reorder-dragging' : drag ? 'reorder-moving' : ''}`.trim(),
     onPointerDown: (e: ReactPointerEvent<HTMLElement>) => {
       if (e.button !== 0) return
       const el = e.currentTarget
       const id = e.pointerId
       cancelHold()
+      pointer.current = { x: e.clientX, y: e.clientY }
       hold.current = {
         x: e.clientX,
         y: e.clientY,
-        key,
         timer: window.setTimeout(() => {
           hold.current = null
           try {
             el.setPointerCapture(id)
           } catch {
-            // The pointer is already gone.
-            return
+            return // The finger is already gone.
           }
+          const c = center(el)
+          grab.current = { x: pointer.current.x - c.x, y: pointer.current.y - c.y }
+          dragged.current = el
+          el.style.transition = 'scale 160ms ease'
           navigator.vibrate?.(15)
           setDrag({ key, to: items.indexOf(key) })
         }, HOLD_MS),
       }
     },
     onPointerMove: (e: ReactPointerEvent<HTMLElement>) => {
+      pointer.current = { x: e.clientX, y: e.clientY }
       const h = hold.current
       if (h && Math.hypot(e.clientX - h.x, e.clientY - h.y) > SLOP) cancelHold()
       if (!drag) return
-      const under = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>('[data-reorder-key]')
+      follow()
+      // The slot under the finger, looking past the held item itself.
+      const under = document
+        .elementsFromPoint(e.clientX, e.clientY)
+        .map((n) => (n as HTMLElement).closest?.<HTMLElement>('[data-reorder-key]'))
+        .find((n) => n && n !== dragged.current)
       const k = under?.dataset.reorderKey
-      if (k === undefined || k === drag.key) return
+      if (k === undefined) return
       const to = order.indexOf(k)
-      if (to >= 0 && to !== drag.to) setDrag({ key: drag.key, to })
+      if (to < 0 || to === drag.to) return
+      before.current = new Map(siblings().map((s) => [s, center(s)]))
+      setDrag({ key: drag.key, to })
     },
     onPointerUp: () => {
       cancelHold()
@@ -78,11 +155,17 @@ export function useReorder(items: string[], onReorder: (next: string[]) => void)
       // A click may or may not follow the release; either way only swallow it straight after.
       swallowClick.current = true
       window.setTimeout(() => (swallowClick.current = false), 50)
-      if (from >= 0 && drag.to !== from) onReorder(order)
+      if (from >= 0 && drag.to !== from) {
+        setPending({ base: items, order })
+        onReorder(order)
+      }
+      settle()
       setDrag(null)
     },
     onPointerCancel: () => {
       cancelHold()
+      if (!drag) return
+      settle()
       setDrag(null)
     },
     onClickCapture: (e: ReactMouseEvent) => {

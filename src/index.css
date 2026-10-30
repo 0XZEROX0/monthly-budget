@@ -450,5 +450,7 @@ input[type='checkbox'][role='switch']:checked::after { transform: translateX(1.1
 .chip.chip-add { background: none; border: 1px dashed var(--border); color: var(--text-2); }
 .cat-grid .cat-add { border: 1.5px dashed var(--border); background: none; color: var(--text-2); }
 /* Hold and drag to reorder */
-.reorder-item { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; transition: transform 0.12s ease; }
-.reorder-dragging { transform: scale(1.08); box-shadow: 0 8px 22px rgba(0, 0, 0, 0.2); position: relative; z-index: 1; opacity: 0.95; }
+.reorder-item { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+/* Lifted: a little bigger, a soft shadow, above the others. Its position follows the finger (set inline). */
+.reorder-dragging { scale: 1.12; box-shadow: 0 14px 30px rgba(0, 0, 0, 0.22); position: relative; z-index: 2; cursor: grabbing; }
+.reorder-moving { position: relative; z-index: 1; }
