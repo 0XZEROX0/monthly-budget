@@ -25,11 +25,8 @@ export const DEFAULT_SETTINGS: Settings = {
     { name: 'Bank', type: 'bank' },
     { name: 'Thndr', type: 'investment', interestPct: 5.2 },
   ],
-  debts: [
-    { name: 'Debt', limit: 55000 },
-    { name: 'Debt TRU', limit: 40000 },
-    { name: 'Debt Valu', limit: 4000 },
-  ],
+  // Everyone adds their own lenders, in Settings or under Opening balances.
+  debts: [],
   opening: { month: currentMonth(), accounts: {}, debts: {} },
   debtCategory: 'Instalment',
 }

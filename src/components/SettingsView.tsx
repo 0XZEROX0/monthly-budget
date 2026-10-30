@@ -1,9 +1,10 @@
 import type { User } from 'firebase/auth'
 import { useRef, useState } from 'react'
 import type { BankSms } from '../data/bankSms'
+import { ACCOUNT_TYPES, guessType } from '../data/accounts'
 import { categoryIcon } from '../data/icons'
 import { formatWhole, monthLabel } from '../data/month'
-import type { Account, AccountType, Backend, Debt, Kind, Settings } from '../data/types'
+import type { Account, Backend, Debt, Kind, Settings } from '../data/types'
 import { NumberInput } from './NumberInput'
 import { ACCENTS, DEFAULT_THEME, applyTheme, type Theme, type ThemeMode } from '../data/theme'
 import { SecurityCard } from './AppLock'
@@ -14,6 +15,7 @@ import { SmsSettingsCard } from './SmsSettingsCard'
 import { UpdateCard } from './UpdateCard'
 import { useReorder } from './useReorder'
 import { ask, askText, showAlert } from './dialog'
+import { askRenameCategory } from './categoryRename'
 
 interface Props {
   backend: Backend
@@ -76,8 +78,8 @@ export function SettingsView({ backend, settings, sms, user, onSignOut, lock }: 
       <DebtsEditor settings={settings} onSave={save} />
       <OpeningEditor settings={settings} onSave={save} />
 
-      <CategoryEditor title="Expense categories" list={settings.categories.expense} onChange={(l) => setCategories('expense', l)} />
-      <CategoryEditor title="Income categories" list={settings.categories.income} onChange={(l) => setCategories('income', l)} />
+      <CategoryEditor title="Expense categories" list={settings.categories.expense} onChange={(l) => setCategories('expense', l)} onRename={(c) => askRenameCategory(backend, settings, 'expense', c)} />
+      <CategoryEditor title="Income categories" list={settings.categories.income} onChange={(l) => setCategories('income', l)} onRename={(c) => askRenameCategory(backend, settings, 'income', c)} />
 
       <UpdateCard />
 
@@ -168,31 +170,37 @@ function ImportCard({ backend, settings }: { backend: Backend; settings: Setting
   )
 }
 
-const TYPES: { id: AccountType; label: string }[] = [
-  { id: 'cash', label: 'Cash' },
-  { id: 'bank', label: 'Bank' },
-  { id: 'investment', label: 'Investment' },
-]
+const NEW_TYPE = '\u0000new'
 
 function AccountsEditor({ settings, onSave }: { settings: Settings; onSave: (s: Settings) => void }) {
   const [name, setName] = useState('')
   const set = (accounts: Account[]) => onSave({ ...settings, accounts })
   const update = (i: number, a: Account) => set(settings.accounts.map((x, j) => (j === i ? a : x)))
+  const types = [...ACCOUNT_TYPES, ...(settings.accountTypes ?? []).map((t) => ({ id: t, label: t }))]
+  const setType = async (i: number, type: string) => {
+    if (type !== NEW_TYPE) return update(i, { ...settings.accounts[i], type })
+    const name = (await askText('Like Credit card or Prepaid card. It counts as money you can spend, like a bank.', { title: 'New account type', placeholder: 'Type name' }))?.trim()
+    if (!name) return
+    const existing = types.find((t) => t.label.toLowerCase() === name.toLowerCase())
+    const accounts = settings.accounts.map((x, j) => (j === i ? { ...x, type: existing?.id ?? name } : x))
+    onSave({ ...settings, accounts, ...(existing ? {} : { accountTypes: [...(settings.accountTypes ?? []), name] }) })
+  }
   return (
     <section className="card">
       <h2>Accounts</h2>
-      <p className="muted small">Where your money is. Cash and bank count as liquidity; investments count toward capital.</p>
+      <p className="muted small">Where your money is. Cash, bank, e-wallets and your own types count as liquidity; investments count toward capital.</p>
       {settings.accounts.map((a, i) => (
         <div className="edit-group" key={a.name}>
         <div className="edit-row">
           <span className="cat-icon plan-icon">{categoryIcon(a.name)}</span>
           <strong className="grow">{a.name}</strong>
-          <select value={a.type} onChange={(e) => update(i, { ...a, type: e.target.value as AccountType })} aria-label={`${a.name} type`}>
-            {TYPES.map((t) => (
+          <select value={a.type} onChange={(e) => setType(i, e.target.value)} aria-label={`${a.name} type`}>
+            {[...types, ...(types.some((t) => t.id === a.type) ? [] : [{ id: a.type, label: a.type }])].map((t) => (
               <option key={t.id} value={t.id}>
                 {t.label}
               </option>
             ))}
+            <option value={NEW_TYPE}>+ New type…</option>
           </select>
           <button className="icon ghost" aria-label={`Remove ${a.name}`} onClick={() => ask(`Remove ${a.name}? Its past entries stay.`, { ok: 'Remove', danger: true }).then((ok) => ok && set(settings.accounts.filter((_, j) => j !== i)))}>
             ×
@@ -211,7 +219,7 @@ function AccountsEditor({ settings, onSave }: { settings: Settings; onSave: (s: 
       ))}
       <AddRow placeholder="New account" value={name} onChange={setName} onAdd={() => {
         const n = name.trim()
-        if (n && !settings.accounts.some((a) => a.name === n)) set([...settings.accounts, { name: n, type: 'bank' }])
+        if (n && !settings.accounts.some((a) => a.name === n)) set([...settings.accounts, { name: n, type: guessType(n) }])
         setName('')
       }} />
     </section>
@@ -258,6 +266,12 @@ function DebtsEditor({ settings, onSave }: { settings: Settings; onSave: (s: Set
 
 function OpeningEditor({ settings, onSave }: { settings: Settings; onSave: (s: Settings) => void }) {
   const { opening } = settings
+  const [lender, setLender] = useState('')
+  const addLender = () => {
+    const n = lender.trim()
+    if (n && !settings.debts.some((d) => d.name === n)) onSave({ ...settings, debts: [...settings.debts, { name: n, limit: 0 }] })
+    setLender('')
+  }
   const set = (o: Partial<typeof opening>) => onSave({ ...settings, opening: { ...opening, ...o } })
   return (
     <section className="card">
@@ -285,6 +299,7 @@ function OpeningEditor({ settings, onSave }: { settings: Settings; onSave: (s: S
           </span>
         </label>
       ))}
+      <AddRow placeholder="Add a debt, like TRU or Valu" value={lender} onChange={setLender} onAdd={addLender} />
       <p className="muted small">
         Total opening: {formatWhole(Object.values(opening.accounts).reduce((a, b) => a + b, 0), settings.currency)}
       </p>
@@ -301,7 +316,7 @@ function AddRow({ placeholder, value, onChange, onAdd }: { placeholder: string; 
   )
 }
 
-function CategoryEditor({ title, list, onChange }: { title: string; list: string[]; onChange: (l: string[]) => void }) {
+function CategoryEditor({ title, list, onChange, onRename }: { title: string; list: string[]; onChange: (l: string[]) => void; onRename: (c: string) => void }) {
   const [name, setName] = useState('')
   const add = () => {
     const n = name.trim()
@@ -312,13 +327,13 @@ function CategoryEditor({ title, list, onChange }: { title: string; list: string
   return (
     <section className="card">
       <h2>{title}</h2>
-      <p className="muted small">Hold a category and drag it to change the order.</p>
+      <p className="muted small">Tap a category to rename it. Hold and drag it to change the order.</p>
       <ul className="chips">
         {reorder.order.map((c) => (
           <li key={c} {...reorder.itemProps(c)}>
-            <span>
+            <button className="chip-name" aria-label={`Rename ${c}`} onClick={() => onRename(c)}>
               {categoryIcon(c)} {c}
-            </span>
+            </button>
             <button aria-label={`Remove ${c}`} onClick={() => ask(`Remove "${c}"? Past entries keep it.`, { ok: 'Remove', danger: true }).then((ok) => ok && onChange(list.filter((x) => x !== c)))}>
               ×
             </button>
