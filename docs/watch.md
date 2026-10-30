@@ -5,7 +5,7 @@ A Wear OS companion for the budget, made for the Galaxy Watch 8 (it runs on any 
 - **Quick add**: tap **Add expense** or **Add income**, type the amount, tap a category. The chip at the top picks the account (Cash, Bank…). Your last category comes first.
 - **Glance**: left to spend this month with a ring for how much of the plan is used, the same figure as the phone's Summary.
 - **This month**: scroll down for income, spent, the categories you've spent most in (against their budgets) and your latest entries.
-- **Voice**: tap 🎤 and say something like "50 food cash" or "got 5000 salary into bank"; check it and tap Save (or Change).
+- **Voice**: say "Hey Google, open Budget voice" (or tap the Budget voice app), then say something like "50 food cash" or "got 5000 salary into bank"; check it and tap Save (or Change).
 - **Favorites**: hold a recent entry to pin it; tap a favorite to save it again. Until you pin some, entries you repeated this month are suggested.
 - **Due**: bills from the phone's Bills in their reminder days (instalments on days 1–5, cards on their day) until paid; tap one to pay it.
 - **Goals**: savings goals with progress and how much a month is still needed by the deadline.

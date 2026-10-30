@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Budget</string>
+    <string name="voice_label">Budget voice</string>
     <string name="tile_label">Budget</string>
     <string name="complication_label">Left to spend</string>
 </resources>

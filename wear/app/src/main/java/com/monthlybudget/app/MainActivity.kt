@@ -98,7 +98,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        start = intent.getStringExtra("kind")
+        start = startOf(intent)
         // For the "update ready" notification.
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -113,8 +113,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        start = intent.getStringExtra("kind")
+        start = startOf(intent)
     }
+
+    /** "voice" when opened as Budget voice (the VoiceAdd alias), or the tile's expense/income. */
+    private fun startOf(intent: Intent): String? =
+        if (intent.component?.className?.endsWith(".VoiceAdd") == true) "voice" else intent.getStringExtra("kind")
 }
 
 @Composable
@@ -122,17 +126,42 @@ private fun App(start: String?, onStarted: () -> Unit, finish: () -> Unit) {
     var screen by remember { mutableStateOf<Screen>(Screen.Home) }
     // Opened from the tile for one entry: close once it's saved.
     var quick by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    // Budget voice: "Hey Google, open Budget voice", then say "50 food cash".
+    val listen = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+        if (spoken == null) {
+            finish()
+            return@rememberLauncherForActivityResult
+        }
+        val draft = parseSpoken(spoken, Store.settings(context)) { Store.lastAccount(context, it) }
+        screen = when {
+            draft.amount == null || draft.amount <= 0 -> Screen.Amount(draft.kind)
+            draft.category == null -> Screen.Category(draft.kind, draft.amount)
+            else -> Screen.Confirm(Entry(newId(), draft.kind, draft.amount, draft.category, draft.account, LocalDate.now().toString()), "“$spoken”")
+        }
+    }
     LaunchedEffect(start) {
         if (start != null) {
-            screen = Screen.Amount(start)
             quick = true
+            if (start == "voice") {
+                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                    .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    .putExtra(RecognizerIntent.EXTRA_PROMPT, "Say “50 food cash”")
+                try {
+                    listen.launch(intent)
+                } catch (e: ActivityNotFoundException) {
+                    screen = Screen.Amount("expense")
+                }
+            } else {
+                screen = Screen.Amount(start)
+            }
             onStarted()
         }
     }
     val home: () -> Unit = {
         if (quick) finish() else { screen = Screen.Home }
     }
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var saving by remember { mutableStateOf(false) }
     val save: (Entry) -> Unit = { entry ->
@@ -236,18 +265,6 @@ private fun HomeScreen(
     val waiting = remember(glance) { Store.queue(context).size }
     var favorites by remember { mutableStateOf(Store.favorites(context)) }
     val haptics = LocalHapticFeedback.current
-    val listen = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull() ?: return@rememberLauncherForActivityResult
-        val draft = parseSpoken(spoken, Store.settings(context)) { Store.lastAccount(context, it) }
-        when {
-            draft.amount == null || draft.amount <= 0 -> status = "Heard “$spoken”. Say an amount, like “50 food cash”."
-            draft.category == null -> onPickCategory(draft.kind, draft.amount)
-            else -> onConfirm(
-                Entry(newId(), draft.kind, draft.amount, draft.category, draft.account, LocalDate.now().toString()),
-                "“$spoken”",
-            )
-        }
-    }
     val pin: (Favorite) -> Unit = { f ->
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         favorites = if (f in favorites) favorites - f else (listOf(f) + favorites).take(6)
@@ -345,25 +362,6 @@ private fun HomeScreen(
             item {
                 Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     AddButton("−", "Add expense", ExpenseColor) { onAdd("expense") }
-                    Button(
-                        onClick = {
-                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                                .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                .putExtra(RecognizerIntent.EXTRA_PROMPT, "Say “50 food cash”")
-                            try {
-                                listen.launch(intent)
-                            } catch (e: ActivityNotFoundException) {
-                                status = "No speech input on this watch"
-                            }
-                        },
-                        modifier = Modifier
-                            .size(ButtonDefaults.ExtraSmallButtonSize)
-                            .align(Alignment.CenterVertically)
-                            .semantics { contentDescription = "Add by voice" },
-                        colors = ButtonDefaults.secondaryButtonColors(),
-                    ) {
-                        Text("🎤", fontSize = 14.sp)
-                    }
                     AddButton("+", "Add income", IncomeColor) { onAdd("income") }
                 }
             }

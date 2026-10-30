@@ -32,6 +32,20 @@
             </intent-filter>
         </activity>
 
+        <!-- "Budget voice": its own app entry, so "Hey Google, open Budget voice" goes straight to
+             listening. Gemini doesn't let sideloaded apps register their own voice actions. -->
+        <activity-alias
+            android:name=".VoiceAdd"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="@string/voice_label"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
         <!-- Receives the sign-in and privacy setting from the phone app (WearPlugin.java). -->
         <service
             android:name=".LinkListenerService"
