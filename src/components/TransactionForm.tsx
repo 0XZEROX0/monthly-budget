@@ -106,6 +106,9 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
   const templates = feeTemplates(settings)
   const feeTemplate = templates.find((t) => t.id === fee)
   const feeValue = !showFee ? 0 : fee === 'custom' ? Number(customFee.replace(',', '.')) || 0 : feeFor(feeTemplate, amountValue)
+  // Shown before any amount is typed too: InstaPay's minimum of 0.5 straight away.
+  const feeShown = feeValue || (showFee && feeTemplate && !(amountValue > 0) ? feeTemplate.min ?? 0 : 0)
+  const money2 = (n: number) => `${settings.currency} ${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
   const ownTemplates = settings.feeTemplates ?? []
   const pickFee = (id: FeeKind) => {
     setFee(id)
@@ -210,6 +213,12 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
           <span className="amount-currency">{settings.currency}</span>
           <input inputMode="decimal" autoFocus required value={amount} style={{ width: `${Math.max(1, amount.length) + 0.6}ch` }} onChange={(e) => setAmount(e.target.value)} placeholder="0" />
         </label>
+        {feeShown > 0 && (
+          <p className="amount-fee" aria-live="polite">
+            + {money2(feeShown)} {feeTemplate?.name ?? 'transfer'} fee
+            {amountValue > 0 && <> · {money2(amountValue + feeShown)} in total</>}
+          </p>
+        )}
 
         {tab === 'debt' && (
           <div className="segmented">
@@ -269,7 +278,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
         {showFee && (
           <div className="field">
             <span className="field-label">
-              Fee{feeValue > 0 && <span className="muted small"> · {settings.currency} {feeValue.toLocaleString(undefined, { maximumFractionDigits: 2 })} from {account}</span>}
+              Fee{feeShown > 0 && <span className="muted small"> · {money2(feeShown)} from {account}</span>}
             </span>
             <div className="row wrap" role="radiogroup" aria-label="Fee">
               {[{ id: 'none', name: 'No fee' }, ...templates, { id: 'custom', name: 'Other' }].map((f) => (

@@ -1,5 +1,5 @@
 import { categoryIcon, ICON_CHOICES } from '../data/icons'
-import { renameCategory } from '../data/rename'
+import { renameCategory, renameMoneyHolder } from '../data/rename'
 import type { Backend, Kind, Settings } from '../data/types'
 import { askForm, showAlert } from './dialog'
 
@@ -33,4 +33,23 @@ export async function askNewCategory(settings: Settings, kind: Kind): Promise<{ 
   const icons = { ...settings.icons }
   if (v.icon && v.icon !== categoryIcon(name)) icons[name] = v.icon
   return { name, settings: { ...settings, icons, categories: { ...settings.categories, [kind]: list.includes(name) ? list : [...list, name] } } }
+}
+
+/** Asks for an account's or debt's name and icon; a new name carries its entries and balances with it. */
+export async function askEditHolder(backend: Backend, settings: Settings, what: 'account' | 'debt', from: string) {
+  const current = categoryIcon(from)
+  const v = await askForm(what === 'account' ? 'Past entries and balances move to the new name too.' : 'What you owe and past payments move to the new name too.', [{ key: 'name', label: 'Name', initial: from, placeholder: what === 'account' ? 'Account name' : 'Lender name' }, iconField(current)], {
+    title: `Edit ${from}`,
+    ok: 'Save',
+  })
+  const to = v?.name?.trim()
+  if (!v || !to) return
+  const taken = what === 'account' ? settings.accounts.some((a) => a.name === to) : settings.debts.some((d) => d.name === to)
+  if (to !== from && taken) return void showAlert(`There's already ${what === 'account' ? 'an account' : 'a debt'} called ${to}.`)
+  const icons = { ...settings.icons }
+  delete icons[from]
+  if (v.icon && v.icon !== categoryIcon(to)) icons[to] = v.icon
+  const next = { ...settings, icons }
+  const done = to === from ? backend.saveSettings(next) : renameMoneyHolder(backend, next, what, from, to)
+  done.catch((e: Error) => showAlert(`Could not save: ${e.message}`))
 }
