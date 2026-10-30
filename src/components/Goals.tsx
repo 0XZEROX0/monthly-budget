@@ -5,6 +5,7 @@ import { formatWhole } from '../data/month'
 import type { Balances } from '../data/summary'
 import type { Goal, Settings } from '../data/types'
 import { NumberInput } from './NumberInput'
+import { ask, showAlert } from './dialog'
 
 const MASK = '•••••'
 const dateLabel = (iso: string) => new Date(iso + 'T00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
@@ -108,8 +109,8 @@ function GoalForm({ goal, accounts, currency, onSave, onRemove, onClose }: { goa
   const up = (p: Partial<Goal>) => setG((x) => ({ ...x, ...p }))
   const toggle = (a: string) => up({ accounts: g.accounts.includes(a) ? g.accounts.filter((x) => x !== a) : [...g.accounts, a] })
   const save = () => {
-    if (!g.accounts.length) return alert('Pick at least one account.')
-    if (g.target <= 0) return alert('Set how much you want to reach.')
+    if (!g.accounts.length) return void showAlert('Pick at least one account.')
+    if (g.target <= 0) return void showAlert('Set how much you want to reach.')
     const name = g.name.trim() || `${g.accounts.join(' + ')} goal`
     onSave({ ...g, name, ...(g.deadline ? {} : { deadline: undefined }) })
     onClose()
@@ -158,7 +159,7 @@ function GoalForm({ goal, accounts, currency, onSave, onRemove, onClose }: { goa
         </div>
         <div className="row">
           {onRemove && (
-            <button className="danger" onClick={() => confirm(`Remove the goal ${goal.name}?`) && (onRemove(), onClose())}>
+            <button className="danger" onClick={() => ask(`Remove the goal ${goal.name}?`, { ok: 'Remove', danger: true }).then((ok) => ok && (onRemove(), onClose()))}>
               Remove
             </button>
           )}

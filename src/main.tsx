@@ -5,6 +5,7 @@ import './index.css'
 import App from './App.tsx'
 import { startUpdates } from './data/appUpdate'
 import { applyTheme, cachedTheme } from './data/theme'
+import { DialogHost } from './components/dialog'
 
 applyTheme(cachedTheme())
 
@@ -25,5 +26,6 @@ if (!Capacitor.isNativePlatform())
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
+    <DialogHost />
   </StrictMode>,
 )

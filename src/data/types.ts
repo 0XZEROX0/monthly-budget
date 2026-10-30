@@ -71,6 +71,8 @@ export interface Settings {
   bills?: Bill[]
   /** Savings targets for bank and investment accounts. */
   goals?: Goal[]
+  /** Fee templates the user made, shown next to InstaPay and E-wallet. */
+  feeTemplates?: FeeTemplate[]
   /** Budget alerts; on at 80% unless turned off. */
   alerts?: { off?: boolean; pct?: number }
 }
@@ -160,4 +162,13 @@ export interface Backend {
   exportAll(): Promise<ImportData>
   /** Deletes every transaction and plan, and resets settings. */
   clearAll(): Promise<void>
+}
+
+/** A fee worked out as a percentage of the amount, kept between an optional minimum and maximum. */
+export interface FeeTemplate {
+  id: string
+  name: string
+  pct: number
+  min?: number
+  max?: number
 }

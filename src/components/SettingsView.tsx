@@ -13,6 +13,7 @@ import { GoalsEditor } from './Goals'
 import { SmsSettingsCard } from './SmsSettingsCard'
 import { UpdateCard } from './UpdateCard'
 import { useReorder } from './useReorder'
+import { ask, askText, showAlert } from './dialog'
 
 interface Props {
   backend: Backend
@@ -24,7 +25,7 @@ interface Props {
 }
 
 const CURRENCIES = ['EGP', 'USD', 'EUR', 'GBP', 'SAR', 'AED', 'KWD', 'QAR', 'TRY']
-const fail = (e: Error) => alert(`Could not save: ${e.message}`)
+const fail = (e: Error) => showAlert(`Could not save: ${e.message}`)
 
 export function SettingsView({ backend, settings, sms, user, onSignOut, lock }: Props) {
   const save = (s: Settings) => backend.saveSettings(s).catch(fail)
@@ -86,7 +87,9 @@ export function SettingsView({ backend, settings, sms, user, onSignOut, lock }: 
         <button
           className="danger"
           onClick={() => {
-            if (prompt('Type ERASE to delete all your budget data.') === 'ERASE') backend.clearAll().catch(fail)
+            askText('Type ERASE to delete all your budget data, on all your devices.', { title: 'Erase all data', ok: 'Erase', danger: true, placeholder: 'ERASE' }).then((v) => {
+              if (v?.trim() === 'ERASE') backend.clearAll().catch(fail)
+            })
           }}
         >
           Erase all data
@@ -116,11 +119,12 @@ function ImportCard({ backend, settings }: { backend: Backend; settings: Setting
           res.newAccounts.length ? `New accounts: ${res.newAccounts.join(', ')}.` : '',
           res.newCategories.length ? `New categories: ${res.newCategories.join(', ')}.` : '',
         ].filter(Boolean)
-        const ok = confirm(
+        const ok = await ask(
           `Found ${res.transactions.length} entries from ${fullDate(res.first)} to ${fullDate(res.last)}, each in the month of its date.` +
             (res.skipped ? ` ${res.skipped} more look like entries you already have (same day, type and amount) and are left out.` : '') +
             (added.length ? `\n\n${added.join('\n')}` : '') +
             '\n\nAdd them? Your plans and balances stay as they are. Importing the same file again replaces these entries instead of duplicating them.',
+          { title: 'Import entries', ok: 'Import' },
         )
         if (!ok) return setStatus('')
         setStatus('Importing…')
@@ -130,9 +134,10 @@ function ImportCard({ backend, settings }: { backend: Backend; settings: Setting
       const res = importGrids(sheets, settings)
       const first = res.months[0].month
       const last = res.months[res.months.length - 1].month
-      const ok = confirm(
+      const ok = await ask(
         `Found ${res.months.length} months (${monthLabel(first)} to ${monthLabel(last)}) with ${res.transactions.length} entries.\n\n` +
           'Import them? Your accounts, debts, categories and plans will be set from the sheet. Importing the same file again replaces those entries instead of duplicating them.',
+        { title: 'Import sheet', ok: 'Import' },
       )
       if (!ok) return setStatus('')
       setStatus('Importing…')
@@ -189,7 +194,7 @@ function AccountsEditor({ settings, onSave }: { settings: Settings; onSave: (s: 
               </option>
             ))}
           </select>
-          <button className="icon ghost" aria-label={`Remove ${a.name}`} onClick={() => confirm(`Remove ${a.name}? Its past entries stay.`) && set(settings.accounts.filter((_, j) => j !== i))}>
+          <button className="icon ghost" aria-label={`Remove ${a.name}`} onClick={() => ask(`Remove ${a.name}? Its past entries stay.`, { ok: 'Remove', danger: true }).then((ok) => ok && set(settings.accounts.filter((_, j) => j !== i)))}>
             ×
           </button>
         </div>
@@ -228,7 +233,7 @@ function DebtsEditor({ settings, onSave }: { settings: Settings; onSave: (s: Set
             <span className="sr-only">Limit</span>
             <NumberInput value={d.limit} onChange={(n) => set(settings.debts.map((x, j) => (j === i ? { ...x, limit: n } : x)))} />
           </label>
-          <button className="icon ghost" aria-label={`Remove ${d.name}`} onClick={() => confirm(`Remove ${d.name}?`) && set(settings.debts.filter((_, j) => j !== i))}>
+          <button className="icon ghost" aria-label={`Remove ${d.name}`} onClick={() => ask(`Remove ${d.name}?`, { ok: 'Remove', danger: true }).then((ok) => ok && set(settings.debts.filter((_, j) => j !== i)))}>
             ×
           </button>
         </div>
@@ -314,7 +319,7 @@ function CategoryEditor({ title, list, onChange }: { title: string; list: string
             <span>
               {categoryIcon(c)} {c}
             </span>
-            <button aria-label={`Remove ${c}`} onClick={() => confirm(`Remove "${c}"? Past entries keep it.`) && onChange(list.filter((x) => x !== c))}>
+            <button aria-label={`Remove ${c}`} onClick={() => ask(`Remove "${c}"? Past entries keep it.`, { ok: 'Remove', danger: true }).then((ok) => ok && onChange(list.filter((x) => x !== c)))}>
               ×
             </button>
           </li>

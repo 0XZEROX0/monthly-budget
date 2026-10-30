@@ -1,6 +1,7 @@
 import { App } from '@capacitor/app'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AppLock, lockSupported } from '../native/appLock'
+import { showAlert } from './dialog'
 
 // Fingerprint (or the phone's own PIN or pattern) to open the app. A setting of this
 // phone only, so it doesn't follow you to the website or another device.
@@ -53,7 +54,7 @@ export function useAppLock() {
   const setEnabled = async (on: boolean) => {
     if (on) {
       const { available } = await AppLock.available()
-      if (!available) return alert('Set up a fingerprint or a screen lock (PIN, pattern or password) in your phone settings first.')
+      if (!available) return showAlert('Set up a fingerprint or a screen lock (PIN, pattern or password) in your phone settings first.')
       const { ok } = await AppLock.unlock({ title: 'Turn on app lock', subtitle: 'Confirm with your fingerprint or phone PIN' }).catch(() => ({ ok: false }))
       if (!ok) return
     }
