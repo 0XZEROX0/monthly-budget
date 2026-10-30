@@ -227,13 +227,12 @@ export function importGrids(sheets: { name: string; grid: Grid }[], current?: Se
   }
 }
 
-/** Reads an .xlsx File in the browser. */
-export async function importWorkbook(file: File, current?: Settings): Promise<ImportResult> {
+/** Reads every tab of an .xlsx (or .csv) File in the browser. */
+export async function readWorkbook(file: File): Promise<{ name: string; grid: Grid }[]> {
   const XLSX = await import('xlsx')
   const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' })
-  const sheets = wb.SheetNames.map((name) => ({
+  return wb.SheetNames.map((name) => ({
     name,
     grid: XLSX.utils.sheet_to_json<Cell[]>(wb.Sheets[name], { header: 1, raw: true, defval: '' }),
   }))
-  return importGrids(sheets, current)
 }

@@ -5,6 +5,7 @@ const ICONS: [RegExp, string][] = [
   [/thndr|thunder|stock|invest/i, '📈'],
   [/loan to|lend/i, '🤝'],
   [/debt|loan|credit|tru|valu/i, '💳'],
+  [/coffee|caf[eé]/i, '☕'],
   [/fee/i, '🧾'],
   [/instal/i, '📆'],
   [/^car$/i, '🚙'],
@@ -28,6 +29,21 @@ const ICONS: [RegExp, string][] = [
   [/charity|donat/i, '🤝'],
   [/sub(scription)?s?\b|stream/i, '📺'],
   [/other|misc/i, '📦'],
+  // Arabic category names, as other budget apps export them.
+  [/قهوة|كافيه/, '☕'],
+  [/اكل|أكل|طعام|مطعم/, '🛒'],
+  [/مواصلات|مترو|توكتوك|تاكسي|اوبر/, '🚗'],
+  [/عربية|عربيه|بنزين/, '🚙'],
+  [/قسط|اقساط|أقساط/, '📆'],
+  [/مرتب|راتب/, '💼'],
+  [/هدوم|ملابس/, '🛍️'],
+  [/جمعية|جمعيه/, '🤝'],
+  [/عيدية|هدية|هدايا/, '🎁'],
+  [/عمولة|رسوم/, '🧾'],
+  [/كورس|دراسة|مدرسة/, '📚'],
+  [/ماما|بابا|اهل|أهل|بيت/, '🏠'],
+  [/دكتور|دوا|صيدلية/, '💊'],
+  [/مصاريف/, '💸'],
 ]
 
 export function categoryIcon(name: string): string {
