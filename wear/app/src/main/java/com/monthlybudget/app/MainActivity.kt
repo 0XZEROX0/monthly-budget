@@ -276,7 +276,9 @@ private fun HomeScreen(
 
     val pager = rememberPagerState(initialPage = page) { PAGES.size }
     LaunchedEffect(pager.currentPage) { onPage(pager.currentPage) }
-    val lists = List(PAGES.size) { rememberScalingLazyListState() }
+    // Lists start just under the clock instead of centering their second item, which left
+    // a big empty space at the top.
+    val lists = List(PAGES.size) { rememberScalingLazyListState(initialCenterItemIndex = 0) }
     val toggleHidden = {
         hidden = !hidden
         Store.setHidden(context, hidden)
@@ -325,7 +327,7 @@ private fun HomeScreen(
                             strokeWidth = 4.dp,
                         )
                     }
-                    ScalingLazyColumn(state = lists[p], modifier = Modifier.fillMaxSize()) {
+                    ScalingLazyColumn(state = lists[p], modifier = Modifier.fillMaxSize(), autoCentering = null, contentPadding = PagePadding) {
                         if (g != null) {
                             item { Text(leftLabel(g), style = MaterialTheme.typography.caption2, color = MaterialTheme.colors.onSurfaceVariant) }
                             item {
@@ -409,7 +411,7 @@ private fun HomeScreen(
                     }
                 }
 
-                "Transactions" -> ScalingLazyColumn(state = lists[p], modifier = Modifier.fillMaxSize()) {
+                "Transactions" -> ScalingLazyColumn(state = lists[p], modifier = Modifier.fillMaxSize(), autoCentering = null, contentPadding = PagePadding) {
                     item { ListHeader { Text(monthName(currentMonth())) } }
                     val recent = d?.recent.orEmpty()
                     if (recent.isEmpty()) {
@@ -425,7 +427,7 @@ private fun HomeScreen(
                     item { PageDots(p) }
                 }
 
-                "Accounts" -> ScalingLazyColumn(state = lists[p], modifier = Modifier.fillMaxSize()) {
+                "Accounts" -> ScalingLazyColumn(state = lists[p], modifier = Modifier.fillMaxSize(), autoCentering = null, contentPadding = PagePadding) {
                     if (d == null || (d.balances.isEmpty() && d.goals.isEmpty())) {
                         item { ListHeader { Text("Accounts") } }
                         item { Text("Loading…", style = MaterialTheme.typography.caption2) }
@@ -443,7 +445,7 @@ private fun HomeScreen(
                     item { PageDots(p) }
                 }
 
-                "Reports" -> ScalingLazyColumn(state = lists[p], modifier = Modifier.fillMaxSize()) {
+                "Reports" -> ScalingLazyColumn(state = lists[p], modifier = Modifier.fillMaxSize(), autoCentering = null, contentPadding = PagePadding) {
                     val r = report
                     item { ListHeader { Text("Last ${Report.PERIOD} months") } }
                     if (r == null) {
@@ -476,7 +478,7 @@ private fun HomeScreen(
                     item { PageDots(p) }
                 }
 
-                else -> ScalingLazyColumn(state = lists[p], modifier = Modifier.fillMaxSize()) {
+                else -> ScalingLazyColumn(state = lists[p], modifier = Modifier.fillMaxSize(), autoCentering = null, contentPadding = PagePadding) {
                     item { ListHeader { Text("Settings") } }
                     item {
                         Chip(
@@ -553,6 +555,8 @@ private fun HomeScreen(
         }
     }
 }
+
+private val PagePadding = PaddingValues(start = 10.dp, top = 30.dp, end = 10.dp, bottom = 40.dp)
 
 private val PAGES = listOf("Summary", "Transactions", "Accounts", "Reports", "Settings")
 
