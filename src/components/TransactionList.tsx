@@ -136,6 +136,7 @@ export function TransactionList({ txns, settings, onEdit, focus, onClearFocus }:
                           <span>{d.title}</span>
                           <span className="muted small">
                             {d.sub}
+                            {t.time && ` · ${t.time}`}
                             {t.notSpending && ' · not counted as spending'}
                           </span>
                         </span>

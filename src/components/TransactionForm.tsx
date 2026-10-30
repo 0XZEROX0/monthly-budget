@@ -34,6 +34,17 @@ const tabOf = (k: TxnKind): Tab => (k === 'repay' || k === 'borrow' ? 'debt' : k
 // sync later, so waiting on the server would freeze the form without a connection.
 const report = (p: Promise<void>) => p.catch((e: Error) => showAlert(`Could not save: ${e.message}`))
 
+const nowTime = () => {
+  const d = new Date()
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+/** Digits typed into the time box become HH:MM, with the colon put in for you. */
+const typeTime = (v: string) => {
+  const d = v.replace(/\D/g, '').slice(0, 4)
+  return d.length > 2 ? `${d.slice(0, 2)}:${d.slice(2)}` : d
+}
+
 const shiftDay = (iso: string, days: number) => {
   const d = new Date(iso + 'T00:00')
   d.setDate(d.getDate() + days)
@@ -59,6 +70,8 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
   const [date, setDate] = useState(init?.date ?? defaultDate)
   const [description, setDescription] = useState(init?.description ?? '')
   const [notSpending, setNotSpending] = useState(!!init?.notSpending)
+  // When it happened; entries are ordered by it within a day. Starts at now for a new entry.
+  const [time, setTime] = useState(() => (existing ? existing.time ?? '' : init?.time ?? nowTime()))
   // A draft starts with no category so one has to be picked, unless it remembered one.
   const [category, setCategory] = useState(draft ? draft.txn.category : existing?.category || settings.categories.expense[0] || '')
   const [account, setAccount] = useState(init?.account ?? liquid[0] ?? accounts[0] ?? '')
@@ -151,9 +164,8 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
     if (!Number.isFinite(value) || value <= 0) return
     if ((tab === 'expense' || tab === 'income') && !category) return void showAlert('Pick a category.')
     // The time orders entries within a day, newest first.
-    const now = new Date()
-    const time = init?.time ?? `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-    const base = { amount: value, date, time, description: description.trim(), category: '' }
+    if (time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return void showAlert('Type the time like 09:30 or 21:15.')
+    const base = { amount: value, date, ...(time && { time }), description: description.trim(), category: '' }
     let t: NewTransaction
     if (tab === 'expense' || tab === 'income') t = { ...base, kind: tab, category, account, ...(tab === 'expense' && notSpending && { notSpending: true }) }
     else if (tab === 'transfer') {
@@ -174,7 +186,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
           kind: 'expense',
           amount: feeValue,
           date,
-          time,
+          ...(time && { time }),
           ...(t.month ? { month: t.month } : {}),
           category: feeCategory(settings.categories.expense),
           account,
@@ -316,7 +328,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
         )}
 
         <div className="field">
-          <span className="field-label">Date</span>
+          <span className="field-label">Date and time</span>
           <div className="row wrap">
             <button type="button" className={`chip ${date === today() ? 'active' : ''}`} onClick={() => setDate(today())}>
               Today
@@ -325,6 +337,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
               Yesterday
             </button>
             <input className="date-input" type="date" required value={date} onChange={(e) => setDate(e.target.value)} aria-label="Date" />
+            <input className="time-input" inputMode="numeric" value={time} onChange={(e) => setTime(typeTime(e.target.value))} placeholder="HH:MM" aria-label="Time" maxLength={5} />
           </div>
         </div>
         <label className="field">
