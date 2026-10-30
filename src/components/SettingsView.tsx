@@ -15,7 +15,7 @@ import { SmsSettingsCard } from './SmsSettingsCard'
 import { UpdateCard } from './UpdateCard'
 import { useReorder } from './useReorder'
 import { ask, askText, showAlert } from './dialog'
-import { askEditCategory } from './categoryRename'
+import { askEditCategory, askEditHolder } from './categoryRename'
 import { Picker } from './Picker'
 
 interface Props {
@@ -34,6 +34,7 @@ const fail = (e: Error) => showAlert(`Could not save: ${e.message}`)
 
 export function SettingsView({ backend, settings, sms, user, onSignOut, lock, initialGroup }: Props) {
   const save = (s: Settings) => backend.saveSettings(s).catch(fail)
+  const editHolder: EditHolder = (what, name) => void askEditHolder(backend, settings, what, name)
   const setCategories = (kind: Kind, list: string[]) => save({ ...settings, categories: { ...settings.categories, [kind]: list } })
   // One group open at a time keeps the page short; the last one opened is remembered.
   const [open, setOpen] = useState<string | null>(() => initialGroup ?? readGroup())
@@ -87,9 +88,9 @@ export function SettingsView({ backend, settings, sms, user, onSignOut, lock, in
               <input type="checkbox" role="switch" checked={!!settings.decimals} onChange={(e) => save({ ...settings, decimals: e.target.checked })} />
             </label>
           </section>
-          <AccountsEditor settings={settings} onSave={save} />
-          <DebtsEditor settings={settings} onSave={save} />
-          <OpeningEditor settings={settings} onSave={save} />
+          <AccountsEditor settings={settings} onSave={save} onEdit={editHolder} />
+          <DebtsEditor settings={settings} onSave={save} onEdit={editHolder} />
+          <OpeningEditor settings={settings} onSave={save} onEdit={editHolder} />
         </>,
       )}
 
@@ -263,9 +264,24 @@ function ImportCard({ backend, settings }: { backend: Backend; settings: Setting
   )
 }
 
+type EditHolder = (what: 'account' | 'debt', name: string) => void
+
+/** An account's or debt's icon and name; tap to change them. */
+function HolderName({ name, suffix = '', onClick }: { name: string; suffix?: string; onClick: () => void }) {
+  return (
+    <button className="holder-name grow" aria-label={`Edit ${name}`} onClick={onClick}>
+      <span className="cat-icon plan-icon">{categoryIcon(name)}</span>
+      <strong>
+        {name}
+        {suffix}
+      </strong>
+    </button>
+  )
+}
+
 const NEW_TYPE = '\u0000new'
 
-function AccountsEditor({ settings, onSave }: { settings: Settings; onSave: (s: Settings) => void }) {
+function AccountsEditor({ settings, onSave, onEdit }: { settings: Settings; onSave: (s: Settings) => void; onEdit: EditHolder }) {
   const [name, setName] = useState('')
   const set = (accounts: Account[]) => onSave({ ...settings, accounts })
   const update = (i: number, a: Account) => set(settings.accounts.map((x, j) => (j === i ? a : x)))
@@ -281,12 +297,11 @@ function AccountsEditor({ settings, onSave }: { settings: Settings; onSave: (s: 
   return (
     <section className="card">
       <h2>Accounts</h2>
-      <p className="muted small">Where your money is. Cash, bank, e-wallets and your own types count as liquidity; investments count toward capital.</p>
+      <p className="muted small">Where your money is. Cash, bank, e-wallets and your own types count as liquidity; investments count toward capital. Tap one to change its name or icon.</p>
       {settings.accounts.map((a, i) => (
         <div className="edit-group" key={a.name}>
         <div className="edit-row">
-          <span className="cat-icon plan-icon">{categoryIcon(a.name)}</span>
-          <strong className="grow">{a.name}</strong>
+          <HolderName name={a.name} onClick={() => onEdit('account', a.name)} />
           <Picker
             label={`${a.name} type`}
             value={a.type}
@@ -320,17 +335,16 @@ function AccountsEditor({ settings, onSave }: { settings: Settings; onSave: (s: 
   )
 }
 
-function DebtsEditor({ settings, onSave }: { settings: Settings; onSave: (s: Settings) => void }) {
+function DebtsEditor({ settings, onSave, onEdit }: { settings: Settings; onSave: (s: Settings) => void; onEdit: EditHolder }) {
   const [name, setName] = useState('')
   const set = (debts: Debt[]) => onSave({ ...settings, debts })
   return (
     <section className="card">
       <h2>Debts</h2>
-      <p className="muted small">Lenders and their limits (the number on the right). Add what you owe under Opening balances or with a Debt entry.</p>
+      <p className="muted small">Lenders and their limits (the number on the right). Add what you owe under Opening balances or with a Debt entry. Tap one to change its name or icon.</p>
       {settings.debts.map((d, i) => (
         <div className="edit-row" key={d.name}>
-          <span className="cat-icon plan-icon">{categoryIcon(d.name)}</span>
-          <strong className="grow">{d.name}</strong>
+          <HolderName name={d.name} onClick={() => onEdit('debt', d.name)} />
           <label className="mini">
             <span className="sr-only">Limit</span>
             <NumberInput value={d.limit} onChange={(n) => set(settings.debts.map((x, j) => (j === i ? { ...x, limit: n } : x)))} />
@@ -358,7 +372,7 @@ function DebtsEditor({ settings, onSave }: { settings: Settings; onSave: (s: Set
   )
 }
 
-function OpeningEditor({ settings, onSave }: { settings: Settings; onSave: (s: Settings) => void }) {
+function OpeningEditor({ settings, onSave, onEdit }: { settings: Settings; onSave: (s: Settings) => void; onEdit: EditHolder }) {
   const { opening } = settings
   const [lender, setLender] = useState('')
   const addLender = () => {
@@ -376,22 +390,22 @@ function OpeningEditor({ settings, onSave }: { settings: Settings; onSave: (s: S
         <input type="month" value={opening.month} onChange={(e) => e.target.value && set({ month: e.target.value })} style={{ width: 'auto' }} />
       </label>
       {settings.accounts.map((a) => (
-        <label className="edit-row" key={a.name}>
-          <span className="cat-icon plan-icon">{categoryIcon(a.name)}</span>
-          <span className="grow">{a.name}</span>
-          <span className="mini">
+        <div className="edit-row" key={a.name}>
+          <HolderName name={a.name} onClick={() => onEdit('account', a.name)} />
+          <label className="mini">
+            <span className="sr-only">{a.name} opening balance</span>
             <NumberInput value={opening.accounts[a.name] ?? 0} onChange={(n) => set({ accounts: { ...opening.accounts, [a.name]: n } })} />
-          </span>
-        </label>
+          </label>
+        </div>
       ))}
       {settings.debts.map((d) => (
-        <label className="edit-row" key={d.name}>
-          <span className="cat-icon plan-icon">{categoryIcon(d.name)}</span>
-          <span className="grow">{d.name} owed</span>
-          <span className="mini">
+        <div className="edit-row" key={d.name}>
+          <HolderName name={d.name} suffix=" owed" onClick={() => onEdit('debt', d.name)} />
+          <label className="mini">
+            <span className="sr-only">{d.name} owed at the start</span>
             <NumberInput value={opening.debts[d.name] ?? 0} onChange={(n) => set({ debts: { ...opening.debts, [d.name]: n } })} />
-          </span>
-        </label>
+          </label>
+        </div>
       ))}
       <AddRow placeholder="Add a debt, like TRU or Valu" value={lender} onChange={setLender} onAdd={addLender} />
       <p className="muted small">

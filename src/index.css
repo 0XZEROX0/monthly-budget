@@ -486,3 +486,6 @@ button.settings-group-head { display: flex; align-items: center; gap: 0.8rem; wi
 .settings-group-head .chevron { transition: rotate 0.2s; }
 .settings-group.open .settings-group-head .chevron { rotate: 90deg; }
 .settings-group-body { padding-left: 0.5rem; border-left: 2px solid var(--accent-soft); margin-left: 0.5rem; }
+.amount-fee { margin: -0.4rem 0 0; text-align: center; font-size: 0.85rem; color: var(--text-2); font-variant-numeric: tabular-nums; }
+button.holder-name { display: flex; align-items: center; gap: 0.75rem; min-width: 0; border: none; background: none; padding: 0; text-align: left; color: var(--text); font: inherit; }
+button.holder-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -1,4 +1,4 @@
-import type { Backend, Kind, MonthPlan, Settings } from './types'
+import type { Backend, Kind, MonthPlan, Settings, SmsTarget } from './types'
 
 /**
  * Renames a category everywhere it's used: the category list, bills, the debt payment
@@ -33,4 +33,43 @@ export async function renameCategory(backend: Backend, settings: Settings, kind:
     plans: changedPlans,
     transactions: transactions.filter((t) => t.kind === kind && t.category === from).map((t) => ({ ...t, category: to })),
   })
+}
+
+const renameKey = <T,>(rec: Record<string, T> | undefined, from: string, to: string) => {
+  if (!rec || !(from in rec)) return rec
+  const { [from]: v, ...rest } = rec
+  return { ...rest, [to]: v }
+}
+
+/**
+ * Renames an account or a debt everywhere it's used: the list, opening balances, bills,
+ * goals, SMS card targets, its icon and every past entry, so balances stay the same.
+ */
+export async function renameMoneyHolder(backend: Backend, settings: Settings, what: 'account' | 'debt', from: string, to: string) {
+  const swap = (n: string | undefined) => (n === from ? to : n)
+  const target = (t: SmsTarget | undefined) => (t === `${what}:${from}` ? (`${what}:${to}` as SmsTarget) : t)
+  const next: Settings = { ...settings, ...(settings.icons && { icons: renameKey(settings.icons, from, to) }) }
+  if (what === 'account') {
+    next.accounts = settings.accounts.map((a) => (a.name === from ? { ...a, name: to } : a))
+    next.opening = { ...settings.opening, accounts: renameKey(settings.opening.accounts, from, to)! }
+    if (settings.goals) next.goals = settings.goals.map((g) => ({ ...g, accounts: g.accounts.map((a) => swap(a)!) }))
+    if (settings.bills) next.bills = settings.bills.map((b) => (b.account === from ? { ...b, account: to } : b))
+  } else {
+    next.debts = settings.debts.map((d) => (d.name === from ? { ...d, name: to } : d))
+    next.opening = { ...settings.opening, debts: renameKey(settings.opening.debts, from, to)! }
+    if (settings.bills) next.bills = settings.bills.map((b) => (b.debt === from ? { ...b, debt: to } : b))
+  }
+  if (settings.sms) {
+    next.sms = {
+      ...settings.sms,
+      cards: Object.fromEntries(Object.entries(settings.sms.cards).map(([k, t]) => [k, target(t)!])),
+      ...(settings.sms.defaultTarget && { defaultTarget: target(settings.sms.defaultTarget) }),
+    }
+  }
+  const { transactions } = await backend.exportAll()
+  const changed =
+    what === 'account'
+      ? transactions.filter((t) => t.account === from || t.toAccount === from).map((t) => ({ ...t, ...(t.account && { account: swap(t.account) }), ...(t.toAccount && { toAccount: swap(t.toAccount) }) }))
+      : transactions.filter((t) => t.debt === from).map((t) => ({ ...t, debt: to }))
+  await backend.importAll({ settings: next, plans: {}, transactions: changed })
 }
