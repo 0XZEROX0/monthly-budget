@@ -41,7 +41,14 @@ object Budget {
         val openingMonth = ((settingsDoc?.get("opening") as? Map<*, *>)?.get("month") as? String)?.takeIf { it <= month }
         val reportFrom = shiftMonth(month, -(2 * Report.PERIOD - 1))
         val since = if (openingMonth != null && openingMonth < reportFrom) openingMonth else reportFrom
-        val history = db.where("transactions", "month", since, "GREATER_THAN_OR_EQUAL")
+        val past = History.load(context, since, month)
+        val history = if (past != null) {
+            past + db.where("transactions", "month", month)
+        } else {
+            db.where("transactions", "month", since, "GREATER_THAN_OR_EQUAL").also { all ->
+                History.save(context, since, month, all.filter { (it["month"] as? String ?: "") < month })
+            }
+        }
         val txns = history.filter { it["month"] == month }
         val glance = summarize(month, settings, plan, txns) + Store.queue(context)
         Store.saveGlance(context, glance)
@@ -60,10 +67,10 @@ object Budget {
         return glance
     }
 
-    /** For the tile and complication: the saved figures, refreshed when they're older than 10 minutes. */
+    /** For the tile and complication: the saved figures, refreshed when they're older than 30 minutes. */
     suspend fun glanceForSurface(context: Context): Glance? {
         val cached = Store.glance(context)
-        if (cached != null && cached.month == currentMonth() && System.currentTimeMillis() - cached.updatedAt < 10 * 60_000) return cached
+        if (cached != null && cached.month == currentMonth() && System.currentTimeMillis() - cached.updatedAt < 30 * 60_000) return cached
         return withTimeoutOrNull(10_000) { runCatching { refresh(context) }.getOrNull() } ?: cached
     }
 

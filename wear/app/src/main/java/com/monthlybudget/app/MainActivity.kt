@@ -263,6 +263,8 @@ private fun HomeScreen(
                 null
             } catch (e: SignedOutException) {
                 "Sign in again in the phone app"
+            } catch (e: QuotaException) {
+                "Daily sync limit reached. Back at ${e.resetsAt}"
             } catch (e: Exception) {
                 if (glance == null) "Can't reach your budget. Check the connection." else "Offline: showing saved figures"
             }
@@ -524,6 +526,10 @@ private fun HomeScreen(
                                         report = Store.report(context)
                                         Surfaces.update(context)
                                         "Up to date"
+                                    } catch (e: SignedOutException) {
+                                        "Sign in again in the phone app"
+                                    } catch (e: QuotaException) {
+                                        "Daily sync limit reached. Back at ${e.resetsAt}"
                                     } catch (e: Exception) {
                                         "Can't reach your budget"
                                     }

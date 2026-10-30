@@ -12,6 +12,16 @@ import org.json.JSONObject
 /** The phone app's sign-in no longer works (signed out, or the account changed). */
 class SignedOutException : IOException("Signed out")
 
+/** Firebase's free daily read and write allowance is used up until midnight Pacific time. */
+class QuotaException : IOException("Daily limit reached") {
+    /** When it resets, in the watch's time zone, e.g. "10:00". */
+    val resetsAt: String
+        get() = java.time.LocalDate.now(java.time.ZoneId.of("America/Los_Angeles")).plusDays(1)
+            .atStartOfDay(java.time.ZoneId.of("America/Los_Angeles"))
+            .withZoneSameInstant(java.time.ZoneId.systemDefault())
+            .toLocalTime().toString()
+}
+
 private class HttpException(val code: Int, body: String) : IOException("HTTP $code: $body")
 
 private suspend fun http(url: String, method: String, body: String?, contentType: String, token: String?): String =
@@ -29,6 +39,7 @@ private suspend fun http(url: String, method: String, body: String?, contentType
             }
             val code = conn.responseCode
             val text = (if (code < 400) conn.inputStream else conn.errorStream)?.bufferedReader()?.use { it.readText() } ?: ""
+            if (code == 429) throw QuotaException()
             if (code >= 400) throw HttpException(code, text)
             text
         } finally {
