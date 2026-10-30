@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { categoryIcon } from '../data/icons'
-import { dayLabel, formatMoney, formatWhole } from '../data/month'
+import { dayLabel, formatMoney, formatWhole, showTime } from '../data/month'
 import { countsAsSpending } from '../data/summary'
 import type { Settings, Transaction } from '../data/types'
 
@@ -136,7 +136,7 @@ export function TransactionList({ txns, settings, onEdit, focus, onClearFocus }:
                           <span>{d.title}</span>
                           <span className="muted small">
                             {d.sub}
-                            {t.time && ` · ${t.time}`}
+                            {t.time && ` · ${showTime(t.time, settings.clock12)}`}
                             {t.notSpending && ' · not counted as spending'}
                           </span>
                         </span>

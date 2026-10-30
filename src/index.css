@@ -497,3 +497,4 @@ button.holder-name strong { overflow: hidden; text-overflow: ellipsis; white-spa
 .layout-grip { color: var(--text-2); font-size: 1.1rem; }
 .edit-row.toggle-row > .grow { white-space: normal; overflow: visible; }
 .time-input { width: 5.2rem; flex: none; text-align: center; font-variant-numeric: tabular-nums; }
+.chip.ampm { flex: none; min-width: 3.4rem; font-variant-numeric: tabular-nums; }
