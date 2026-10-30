@@ -79,6 +79,7 @@ export function createLocalBackend(): Backend {
       }
       return commit()
     },
+    exportAll: async () => db,
     clearAll: () => {
       db = { settings: DEFAULT_SETTINGS, plans: {}, transactions: [] }
       return commit()

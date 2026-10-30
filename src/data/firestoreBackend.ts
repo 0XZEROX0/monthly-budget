@@ -3,6 +3,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   onSnapshot,
   query,
@@ -63,6 +64,14 @@ export function createFirestoreBackend(db: Firestore, uid: string): Backend {
         ...Object.entries(data.plans).map(([m, p]) => [doc(plans, m), clean(p)] as [DocumentReference, object]),
         ...data.transactions.map(({ id, ...t }) => [doc(txns, id), withMonth(t)] as [DocumentReference, object]),
       ])
+    },
+    exportAll: async () => {
+      const [t, p, s] = await Promise.all([getDocs(txns), getDocs(plans), getDoc(userDoc('settings', 'main'))])
+      return {
+        settings: withDefaults(s.data() as Partial<Settings> | undefined),
+        plans: Object.fromEntries(p.docs.map((d) => [d.id, d.data() as MonthPlan])),
+        transactions: t.docs.map(read),
+      }
     },
     clearAll: async () => {
       const [t, p] = await Promise.all([getDocs(txns), getDocs(plans)])

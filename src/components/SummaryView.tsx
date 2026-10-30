@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react'
 import { categoryIcon } from '../data/icons'
 import { currentMonth, daysInMonth, formatCompact, formatWhole, shiftMonth, shortMonth, today } from '../data/month'
-import { savedIn, spentIn, type CategoryRow, type MonthSummary } from '../data/summary'
+import { budgetAlerts, savedIn, spentIn, type CategoryRow, type MonthSummary } from '../data/summary'
 import type { Account, Backend, Settings, Transaction } from '../data/types'
 import { BalanceForm } from './BalanceForm'
+import { BillsCard } from './Bills'
+import { GoalsCard } from './Goals'
 import type { ListFocus } from './TransactionList'
 import { BudgetRing, Legend, MonthsChart, PaceChart, SavedChart, type MonthBar, type PacePoint, type SavedBar } from './charts'
 
@@ -22,12 +24,14 @@ interface Props {
   onOpen: (f: ListFocus) => void
   /** Privacy mode: hide balances, capital, debts, income and spending totals. */
   hidden: boolean
+  /** Opens Settings at the savings goals. */
+  onEditGoals: () => void
 }
 
 const TREND_MONTHS = 6
 const MASK = '•••••'
 
-export function SummaryView({ backend, month, summary: s, txns, history, settings, hasPlan, onPlan, onSelectMonth, onOpen, hidden }: Props) {
+export function SummaryView({ backend, month, summary: s, txns, history, settings, hasPlan, onPlan, onSelectMonth, onOpen, hidden, onEditGoals }: Props) {
   const { currency } = settings
   const money = (n: number) => formatWhole(n, currency)
   const compact = (n: number) => formatCompact(n, currency)
@@ -63,6 +67,7 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
   const income = s.rows.income.filter((r) => r.planned || r.actual).sort((a, b) => b.actual - a.actual)
   const debts = settings.debts.filter((d) => (s.end.debts[d.name] ?? 0) > 0 || (s.start.debts[d.name] ?? 0) > 0)
   const totalDebt = debts.reduce((a, d) => a + (s.end.debts[d.name] ?? 0), 0)
+  const alerts = settings.alerts?.off ? [] : budgetAlerts(s, settings.alerts?.pct ?? 80)
 
   return (
     <div className="stack">
@@ -98,6 +103,32 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
           </span>
         </button>
       )}
+
+      {alerts.length > 0 && (
+        <section className="card alerts">
+          <div className="card-head">
+            <h2>Budget alerts</h2>
+          </div>
+          <ul className="plain-list">
+            {alerts.map((a) => (
+              <li key={a.category ?? '*'}>
+                <button className="row-link grow" onClick={() => (a.category ? onOpen({ kind: 'category', value: a.category }) : onPlan())}>
+                  <span className="cat-icon">{a.level === 'over' ? '⚠️' : a.category ? categoryIcon(a.category) : '📊'}</span>
+                  <span className="grow list-main">
+                    <span>{a.category ?? 'Whole budget'}</span>
+                    <span className={`small ${a.level === 'over' ? 'status-critical' : 'status-warning'}`}>
+                      {a.level === 'over' ? `Over by ${money(a.actual - a.planned)}` : `${Math.round((a.actual / a.planned) * 100)}% used · ${money(a.planned - a.actual)} left`}
+                    </span>
+                  </span>
+                  <span className="chevron" aria-hidden>›</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <BillsCard backend={backend} settings={settings} month={month} txns={txns} />
 
       <section className="card">
         <div className="card-head">
@@ -140,6 +171,8 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
           </span>
         </div>
       </section>
+
+      <GoalsCard settings={settings} balances={s.end} hidden={hidden} onEdit={onEditGoals} />
 
       <section className="card">
         <div className="card-head">

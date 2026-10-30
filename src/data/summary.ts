@@ -158,3 +158,23 @@ export function summarize(plan: MonthPlan, settings: Settings, txns: Transaction
     rows,
   }
 }
+
+export interface BudgetAlert {
+  /** A category, or null for the whole budget. */
+  category: string | null
+  planned: number
+  actual: number
+  level: 'near' | 'over'
+}
+
+/** Categories (and the total) at or past `pct`% of their budget. */
+export function budgetAlerts(s: MonthSummary, pct = 80): BudgetAlert[] {
+  const out: BudgetAlert[] = []
+  const check = (category: string | null, planned: number, actual: number) => {
+    if (planned <= 0 || actual < (planned * pct) / 100) return
+    out.push({ category, planned, actual, level: actual > planned ? 'over' : 'near' })
+  }
+  check(null, s.planned.expense, s.actual.expense)
+  for (const r of s.rows.expense) check(r.category, r.planned, r.actual)
+  return out
+}

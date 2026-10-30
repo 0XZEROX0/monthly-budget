@@ -354,3 +354,80 @@ export function SavedChart({ bars, current, format, axisFormat, onSelect }: {
     </div>
   )
 }
+
+export interface LinePoint {
+  month: string
+  label: string
+  value: number
+}
+
+/** One value per month as a line, e.g. capital at each month's end. Tap a month to open it. */
+export function LineChart({ points, current, format, axisFormat, label, onSelect }: {
+  points: LinePoint[]
+  current: string
+  format: (n: number) => string
+  axisFormat: (n: number) => string
+  label: string
+  onSelect: (month: string) => void
+}) {
+  const [ref, width] = useWidth<HTMLDivElement>()
+  const [hover, setHover] = useState<number | null>(null)
+  const height = 180
+  const innerW = Math.max(0, width - PAD.left - PAD.right)
+  const innerH = height - PAD.top - PAD.bottom
+  const ticks = niceTicks(Math.max(1, ...points.map((p) => p.value)))
+  const top = ticks[ticks.length - 1]
+  const n = points.length
+  const band = innerW / Math.max(1, n)
+  const x = (i: number) => PAD.left + band * i + band / 2
+  const y = (v: number) => PAD.top + innerH - (Math.max(0, v) / top) * innerH
+  const line = points.map((p, i) => `${i ? 'L' : 'M'}${x(i)},${y(p.value)}`).join('')
+  const area = n ? `${line}L${x(n - 1)},${y(0)}L${x(0)},${y(0)}Z` : ''
+  const h = hover !== null ? points[hover] : null
+
+  return (
+    <div className="chart" ref={ref}>
+      {width > 0 && (
+        <svg width={width} height={height} role="img" aria-label={label}>
+          {ticks.map((t) => (
+            <g key={t}>
+              <line className="grid" x1={PAD.left} x2={width - PAD.right} y1={y(t)} y2={y(t)} />
+              <text className="tick" x={PAD.left - 6} y={y(t)} dy="0.32em" textAnchor="end">
+                {axisFormat(t)}
+              </text>
+            </g>
+          ))}
+          <path d={area} className="area accent" />
+          <path d={line} className="line accent" />
+          {points.map((p, i) => (
+            <g key={p.month}>
+              {(n <= 7 || i % 2 === (n - 1) % 2) && (
+                <text className={`tick ${p.month === current ? 'tick-current' : ''}`} x={x(i)} y={height - 6} textAnchor="middle">
+                  {p.label}
+                </text>
+              )}
+              {(hover === i || i === n - 1) && <circle className="dot accent" cx={x(i)} cy={y(p.value)} r={4.5} />}
+              <rect
+                className="hit"
+                x={x(i) - band / 2}
+                y={0}
+                width={band}
+                height={height}
+                onPointerEnter={() => setHover(i)}
+                onPointerDown={() => setHover(i)}
+                onPointerLeave={() => setHover(null)}
+                onClick={() => onSelect(p.month)}
+              />
+            </g>
+          ))}
+        </svg>
+      )}
+      {h && hover !== null && (
+        <Tooltip x={x(hover)} width={width}>
+          <strong>{h.label}</strong>
+          <span>{format(h.value)}</span>
+        </Tooltip>
+      )}
+    </div>
+  )
+}

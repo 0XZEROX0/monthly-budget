@@ -78,6 +78,13 @@ public class AppUpdaterPlugin extends Plugin {
         }).start();
     }
 
+    /** Notes the running build and schedules the background check for newer ones (UpdateCheckWorker). */
+    @PluginMethod
+    public void watchForUpdates(PluginCall call) {
+        UpdateCheckWorker.watch(getContext(), call.getInt("build", 0));
+        call.resolve();
+    }
+
     /** Opens the installer for the APK already downloaded, e.g. after allowing installs. */
     @PluginMethod
     public void installDownloaded(PluginCall call) {

@@ -282,7 +282,7 @@ button.icon { width: 2.6rem; height: 2.6rem; padding: 0; font-size: 1.3rem; line
 }
 .tabbar {
   position: fixed; left: 0.75rem; right: 0.75rem; bottom: calc(0.75rem + env(safe-area-inset-bottom)); z-index: 3;
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: grid; grid-template-columns: repeat(5, 1fr);
   max-width: 616px; margin: 0 auto; padding: 0.35rem;
   background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(14px);
   border: 1px solid var(--border); border-radius: 22px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.1);
@@ -401,3 +401,48 @@ button.small-btn { padding: 0.55rem 1.1rem; flex: none; }
 .privacy { position: absolute; right: 0.75rem; top: calc(env(safe-area-inset-top) + 0.6rem); color: var(--text-2); }
 .privacy[aria-pressed='true'] { color: var(--accent); background: var(--accent-soft); }
 .privacy svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Bills, goals, alerts */
+.status-warning { color: color-mix(in srgb, var(--warning) 55%, var(--text)); }
+.plain-list li.bill { display: flex; align-items: center; gap: 0.75rem; }
+.bill .chip { flex: none; padding: 0.35rem 0.8rem; }
+.bill-paid .list-main > span:first-child { color: var(--muted); }
+.meter-fill.goal-fill { background: var(--good); }
+.chart .line.accent { stroke: var(--accent); }
+.chart .area.accent { fill: var(--accent); opacity: 0.1; }
+.chart .dot.accent { fill: var(--accent); }
+.center-text { text-align: center; margin: -0.4rem 0 0; }
+.block { display: block; }
+
+/* On/off switch */
+.toggle-row { cursor: pointer; }
+input[type='checkbox'][role='switch'] {
+  appearance: none; flex: none; width: 2.75rem; height: 1.6rem; border-radius: 999px; padding: 0; margin: 0;
+  background: var(--grid); position: relative; cursor: pointer; transition: background 0.15s; border: none;
+}
+input[type='checkbox'][role='switch']::after {
+  content: ''; position: absolute; top: 0.2rem; left: 0.2rem; width: 1.2rem; height: 1.2rem; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); transition: transform 0.15s;
+}
+input[type='checkbox'][role='switch']:checked { background: var(--accent); }
+input[type='checkbox'][role='switch']:checked::after { transform: translateX(1.15rem); }
+
+/* Centred popup (update available) */
+.dialog-backdrop { align-items: center; padding: 1rem; }
+.dialog {
+  width: 100%; max-width: 380px; background: var(--surface); border-radius: 24px; padding: 1.4rem;
+  display: grid; gap: 0.75rem; text-align: center; animation: rise 0.2s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+.dialog h2 { margin: 0; }
+.dialog p { margin: 0; }
+.dialog progress { width: 100%; }
+.dialog-icon {
+  justify-self: center; width: 3rem; height: 3rem; border-radius: 50%; display: grid; place-items: center;
+  background: var(--accent-soft); color: var(--accent); font-size: 1.4rem; font-weight: 700;
+}
+.lock-screen { min-height: 100dvh; }
+.report-stats .stat { background: var(--surface-2); }
+.report-stats .stat-label, .report-stats .stat-sub { color: var(--text-2); }
+.report-stats .stat strong.good { color: var(--good); }
+.report-stats .stat strong.bad { color: var(--critical); }
+.edit-row .list-main > span { white-space: normal; }

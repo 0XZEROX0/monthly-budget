@@ -67,6 +67,51 @@ export interface Settings {
   sms?: SmsSettings
   /** Accent colour and light/dark choice. */
   theme?: Theme
+  /** Monthly bills and instalments to be reminded about. */
+  bills?: Bill[]
+  /** Savings targets for bank and investment accounts. */
+  goals?: Goal[]
+  /** Budget alerts; on at 80% unless turned off. */
+  alerts?: { off?: boolean; pct?: number }
+}
+
+/**
+ * instalment: a pay-later company (TRU, Valu) due on `day`, reminded for `windowDays` days.
+ * card: a bank or credit card paid on one chosen day.
+ */
+export type BillType = 'instalment' | 'card'
+
+/**
+ * A bill counts as paid for a month when the transaction `bill-{id}-{YYYY-MM}` exists, or
+ * when it has a `debt` and any repayment to that debt was made that month (src/data/bills.ts).
+ * The Galaxy Watch app reads these from settings/main too.
+ */
+export interface Bill {
+  id: string
+  name: string
+  type: BillType
+  /** 0 when it changes month to month; asked for when marking it paid. */
+  amount: number
+  /** Day of the month it's due, 1-31; past the month's end means its last day. */
+  day: number
+  /** Reminders on `day` and the days after it, this many in all. */
+  windowDays: number
+  /** The debt it pays down, e.g. Debt TRU; paying then records a repayment. */
+  debt?: string
+  /** Account it's paid from. */
+  account?: string
+  /** Expense category when there's no debt. */
+  category?: string
+}
+
+export interface Goal {
+  id: string
+  name: string
+  /** Bank and investment accounts whose balances count toward it. */
+  accounts: string[]
+  target: number
+  /** YYYY-MM-DD, optional. */
+  deadline?: string
 }
 
 /** Where a card's spending goes: an account (`account:Bank`) or a debt (`debt:Debt TRU`). */
@@ -111,6 +156,8 @@ export interface Backend {
   deleteTransaction(id: string): Promise<void>
   /** Writes imported data; transactions keep their ids so a re-import replaces them. */
   importAll(data: ImportData): Promise<void>
+  /** Everything, for a backup file. */
+  exportAll(): Promise<ImportData>
   /** Deletes every transaction and plan, and resets settings. */
   clearAll(): Promise<void>
 }
