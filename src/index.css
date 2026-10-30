@@ -446,3 +446,6 @@ input[type='checkbox'][role='switch']:checked::after { transform: translateX(1.1
 .report-stats .stat strong.good { color: var(--good); }
 .report-stats .stat strong.bad { color: var(--critical); }
 .edit-row .list-main > span { white-space: normal; }
+/* Quick "+ New" in the add form's pickers */
+.chip.chip-add { background: none; border: 1px dashed var(--border); color: var(--text-2); }
+.cat-grid .cat-add { border: 1.5px dashed var(--border); background: none; color: var(--text-2); }
