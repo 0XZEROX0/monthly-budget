@@ -65,6 +65,8 @@ export interface Settings {
   decimals?: boolean
   /** Icons the user picked, by category or account name. */
   icons?: Record<string, string>
+  /** Order of the Summary page's cards, and the ones hidden. */
+  summaryLayout?: { order: string[]; hidden: string[] }
   /** Account types the user added, besides Cash, Bank, E-wallet and Investment. */
   accountTypes?: string[]
   opening: Opening
