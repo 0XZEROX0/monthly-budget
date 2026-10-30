@@ -7,6 +7,7 @@ private val ICONS: List<Pair<Regex, String>> = listOf(
     "thndr|thunder|stock|invest" to "📈",
     "loan to|lend" to "🤝",
     "debt|loan|credit|tru|valu" to "💳",
+    "coffee|caf[eé]" to "☕",
     "fee" to "🧾",
     "instal" to "📆",
     "^car$" to "🚙",
@@ -30,6 +31,21 @@ private val ICONS: List<Pair<Regex, String>> = listOf(
     "charity|donat" to "🤝",
     "sub(scription)?s?\\b|stream" to "📺",
     "other|misc" to "📦",
+    // Arabic category names, e.g. from a Money Manager import.
+    "قهوة" to "☕",
+    "اكل" to "🛒",
+    "مواصلات|مترو|توكتوك" to "🚗",
+    "عربية" to "🚙",
+    "قسط" to "📆",
+    "مرتب" to "💼",
+    "هدوم" to "🛍️",
+    "جمعية" to "🤝",
+    "عيدية" to "🎁",
+    "عمولة" to "🧾",
+    "كورس" to "📚",
+    "ماما|بيت" to "🏠",
+    "دكتور" to "💊",
+    "مصاريف" to "💸",
 ).map { (pattern, icon) -> Regex(pattern, RegexOption.IGNORE_CASE) to icon }
 
 /** An emoji for a category or account; others get their initial. */
