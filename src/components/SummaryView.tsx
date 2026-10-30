@@ -148,12 +148,13 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
                   <span>{a.name}</span>
                   <span className="muted small">
                     {hidden ? 'Amount hidden' : delta === 0 ? 'No change' : `${delta > 0 ? '+' : '−'}${money(Math.abs(delta))} this month`}
-                    {interest > 0 && !hidden && ` · ~${money(interest)} interest (${a.interestPct}%)`}
+                    {interest > 0 && !hidden && ` · includes ~${money(interest)} interest (${a.interestPct}%)`}
                   </span>
                 </span>
                 </button>
                 <span className="account-end">
-                  <strong>{secret(end)}</strong>
+                  {/* Investments show their value with the expected interest, as the sheet's capital does. */}
+                  <strong>{secret(end + interest)}</strong>
                   {a.type === 'investment' && (
                     <button className="link small" onClick={() => setUpdating(a)}>
                       Update value
