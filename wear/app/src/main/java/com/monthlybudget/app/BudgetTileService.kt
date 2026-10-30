@@ -28,6 +28,7 @@ import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.Dispatchers
 
 private const val RESOURCES = "1"
+private const val PRIVACY = "privacy"
 private const val EXPENSE = 0xFFFF8A80.toInt()
 private const val INCOME = 0xFF81C995.toInt()
 
@@ -36,7 +37,14 @@ class BudgetTileService : TileService() {
     override fun onTileRequest(requestParams: RequestBuilders.TileRequest): ListenableFuture<TileBuilders.Tile> =
         SuspendToFutureAdapter.launchFuture(Dispatchers.IO) {
             val context = this@BudgetTileService
-            val glance = Budget.glanceForSurface(context)
+            // Tapping the number on the tile switches privacy mode.
+            val toggled = requestParams.currentState.lastClickableId == PRIVACY
+            if (toggled) {
+                Store.setHidden(context, !Store.hidden(context))
+                Surfaces.updateComplication(context)
+            }
+            // A tap should redraw at once, so it uses the saved figures.
+            val glance = (if (toggled) Store.glance(context) else null) ?: Budget.glanceForSurface(context)
             val hidden = Store.hidden(context)
             val device = requestParams.deviceConfiguration
             val layout = if (glance == null) unlinked(context, device) else budget(context, device, glance, hidden)
@@ -86,7 +94,21 @@ private fun budget(context: Context, device: DeviceParameters, g: Glance, hidden
             .build()
     val content = LayoutElementBuilders.Column.Builder()
         .setHorizontalAlignment(LayoutElementBuilders.HORIZONTAL_ALIGN_CENTER)
-        .addContent(text(context, amount, Typography.TYPOGRAPHY_TITLE1, if (over) EXPENSE else colors.onSurface))
+        .addContent(
+            LayoutElementBuilders.Box.Builder()
+                .setModifiers(
+                    ModifiersBuilders.Modifiers.Builder()
+                        .setClickable(
+                            ModifiersBuilders.Clickable.Builder()
+                                .setId(PRIVACY)
+                                .setOnClick(ActionBuilders.LoadAction.Builder().build())
+                                .build(),
+                        )
+                        .build(),
+                )
+                .addContent(text(context, amount, Typography.TYPOGRAPHY_TITLE1, if (over) EXPENSE else colors.onSurface))
+                .build(),
+        )
         .addContent(LayoutElementBuilders.Spacer.Builder().setHeight(dp(6f)).build())
         .addContent(
             LayoutElementBuilders.Row.Builder()

@@ -231,6 +231,10 @@ object Budget {
 object Surfaces {
     fun update(context: Context) {
         TileService.getUpdater(context).requestUpdate(BudgetTileService::class.java)
+        updateComplication(context)
+    }
+
+    fun updateComplication(context: Context) {
         ComplicationDataSourceUpdateRequester
             .create(context, ComponentName(context, LeftToSpendComplicationService::class.java))
             .requestUpdateAll()

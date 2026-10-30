@@ -8,7 +8,7 @@ A Wear OS companion for the budget, made for the Galaxy Watch 8 (it runs on any 
 - **Tile**: left to spend plus **−** and **+** buttons that go straight to the keypad.
 - **Complication**: "left to spend" for your watch face (short text or a ring).
 - **Accounts**: Cash, Bank, Thndr and the Cash + bank total, worked out like the phone's balances.
-- **Privacy mode**: the eye button between − and + hides amounts on the watch, tile and complication (they show •••• or percentages). Turning the eye on or off in the phone app switches the watch too.
+- **Privacy mode**: tap the big number in the app or on the tile to hide amounts on the watch, tile and complication (they show •••• or percentages). Turning the eye on or off in the phone app switches the watch too.
 
 ## How it syncs
 

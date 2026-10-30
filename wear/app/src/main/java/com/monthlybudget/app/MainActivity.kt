@@ -20,6 +20,7 @@ import androidx.wear.compose.material.CompactChip
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.abs
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -200,6 +201,17 @@ private fun HomeScreen(onAdd: (String) -> Unit) {
                         if (hidden) MASK else whole(abs(if (g.planned > 0) g.left else g.spent)),
                         style = MaterialTheme.typography.title1,
                         color = if (g.left < 0) ExpenseColor else MaterialTheme.colors.onSurface,
+                        // Privacy mode, like the eye on the phone's Summary: tap the number to
+                        // hide or show amounts here, on the tile and on the complication.
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                hidden = !hidden
+                                Store.setHidden(context, hidden)
+                                Surfaces.update(context)
+                            }
+                            .padding(horizontal = 8.dp)
+                            .semantics { contentDescription = if (hidden) "Show amounts" else "Hide amounts" },
                     )
                 }
                 item {
@@ -212,23 +224,8 @@ private fun HomeScreen(onAdd: (String) -> Unit) {
                 }
             }
             item {
-                Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     AddButton("−", "Add expense", ExpenseColor) { onAdd("expense") }
-                    // Privacy mode, like the eye on the phone's Summary; the tile and complication follow it.
-                    Button(
-                        onClick = {
-                            hidden = !hidden
-                            Store.setHidden(context, hidden)
-                            Surfaces.update(context)
-                        },
-                        modifier = Modifier
-                            .size(ButtonDefaults.ExtraSmallButtonSize)
-                            .align(Alignment.CenterVertically)
-                            .semantics { contentDescription = if (hidden) "Show amounts" else "Hide amounts" },
-                        colors = ButtonDefaults.secondaryButtonColors(),
-                    ) {
-                        Text(if (hidden) "🙈" else "👁", fontSize = 14.sp)
-                    }
                     AddButton("+", "Add income", IncomeColor) { onAdd("income") }
                 }
             }
