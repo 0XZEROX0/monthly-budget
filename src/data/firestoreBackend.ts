@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore'
 import { withDefaults } from './defaults'
 import type { Backend, MonthPlan, NewTransaction, Settings, Transaction } from './types'
+import { newestFirst } from './summary'
 
 // Layout: users/{uid}/settings/main, users/{uid}/plans/{YYYY-MM}, users/{uid}/transactions/{id}
 export function createFirestoreBackend(db: Firestore, uid: string): Backend {
@@ -49,7 +50,7 @@ export function createFirestoreBackend(db: Firestore, uid: string): Backend {
     watchTransactions: (month, cb) =>
       // Sorted here rather than with orderBy so no composite index is needed.
       onSnapshot(query(txns, where('month', '==', month)), (snap) =>
-        cb(snap.docs.map(read).sort((a, b) => b.date.localeCompare(a.date))),
+        cb(snap.docs.map(read).sort(newestFirst)),
       ),
     watchRange: (from, to, cb) =>
       onSnapshot(query(txns, where('month', '>=', from), where('month', '<=', to)), (snap) => cb(snap.docs.map(read))),

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { categoryIcon } from '../data/icons'
 import { dayLabel, formatMoney, formatWhole } from '../data/month'
+import { countsAsSpending } from '../data/summary'
 import type { Settings, Transaction } from '../data/types'
 
 /** A drill-down from the Summary: one category, account or debt. */
@@ -75,7 +76,7 @@ export function TransactionList({ txns, settings, onEdit, focus, onClearFocus }:
   const days = new Map<string, Transaction[]>()
   for (const t of shown) days.set(t.date, [...(days.get(t.date) ?? []), t])
   const totalIn = shown.filter((t) => t.kind === 'income').reduce((a, t) => a + t.amount, 0)
-  const totalOut = shown.filter((t) => t.kind === 'expense' || t.kind === 'repay').reduce((a, t) => a + t.amount, 0)
+  const totalOut = shown.filter(countsAsSpending).reduce((a, t) => a + t.amount, 0)
 
   return (
     <div className="stack">
@@ -117,7 +118,7 @@ export function TransactionList({ txns, settings, onEdit, focus, onClearFocus }:
         </div>
       ) : (
         [...days].map(([date, list]) => {
-          const net = list.reduce((a, t) => a + (t.kind === 'income' ? t.amount : t.kind === 'expense' || t.kind === 'repay' ? -t.amount : 0), 0)
+          const net = list.reduce((a, t) => a + (t.kind === 'income' ? t.amount : countsAsSpending(t) ? -t.amount : 0), 0)
           return (
             <section key={date} className="day">
               <div className="day-head">
@@ -133,7 +134,10 @@ export function TransactionList({ txns, settings, onEdit, focus, onClearFocus }:
                         <span className={`cat-icon ${t.kind}`}>{d.icon}</span>
                         <span className="list-main">
                           <span>{d.title}</span>
-                          <span className="muted small">{d.sub}</span>
+                          <span className="muted small">
+                            {d.sub}
+                            {t.notSpending && ' · not counted as spending'}
+                          </span>
                         </span>
                         <strong className={d.sign === '+' ? 'amount-in' : d.sign === '' ? 'muted' : ''}>
                           {d.sign}

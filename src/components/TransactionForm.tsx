@@ -58,6 +58,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
   const [amount, setAmount] = useState(init ? String(init.amount) : '')
   const [date, setDate] = useState(init?.date ?? defaultDate)
   const [description, setDescription] = useState(init?.description ?? '')
+  const [notSpending, setNotSpending] = useState(!!init?.notSpending)
   // A draft starts with no category so one has to be picked, unless it remembered one.
   const [category, setCategory] = useState(draft ? draft.txn.category : existing?.category || settings.categories.expense[0] || '')
   const [account, setAccount] = useState(init?.account ?? liquid[0] ?? accounts[0] ?? '')
@@ -149,9 +150,12 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
     const value = Number(amount.replace(',', '.'))
     if (!Number.isFinite(value) || value <= 0) return
     if ((tab === 'expense' || tab === 'income') && !category) return void showAlert('Pick a category.')
-    const base = { amount: value, date, description: description.trim(), category: '' }
+    // The time orders entries within a day, newest first.
+    const now = new Date()
+    const time = init?.time ?? `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+    const base = { amount: value, date, time, description: description.trim(), category: '' }
     let t: NewTransaction
-    if (tab === 'expense' || tab === 'income') t = { ...base, kind: tab, category, account }
+    if (tab === 'expense' || tab === 'income') t = { ...base, kind: tab, category, account, ...(tab === 'expense' && notSpending && { notSpending: true }) }
     else if (tab === 'transfer') {
       if (account === toAccount) return void showAlert('Pick two different accounts.')
       t = { ...base, kind: 'transfer', account, toAccount }
@@ -170,6 +174,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
           kind: 'expense',
           amount: feeValue,
           date,
+          time,
           ...(t.month ? { month: t.month } : {}),
           category: feeCategory(settings.categories.expense),
           account,
@@ -326,6 +331,15 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
           <span className="field-label">Note</span>
           <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What was it for? (optional)" />
         </label>
+        {tab === 'expense' && (
+          <label className="edit-row toggle-row">
+            <span className="grow">
+              Don't count as an expense
+              <span className="muted small block">It still comes out of {account || 'the account'}, but stays out of spending, budgets and charts.</span>
+            </span>
+            <input type="checkbox" role="switch" checked={notSpending} onChange={(e) => setNotSpending(e.target.checked)} />
+          </label>
+        )}
         <div className="row">
           {existing && (
             <button type="button" className="danger" onClick={remove}>

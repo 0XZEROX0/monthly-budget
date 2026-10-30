@@ -42,6 +42,7 @@ export function ReportsView({ backend, settings, month, hidden, onSelectMonth }:
     const byCat = (list: typeof history) => {
       const out: Record<string, number> = {}
       for (const t of list) {
+        if (t.notSpending) continue
         const cat = t.kind === 'expense' ? t.category || 'Other' : t.kind === 'repay' ? settings.debtCategory || 'Debt payments' : null
         if (cat) out[cat] = (out[cat] ?? 0) + t.amount
       }

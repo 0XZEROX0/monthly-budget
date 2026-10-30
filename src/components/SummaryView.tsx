@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState, type ReactNode } from 'react'
 import { categoryIcon } from '../data/icons'
 import { currentMonth, daysInMonth, formatCompact, formatWhole, shiftMonth, shortMonth, today } from '../data/month'
-import { budgetAlerts, savedIn, spentIn, type CategoryRow, type MonthSummary } from '../data/summary'
+import { budgetAlerts, countsAsSpending, savedIn, spentIn, type CategoryRow, type MonthSummary } from '../data/summary'
 import type { Account, Backend, Settings, Transaction } from '../data/types'
 import { summaryLayout, type SectionKey, type SummaryLayout } from '../data/summaryLayout'
 import { BalanceForm } from './BalanceForm'
@@ -425,7 +425,7 @@ function pacePoints(month: string, txns: Transaction[], plannedSpend: number): P
   const lastDay = month < now ? days : month > now ? 0 : Number(today().slice(8, 10))
   const byDay = new Array<number>(days + 1).fill(0)
   for (const t of txns) {
-    if (t.kind !== 'expense' && t.kind !== 'repay') continue
+    if (!countsAsSpending(t)) continue
     // Entries dated outside the month (e.g. late last month) count on day 1.
     const day = t.date.startsWith(month) ? Number(t.date.slice(8, 10)) : 1
     byDay[day] += t.amount

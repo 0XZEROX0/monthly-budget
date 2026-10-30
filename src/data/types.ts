@@ -23,6 +23,10 @@ export interface Transaction {
   account?: string
   toAccount?: string
   debt?: string
+  /** HH:MM it happened or was added, to order entries within a day. */
+  time?: string
+  /** Leaves an expense out of spending, budgets and charts; it still comes out of the account. */
+  notSpending?: boolean
 }
 
 export type NewTransaction = Omit<Transaction, 'id' | 'month'> & { month?: string }
