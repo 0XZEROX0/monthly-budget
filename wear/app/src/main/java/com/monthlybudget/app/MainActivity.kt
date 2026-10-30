@@ -7,6 +7,8 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.contentDescription
@@ -75,7 +77,7 @@ private sealed interface Screen {
     data object Home : Screen
     data class Amount(val kind: String) : Screen
     data class Category(val kind: String, val amount: Double) : Screen
-    data class Done(val sent: Boolean) : Screen
+    data class Done(val sent: Boolean, val entry: Entry) : Screen
 }
 
 class MainActivity : ComponentActivity() {
@@ -121,14 +123,14 @@ private fun App(start: String?, onStarted: () -> Unit, finish: () -> Unit) {
         }
         is Screen.Category -> {
             BackHandler { screen = Screen.Amount(s.kind) }
-            CategoryScreen(s.kind, s.amount, onSaved = { screen = Screen.Done(it) })
+            CategoryScreen(s.kind, s.amount, onSaved = { sent, entry -> screen = Screen.Done(sent, entry) })
         }
         is Screen.Done -> {
             LaunchedEffect(s) {
                 delay(1200)
                 home()
             }
-            DoneScreen(s.sent)
+            DoneScreen(s.sent, s.entry)
         }
     }
 }
@@ -280,7 +282,8 @@ private fun Line(label: String, value: String, of: String?, color: Color) {
 private fun CategoryLine(row: CategoryRow) {
     val over = row.planned > 0 && row.actual > row.planned
     Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 2.dp)) {
-        Row(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(categoryIcon(row.category) + " ", fontSize = 12.sp)
             Text(row.category, style = MaterialTheme.typography.caption2, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             Text(
                 if (row.planned > 0) "${compact(row.actual)} / ${compact(row.planned)}" else compact(row.actual),
@@ -305,18 +308,44 @@ private val dayFormat = DateTimeFormatter.ofPattern("MMM d", Locale.US)
 
 @Composable
 private fun TxnLine(t: Txn) {
-    val (sign, color) = when (t.kind) {
-        "income", "borrow" -> "+" to IncomeColor
-        "expense", "repay" -> "−" to ExpenseColor
-        else -> "" to MaterialTheme.colors.onSurface
+    val color = when (t.sign) {
+        "+" -> IncomeColor
+        "−" -> ExpenseColor
+        else -> MaterialTheme.colors.onSurface
     }
     val day = runCatching { LocalDate.parse(t.date).format(dayFormat) }.getOrDefault(t.date)
-    Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colors.surface.copy(alpha = 0.5f))
+            .padding(horizontal = 8.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        IconBadge(t.icon, color)
         Column(Modifier.weight(1f)) {
-            Text(t.label, style = MaterialTheme.typography.caption1, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(listOf(day, t.account).filter { it.isNotEmpty() }.joinToString(" · "), style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant)
+            Text(t.title, style = MaterialTheme.typography.caption1, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                listOf(day, t.sub).filter { it.isNotEmpty() }.joinToString(" · "),
+                style = MaterialTheme.typography.caption3,
+                color = MaterialTheme.colors.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
-        Text(sign + whole(t.amount), style = MaterialTheme.typography.caption1, color = color)
+        Text(t.sign + whole(t.amount), style = MaterialTheme.typography.caption1, color = color)
+    }
+}
+
+/** A category's emoji on a soft tinted circle, like the phone app's category icons. */
+@Composable
+private fun IconBadge(icon: String, tint: Color, size: Dp = 26.dp) {
+    Box(
+        Modifier.size(size).clip(CircleShape).background(tint.copy(alpha = 0.22f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(icon, fontSize = (size.value * 0.52f).sp, color = MaterialTheme.colors.onSurface)
     }
 }
 
@@ -381,7 +410,7 @@ private fun AmountScreen(kind: String, onNext: (Double) -> Unit) {
 
 /** Tap a category to save. The account chip switches between Cash, Bank and so on. */
 @Composable
-private fun CategoryScreen(kind: String, amount: Double, onSaved: (Boolean) -> Unit) {
+private fun CategoryScreen(kind: String, amount: Double, onSaved: (Boolean, Entry) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
@@ -407,7 +436,7 @@ private fun CategoryScreen(kind: String, amount: Double, onSaved: (Boolean) -> U
                         val i = settings.accounts.indexOf(account)
                         account = settings.accounts[(i + 1) % settings.accounts.size]
                     },
-                    label = { Text((if (kind == "income") "Into " else "From ") + account + if (settings.accounts.size > 1) "  ⇄" else "") },
+                    label = { Text(categoryIcon(account) + (if (kind == "income") " Into " else " From ") + account + if (settings.accounts.size > 1) "  ⇄" else "") },
                     colors = ChipDefaults.secondaryChipColors(),
                 )
             }
@@ -419,12 +448,13 @@ private fun CategoryScreen(kind: String, amount: Double, onSaved: (Boolean) -> U
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                         Store.remember(context, kind, category, account)
                         val entry = Entry(newId(), kind, amount, category, account, LocalDate.now().toString())
-                        scope.launch { onSaved(Budget.add(context, entry)) }
+                        scope.launch { onSaved(Budget.add(context, entry), entry) }
                     },
                     label = { Text(category, style = MaterialTheme.typography.caption1, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    icon = { IconBadge(categoryIcon(category), color) },
                     colors = ChipDefaults.primaryChipColors(backgroundColor = MaterialTheme.colors.surface, contentColor = MaterialTheme.colors.onSurface),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
-                    modifier = Modifier.fillMaxWidth().height(40.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                    modifier = Modifier.fillMaxWidth().height(42.dp),
                 )
             }
         }
@@ -433,15 +463,17 @@ private fun CategoryScreen(kind: String, amount: Double, onSaved: (Boolean) -> U
 
 
 @Composable
-private fun DoneScreen(sent: Boolean) {
+private fun DoneScreen(sent: Boolean, entry: Entry) {
+    val color = if (entry.kind == "income") IncomeColor else ExpenseColor
     Column(
         Modifier.fillMaxSize().padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
     ) {
-        Text("✓", fontSize = 40.sp, color = IncomeColor)
-        Text("Saved", style = MaterialTheme.typography.title3)
-        if (!sent) Text("Syncs when you're back online", style = MaterialTheme.typography.caption2, textAlign = TextAlign.Center)
+        IconBadge(categoryIcon(entry.category), color, 52.dp)
+        Text((if (entry.kind == "income") "+" else "−") + whole(entry.amount), style = MaterialTheme.typography.title2, color = color)
+        Text("${entry.category} · ${entry.account}", style = MaterialTheme.typography.caption2, color = MaterialTheme.colors.onSurfaceVariant)
+        Text(if (sent) "✓ Saved" else "✓ Saved · syncs when online", style = MaterialTheme.typography.caption2, textAlign = TextAlign.Center)
     }
 }
 

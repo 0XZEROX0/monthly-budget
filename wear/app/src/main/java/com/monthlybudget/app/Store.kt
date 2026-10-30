@@ -47,8 +47,8 @@ data class Glance(
 /** A category's plan and spending this month. */
 data class CategoryRow(val category: String, val planned: Double, val actual: Double)
 
-/** An entry as the phone app saved it, for the recent list. */
-data class Txn(val date: String, val kind: String, val amount: Double, val label: String, val account: String)
+/** An entry for the recent list, worded as the phone's Transactions tab words it. */
+data class Txn(val date: String, val amount: Double, val title: String, val sub: String, val icon: String, val sign: String)
 
 /** The rest of the month for the watch's summary: income and expense rows, newest entries. */
 data class Detail(
@@ -130,7 +130,16 @@ object Store {
         }
         val recent = o.getJSONArray("recent").let { a ->
             (0 until a.length()).map { a.getJSONObject(it) }
-                .map { Txn(it.getString("date"), it.getString("kind"), it.getDouble("amount"), it.getString("label"), it.getString("account")) }
+                .map {
+                    Txn(
+                        it.optString("date"),
+                        it.optDouble("amount"),
+                        it.optString("title"),
+                        it.optString("sub"),
+                        it.optString("icon", "•"),
+                        it.optString("sign"),
+                    )
+                }
         }
         return Detail(o.getDouble("incomePlanned"), o.getDouble("income"), rows, recent)
     }
@@ -140,7 +149,15 @@ object Store {
         for (r in d.rows) rows.put(JSONObject().put("category", r.category).put("planned", r.planned).put("actual", r.actual))
         val recent = JSONArray()
         for (t in d.recent) {
-            recent.put(JSONObject().put("date", t.date).put("kind", t.kind).put("amount", t.amount).put("label", t.label).put("account", t.account))
+            recent.put(
+                JSONObject()
+                    .put("date", t.date)
+                    .put("amount", t.amount)
+                    .put("title", t.title)
+                    .put("sub", t.sub)
+                    .put("icon", t.icon)
+                    .put("sign", t.sign),
+            )
         }
         val o = JSONObject().put("incomePlanned", d.incomePlanned).put("income", d.income).put("rows", rows).put("recent", recent)
         prefs(context).edit().putString("detail", o.toString()).apply()
