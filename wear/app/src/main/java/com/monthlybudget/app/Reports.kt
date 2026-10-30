@@ -96,9 +96,9 @@ fun buildReport(month: String, accounts: List<Pair<String, String>>, debtCategor
         }
         return out
     }
-    val month = { t: Map<String, Any?> -> t["month"] as? String ?: "" }
-    val now = byCategory(history.filter { month(it) in from..month })
-    val before = history.filter { month(it) >= prevFrom && month(it) < from }
+    val monthOf = { t: Map<String, Any?> -> t["month"] as? String ?: "" }
+    val now = byCategory(history.filter { monthOf(it) in from..month })
+    val before = history.filter { monthOf(it) >= prevFrom && monthOf(it) < from }
     val prev = byCategory(before)
     val categories = now.entries
         .map { (c, total) ->
