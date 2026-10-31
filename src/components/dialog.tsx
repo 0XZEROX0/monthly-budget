@@ -24,6 +24,8 @@ export interface Field {
   label: string
   placeholder?: string
   inputMode?: 'text' | 'decimal'
+  /** 'date' gives the system's date picker; the value is YYYY-MM-DD. */
+  type?: 'text' | 'date'
   initial?: string
   icons?: string[]
 }
@@ -142,6 +144,7 @@ function Dialog({ req, onDone }: { req: Request; onDone: (v: Answer) => void }) 
               onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
               placeholder={f.placeholder}
               inputMode={f.inputMode}
+              type={f.type}
             />
           </label>
           ),
