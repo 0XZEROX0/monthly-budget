@@ -6,6 +6,14 @@ export const today = () => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
+/** A YYYY-MM-DD date moved by whole days. */
+export function shiftDay(date: string, delta: number): string {
+  const d = new Date(date + 'T00:00')
+  d.setDate(d.getDate() + delta)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
 export function shiftMonth(month: string, delta: number): string {
   const [y, m] = month.split('-').map(Number)
   const d = new Date(y, m - 1 + delta, 1)
@@ -53,6 +61,10 @@ export const shortMonth = (month: string) => {
 
 export const dayLabel = (date: string) =>
   new Date(date + 'T00:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
+
+/** Short date for chart axes: Fri 31, or just Fri where space is tight. */
+export const shortDay = (date: string, withDay = true) =>
+  new Date(date + 'T00:00').toLocaleDateString(undefined, withDay ? { weekday: 'short', day: 'numeric' } : { weekday: 'short' })
 
 /** A stored HH:MM time as the user likes to read it: 20:30, or 8:30 PM on a 12-hour clock. */
 export function showTime(time: string, clock12?: boolean): string {
