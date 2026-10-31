@@ -15,7 +15,7 @@ import { SmsSettingsCard } from './SmsSettingsCard'
 import { UpdateCard } from './UpdateCard'
 import { useReorder } from './useReorder'
 import { ask, askText, showAlert } from './dialog'
-import { askEditCategory, askEditHolder } from './categoryRename'
+import { askEditCategory, askEditHolder, askNewCategory } from './categoryRename'
 import { Picker } from './Picker'
 
 interface Props {
@@ -34,6 +34,8 @@ const fail = (e: Error) => showAlert(`Could not save: ${e.message}`)
 
 export function SettingsView({ backend, settings, sms, user, onSignOut, lock, initialGroup }: Props) {
   const save = (s: Settings) => backend.saveSettings(s).catch(fail)
+  // Name and icon in one popup, as on the add screen.
+  const newCategory = (kind: 'expense' | 'income') => askNewCategory(settings, kind).then((r) => r && save(r.settings))
   const editHolder: EditHolder = (what, name) => void askEditHolder(backend, settings, what, name)
   const setCategories = (kind: Kind, list: string[]) => save({ ...settings, categories: { ...settings.categories, [kind]: list } })
   // One group open at a time keeps the page short; the last one opened is remembered.
@@ -93,8 +95,8 @@ export function SettingsView({ backend, settings, sms, user, onSignOut, lock, in
         'Names, icons and order',
         '🏷️',
         <>
-          <CategoryEditor title="Expense categories" list={settings.categories.expense} onChange={(l) => setCategories('expense', l)} onEdit={(c) => askEditCategory(backend, settings, 'expense', c)} />
-          <CategoryEditor title="Income categories" list={settings.categories.income} onChange={(l) => setCategories('income', l)} onEdit={(c) => askEditCategory(backend, settings, 'income', c)} />
+          <CategoryEditor title="Expense categories" list={settings.categories.expense} onChange={(l) => setCategories('expense', l)} onEdit={(c) => askEditCategory(backend, settings, 'expense', c)} onNew={() => newCategory('expense')} />
+          <CategoryEditor title="Income categories" list={settings.categories.income} onChange={(l) => setCategories('income', l)} onEdit={(c) => askEditCategory(backend, settings, 'income', c)} onNew={() => newCategory('income')} />
         </>,
       )}
 
@@ -434,13 +436,7 @@ function AddRow({ placeholder, value, onChange, onAdd }: { placeholder: string; 
   )
 }
 
-function CategoryEditor({ title, list, onChange, onEdit }: { title: string; list: string[]; onChange: (l: string[]) => void; onEdit: (c: string) => void }) {
-  const [name, setName] = useState('')
-  const add = () => {
-    const n = name.trim()
-    if (n && !list.includes(n)) onChange([...list, n])
-    setName('')
-  }
+function CategoryEditor({ title, list, onChange, onEdit, onNew }: { title: string; list: string[]; onChange: (l: string[]) => void; onEdit: (c: string) => void; onNew: () => void }) {
   const reorder = useReorder(list, onChange)
   return (
     <section className="card">
@@ -457,8 +453,10 @@ function CategoryEditor({ title, list, onChange, onEdit }: { title: string; list
             </button>
           </li>
         ))}
+        <li className="chip-new">
+          <button onClick={onNew}>+ New</button>
+        </li>
       </ul>
-      <AddRow placeholder="New category" value={name} onChange={setName} onAdd={add} />
     </section>
   )
 }

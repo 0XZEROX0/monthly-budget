@@ -580,3 +580,6 @@ button.desk-month { display: inline-flex; align-items: center; gap: 0.5rem; bord
 @container (max-width: 900px) {
   .desk-hero .hero { grid-template-columns: minmax(0, 1fr); gap: 1.1rem; }
 }
+/* "+ New" at the end of a category list: opens the name and icon popup */
+.chips li.chip-new { padding: 0.2rem; border-style: dashed; background: transparent; }
+.chips li.chip-new button { color: var(--accent); font-weight: 600; padding: 0.15rem 0.6rem; }
