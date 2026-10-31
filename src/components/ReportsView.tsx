@@ -120,11 +120,17 @@ function rangeFor(choice: Choice, month: string) {
   }
 }
 
-/** Asks for a range: a preset, then for "A month…" which month, or for "Custom range…" the dates. */
+/** Asks for a range: a preset, then for "Month" which month, or for "Custom range" the dates. */
 async function askRange(current: Choice, settings: Settings): Promise<Choice | null> {
   const id = await askChoice(
     'Report range',
-    [...PERIODS.map((p) => ({ value: p.id as string, label: p.label })), { value: 'month', label: 'A month…' }, { value: 'custom', label: 'Custom range…' }],
+    // Day, Yesterday, Week, then a chosen month, the longer spans, and custom dates last.
+    [
+      ...PERIODS.slice(0, 3).map((p) => ({ value: p.id as string, label: p.label })),
+      { value: 'month', label: 'Month' },
+      ...PERIODS.slice(3).map((p) => ({ value: p.id as string, label: p.label })),
+      { value: 'custom', label: 'Custom range' },
+    ],
     current.id,
   )
   if (!id) return null
