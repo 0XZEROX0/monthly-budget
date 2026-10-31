@@ -617,3 +617,5 @@ button.side-add, .side-nav button { transition: width var(--panel-time) var(--ea
 .desk-top .panel-toggle svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .desk-top .panel-toggle:hover { background: var(--surface-2); color: var(--text); }
 .desk-top h1 { margin-left: 0.15rem; }
+/* Reports and Settings: the page name in place of the month picker */
+.topbar h1.page-title { margin: 0; text-align: center; font-size: 1.15rem; font-weight: 700; padding: 0.35rem 0.9rem; }
