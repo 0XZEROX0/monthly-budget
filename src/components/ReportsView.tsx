@@ -18,10 +18,31 @@ const PERIODS = [
 ] as const
 type Period = (typeof PERIODS)[number]
 const MASK = '•••••'
+// The last range picked stays picked on this phone, across tabs and restarts.
+const RANGE_KEY = 'reports-range'
+const savedRange = (): Period['id'] => {
+  try {
+    const id = localStorage.getItem(RANGE_KEY)
+    return PERIODS.find((p) => p.id === id)?.id ?? 'm6'
+  } catch {
+    return 'm6'
+  }
+}
+const saveRange = (id: Period['id']) => {
+  try {
+    localStorage.setItem(RANGE_KEY, id)
+  } catch {
+    // Storage blocked: the pick lasts until the app closes.
+  }
+}
 
 /** Trends over a few days or several months: income vs spending, saved, capital, and where the money went. */
 export function ReportsView({ backend, settings, month, hidden, onSelectMonth }: { backend: Backend; settings: Settings; month: string; hidden: boolean; onSelectMonth: (m: string) => void }) {
-  const [periodId, setPeriodId] = useState<Period['id']>('m6')
+  const [periodId, setPeriodId] = useState(savedRange)
+  const pick = (id: Period['id']) => {
+    setPeriodId(id)
+    saveRange(id)
+  }
   const period: Period = PERIODS.find((p) => p.id === periodId) ?? PERIODS[4]
   const byDay = 'days' in period
   const count = byDay ? period.days : period.months
@@ -88,7 +109,7 @@ export function ReportsView({ backend, settings, month, hidden, onSelectMonth }:
 
   return (
     <div className="stack">
-      <Picker className="range-picker" label="Report range" value={period.id} options={PERIODS.map((p) => ({ value: p.id, label: p.label }))} onChange={(id) => setPeriodId(id as Period['id'])} />
+      <Picker className="range-picker" label="Report range" value={period.id} options={PERIODS.map((p) => ({ value: p.id, label: p.label }))} onChange={(id) => pick(id as Period['id'])} />
       <p className="muted small center-text">{rangeLabel}</p>
 
       <section className="card">
