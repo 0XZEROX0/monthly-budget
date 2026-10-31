@@ -159,7 +159,8 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   )
 
   // On a wide desktop screen Reports sits in its own panel on the right, so it isn't a page.
-  const withPanel = desktop && wideDesk && rightOpen
+  const hasPanel = desktop && wideDesk
+  const withPanel = hasPanel && rightOpen
   const view: Tab = withPanel && tab === 'reports' ? 'summary' : tab
 
   const page =
@@ -251,7 +252,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   if (desktop) {
     const current = TABS.find((t) => t.id === view)!
     return (
-      <div className={`desk ${withPanel ? 'with-panel' : ''} ${leftOpen ? '' : 'left-closed'}`}>
+      <div className={`desk ${hasPanel ? 'has-panel' : ''} ${hasPanel && !rightOpen ? 'right-closed' : ''} ${leftOpen ? '' : 'left-closed'}`}>
         <aside className="sidebar">
           <div className="brand">
             <img src="./favicon.svg" alt="" width={34} height={34} />
@@ -323,10 +324,13 @@ export function MonthView({ backend, user, onSignOut }: Props) {
             <main className={`desk-content page-${view}`}>{page}</main>
           </div>
         </div>
-        {withPanel && settings && (
-          <aside className="report-panel" aria-label="Reports">
-            <h2 className="report-panel-title">Reports</h2>
-            <ReportsView backend={backend} settings={settings} month={month} hidden={hidden} onSelectMonth={setMonth} />
+        {hasPanel && settings && (
+          // Stays on the page while hidden, so it can slide out and back in.
+          <aside className="report-panel" aria-label="Reports" aria-hidden={!rightOpen} inert={!rightOpen}>
+            <div className="report-panel-inner">
+              <h2 className="report-panel-title">Reports</h2>
+              <ReportsView backend={backend} settings={settings} month={month} hidden={hidden} onSelectMonth={setMonth} />
+            </div>
           </aside>
         )}
         {overlays}
