@@ -45,6 +45,15 @@ const cases: [string, Partial<ParsedSms> | null][] = [
   ],
   ['You have received EGP 1,000.00 from 01223344556 via Orange Cash. Your balance is EGP 2,500.00', { direction: 'credit', amount: 1000, card: 'Orange Cash', merchant: '01223344556' }],
   ['تم دفع 75 جنيه لفاتورة الكهرباء بنجاح من محفظتك. رقم العملية 99887766', { direction: 'spend', amount: 75, card: 'E-wallet' }],
+  // Orange Cash recharge, from Static's phone (2026-10-31): no currency on the amount, and an ad after the receipt.
+  [
+    'تم شحن بنجاح لرقم 01208077997 بقيمة 270.00، رصيدك الحالي 36.13 جنيه، رقم المعاملة 25000278539056.\n\nعرض مايتفوتش!\nوفّر 540 جنيه على اشتراك Yango Play واتفرج على اجمد الافلام والمسلسلات في مصر\nخصم 65% على اشتراك 6 شهور بـ300 جنيه بدل 840 جنيه\nادفع دلوقتي باورنچ كاش\nhttps://myo.orange.eg/YANGO\n\n+لأي استفسار كلم 7770 \nأو تواصل معانا على الواتساب: https://myo.orange.eg/O-whatsapp',
+    { direction: 'spend', transfer: false, amount: 270, currency: 'EGP', card: 'Orange Cash', merchant: 'Orange recharge' },
+  ],
+  [
+    'Recharge of EGP 50.00 to 01012345678 was successful. Your current balance is EGP 120.00. Transaction ID 123456789\nGet 20% off with Vodafone Cash! https://vf.eg/x',
+    { direction: 'spend', amount: 50, card: 'Vodafone Cash', merchant: 'Vodafone recharge' },
+  ],
   ['احصل على 50 جنيه كاش باك عند الدفع بفودافون كاش! تم تفعيل العرض', null],
   ['Your OTP for purchase of EGP 500 at NOON is 123456', null],
   ['Transaction of EGP 300 at UBER declined: insufficient funds', null],
