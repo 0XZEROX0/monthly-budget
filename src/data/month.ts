@@ -53,3 +53,10 @@ export const shortMonth = (month: string) => {
 
 export const dayLabel = (date: string) =>
   new Date(date + 'T00:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
+
+/** A stored HH:MM time as the user likes to read it: 20:30, or 8:30 PM on a 12-hour clock. */
+export function showTime(time: string, clock12?: boolean): string {
+  if (!clock12) return time
+  const [h, m] = time.split(':').map(Number)
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`
+}

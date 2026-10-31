@@ -45,6 +45,19 @@ const typeTime = (v: string) => {
   return d.length > 2 ? `${d.slice(0, 2)}:${d.slice(2)}` : d
 }
 
+/** HH:MM as it reads on a 12-hour clock. */
+const to12 = (time: string) => {
+  const [h, m] = time.split(':').map(Number)
+  return { text: `${String(h % 12 || 12).padStart(2, '0')}:${String(m).padStart(2, '0')}`, pm: h >= 12 }
+}
+
+/** A 12-hour time back to HH:MM; anything unfinished or out of range is kept as typed so saving can flag it. */
+const from12 = (text: string, pm: boolean) => {
+  const m = text.match(/^(\d{1,2}):(\d{2})$/)
+  if (!m || +m[1] < 1 || +m[1] > 12) return text
+  return `${String((+m[1] % 12) + (pm ? 12 : 0)).padStart(2, '0')}:${m[2]}`
+}
+
 const shiftDay = (iso: string, days: number) => {
   const d = new Date(iso + 'T00:00')
   d.setDate(d.getDate() + days)
@@ -72,6 +85,15 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
   const [notSpending, setNotSpending] = useState(!!init?.notSpending)
   // When it happened; entries are ordered by it within a day. Starts at now for a new entry.
   const [time, setTime] = useState(() => (existing ? existing.time ?? '' : init?.time ?? nowTime()))
+  // On a 12-hour clock the box holds 1-12 and AM/PM is a separate switch; `time` stays HH:MM.
+  const clock12 = !!settings.clock12
+  const [typed12, setTyped12] = useState(() => (time ? to12(time).text : ''))
+  const [pm, setPm] = useState(() => (time ? to12(time).pm : new Date().getHours() >= 12))
+  const set12 = (text: string, isPm: boolean) => {
+    setTyped12(text)
+    setPm(isPm)
+    setTime(from12(text, isPm))
+  }
   // A draft starts with no category so one has to be picked, unless it remembered one.
   const [category, setCategory] = useState(draft ? draft.txn.category : existing?.category || settings.categories.expense[0] || '')
   const [account, setAccount] = useState(init?.account ?? liquid[0] ?? accounts[0] ?? '')
@@ -164,7 +186,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
     if (!Number.isFinite(value) || value <= 0) return
     if ((tab === 'expense' || tab === 'income') && !category) return void showAlert('Pick a category.')
     // The time orders entries within a day, newest first.
-    if (time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return void showAlert('Type the time like 09:30 or 21:15.')
+    if (time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return void showAlert(clock12 ? 'Type the time like 09:30 and pick AM or PM.' : 'Type the time like 09:30 or 21:15.')
     const base = { amount: value, date, ...(time && { time }), description: description.trim(), category: '' }
     let t: NewTransaction
     if (tab === 'expense' || tab === 'income') t = { ...base, kind: tab, category, account, ...(tab === 'expense' && notSpending && { notSpending: true }) }
@@ -337,7 +359,16 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
               Yesterday
             </button>
             <input className="date-input" type="date" required value={date} onChange={(e) => setDate(e.target.value)} aria-label="Date" />
-            <input className="time-input" inputMode="numeric" value={time} onChange={(e) => setTime(typeTime(e.target.value))} placeholder="HH:MM" aria-label="Time" maxLength={5} />
+            {clock12 ? (
+              <>
+                <input className="time-input" inputMode="numeric" value={typed12} onChange={(e) => set12(typeTime(e.target.value), pm)} placeholder="hh:mm" aria-label="Time" maxLength={5} />
+                <button type="button" className="chip ampm" aria-label={`${pm ? 'PM' : 'AM'}, tap to switch`} onClick={() => set12(typed12, !pm)}>
+                  {pm ? 'PM' : 'AM'}
+                </button>
+              </>
+            ) : (
+              <input className="time-input" inputMode="numeric" value={time} onChange={(e) => setTime(typeTime(e.target.value))} placeholder="HH:MM" aria-label="Time" maxLength={5} />
+            )}
           </div>
         </div>
         <label className="field">

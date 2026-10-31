@@ -72,7 +72,7 @@ export function SettingsView({ backend, settings, sms, user, onSignOut, lock, in
       {group(
         'money',
         'Money',
-        'Currency, decimals, accounts, debts and opening balances',
+        'Currency, decimals, clock, accounts, debts and opening balances',
         '💰',
         <>
           <section className="card">
@@ -86,6 +86,13 @@ export function SettingsView({ backend, settings, sms, user, onSignOut, lock, in
                 <span className="muted small block">Amounts like 1,284.50 instead of 1,285.</span>
               </span>
               <input type="checkbox" role="switch" checked={!!settings.decimals} onChange={(e) => save({ ...settings, decimals: e.target.checked })} />
+            </label>
+            <label className="edit-row toggle-row">
+              <span className="grow">
+                12-hour clock
+                <span className="muted small block">Times like 8:30 PM instead of 20:30.</span>
+              </span>
+              <input type="checkbox" role="switch" checked={!!settings.clock12} onChange={(e) => save({ ...settings, clock12: e.target.checked })} />
             </label>
           </section>
           <AccountsEditor settings={settings} onSave={save} onEdit={editHolder} />
