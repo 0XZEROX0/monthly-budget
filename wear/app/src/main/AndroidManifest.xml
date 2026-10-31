@@ -32,7 +32,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Receives the sign-in and privacy setting from the phone app (WearPlugin.java). -->
+        <!-- Receives the sign-in, privacy setting and "budget changed" nudges from the phone app (WearPlugin.java). -->
         <service
             android:name=".LinkListenerService"
             android:exported="true">
@@ -41,6 +41,10 @@
                 <data
                     android:host="*"
                     android:path="/budget/link"
+                    android:scheme="wear" />
+                <data
+                    android:host="*"
+                    android:path="/budget/changed"
                     android:scheme="wear" />
             </intent-filter>
         </service>

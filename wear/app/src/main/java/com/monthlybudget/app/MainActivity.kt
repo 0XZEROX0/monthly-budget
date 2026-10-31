@@ -103,6 +103,7 @@ class MainActivity : ComponentActivity() {
             askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
         UpdateWorker.schedule(this)
+        SyncWorker.scheduleHourly(this)
         setContent {
             MaterialTheme {
                 App(start, onStarted = { start = null }, finish = ::finish)

@@ -146,7 +146,7 @@ object Store {
                 remove("report")
                 remove("settings")
                 remove("queue")
-                History.clear(context)
+                Ledger.clear(context)
             }
             if (link == null) {
                 listOf("refreshToken", "uid", "apiKey", "projectId", "hidden").forEach(::remove)

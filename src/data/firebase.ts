@@ -1,7 +1,7 @@
 import { Capacitor } from '@capacitor/core'
 import { initializeApp, type FirebaseApp } from 'firebase/app'
 import { getAuth, indexedDBLocalPersistence, initializeAuth } from 'firebase/auth'
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
+import { CACHE_SIZE_UNLIMITED, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
 
 const config = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -24,6 +24,10 @@ export const auth = app ? (Capacitor.isNativePlatform() ? initializeAuth(app, { 
 export const WEB_URL = import.meta.env.VITE_WEB_URL || 'https://0xzerox0.github.io/monthly-budget/'
 
 // Offline cache: the app keeps working without a connection and syncs when back online.
+// It also holds every entry between starts, so a start only reads what changed (see
+// firestoreBackend.ts); unlimited so Firestore never drops entries to save space.
 export const firestore = app
-  ? initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) })
+  ? initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager(), cacheSizeBytes: CACHE_SIZE_UNLIMITED }),
+    })
   : null

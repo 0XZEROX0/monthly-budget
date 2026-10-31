@@ -6,12 +6,15 @@ import androidx.wear.tiles.TileService
 import androidx.wear.watchface.complications.datasource.ComplicationDataSourceUpdateRequester
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
+import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import java.time.LocalDate
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
@@ -26,8 +29,13 @@ object Budget {
     suspend fun link(context: Context): Link? =
         Store.link(context) ?: runCatching { pullLink(context) }.getOrNull()?.also { Store.saveLink(context, it) }
 
-    /** Sends waiting entries, then reads this month's plan and entries. Throws when offline. */
-    suspend fun refresh(context: Context): Glance? {
+    /** Sends waiting entries, then reads the settings, this month's plan and changed entries. Throws when offline. */
+    suspend fun refresh(context: Context): Glance? = refreshing.withLock { refreshNow(context) }
+
+    // One at a time, so the app, tile and a sync worker starting together read once.
+    private val refreshing = Mutex()
+
+    private suspend fun refreshNow(context: Context): Glance? {
         val link = link(context) ?: return null
         flush(context)
         val db = Firestore(link)
@@ -41,14 +49,8 @@ object Budget {
         val openingMonth = ((settingsDoc?.get("opening") as? Map<*, *>)?.get("month") as? String)?.takeIf { it <= month }
         val reportFrom = shiftMonth(month, -(2 * Report.PERIOD - 1))
         val since = if (openingMonth != null && openingMonth < reportFrom) openingMonth else reportFrom
-        val past = History.load(context, since, month)
-        val history = if (past != null) {
-            past + db.where("transactions", "month", month)
-        } else {
-            db.where("transactions", "month", since, "GREATER_THAN_OR_EQUAL").also { all ->
-                History.save(context, since, month, all.filter { (it["month"] as? String ?: "") < month })
-            }
-        }
+        // Only entries changed since the last sync are read; the rest are kept on the watch.
+        val history = Ledger.sync(context, db, since, month)
         val txns = history.filter { it["month"] == month }
         val glance = summarize(month, settings, plan, txns) + Store.queue(context)
         Store.saveGlance(context, glance)
@@ -67,10 +69,13 @@ object Budget {
         return glance
     }
 
-    /** For the tile and complication: the saved figures, refreshed when they're older than 30 minutes. */
+    /**
+     * For the tile and complication: the saved figures. The phone's nudge and the hourly sync
+     * keep them fresh, so these only read Firestore when that hasn't happened for two hours.
+     */
     suspend fun glanceForSurface(context: Context): Glance? {
         val cached = Store.glance(context)
-        if (cached != null && cached.month == currentMonth() && System.currentTimeMillis() - cached.updatedAt < 30 * 60_000) return cached
+        if (cached != null && cached.month == currentMonth() && System.currentTimeMillis() - cached.updatedAt < 2 * 60 * 60_000) return cached
         return withTimeoutOrNull(10_000) { runCatching { refresh(context) }.getOrNull() } ?: cached
     }
 
@@ -96,7 +101,7 @@ object Budget {
         var left = Store.queue(context)
         while (left.isNotEmpty()) {
             val e = left.first()
-            db.create(
+            db.put(
                 "transactions",
                 e.id,
                 buildMap {
@@ -330,7 +335,11 @@ object Surfaces {
     }
 }
 
-/** Sends entries made offline once the watch (or its phone) is back online. */
+/**
+ * Syncs with Firestore: sends entries made offline once the watch (or its phone) is back
+ * online, and fetches what changed. Runs every hour, and straight away when the phone app
+ * says something changed (LinkListenerService), so the watch is current without opening it.
+ */
 class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result =
         try {
@@ -339,16 +348,32 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             Result.success()
         } catch (e: SignedOutException) {
             Result.failure()
+        } catch (e: QuotaException) {
+            // Retrying won't help until the daily limit resets; the hourly sync tries again.
+            Result.failure()
         } catch (e: Exception) {
             Result.retry()
         }
 
     companion object {
+        private val online = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+
+        /** Once, as soon as there's a connection. */
         fun schedule(context: Context) {
-            val request = OneTimeWorkRequestBuilder<SyncWorker>()
-                .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
-                .build()
+            val request = OneTimeWorkRequestBuilder<SyncWorker>().setConstraints(online).build()
             WorkManager.getInstance(context).enqueueUniqueWork("sync", ExistingWorkPolicy.KEEP, request)
+        }
+
+        /** After the phone's nudge: runs after any sync already going, so its changes aren't missed. */
+        fun scheduleSoon(context: Context) {
+            val request = OneTimeWorkRequestBuilder<SyncWorker>().setConstraints(online).build()
+            WorkManager.getInstance(context).enqueueUniqueWork("pull", ExistingWorkPolicy.APPEND_OR_REPLACE, request)
+        }
+
+        /** Every hour while the watch has a connection; a sync where nothing changed costs about three reads. */
+        fun scheduleHourly(context: Context) {
+            val request = PeriodicWorkRequestBuilder<SyncWorker>(1, TimeUnit.HOURS).setConstraints(online).build()
+            WorkManager.getInstance(context).enqueueUniquePeriodicWork("hourly-sync", ExistingPeriodicWorkPolicy.KEEP, request)
         }
     }
 }
