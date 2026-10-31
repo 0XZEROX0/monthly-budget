@@ -5,6 +5,7 @@ import { currentMonth, dayLabel, daysInMonth, formatCompact, formatWhole, monthL
 import { balancesBefore, balancesThrough, savedIn, spentIn } from '../data/summary'
 import type { Backend, Settings, Transaction } from '../data/types'
 import { Legend, LineChart, MonthsChart, SavedChart } from './charts'
+import { Picker } from './Picker'
 
 /** Report ranges: a few days counted back from today, or whole months back from the month on screen. */
 const PERIODS = [
@@ -86,13 +87,7 @@ export function ReportsView({ backend, settings, month, hidden, onSelectMonth }:
 
   return (
     <div className="stack">
-      <div className="segmented three">
-        {PERIODS.map((p) => (
-          <button key={p.id} className={p.id === period.id ? 'active' : ''} onClick={() => setPeriodId(p.id)}>
-            {p.label}
-          </button>
-        ))}
-      </div>
+      <Picker label="Report range" value={period.id} options={PERIODS.map((p) => ({ value: p.id, label: p.label }))} onChange={(id) => setPeriodId(id as Period['id'])} />
       <p className="muted small center-text">{rangeLabel}</p>
 
       <section className="card">
