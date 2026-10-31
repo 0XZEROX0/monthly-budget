@@ -561,3 +561,6 @@ button.desk-month { display: inline-flex; align-items: center; gap: 0.5rem; bord
 .page-reports button.range-picker { justify-self: start; }
 .page-reports .center-text { text-align: left; margin-top: -0.5rem; }
 .desk-top .privacy { position: static; }
+/* "+ New" at the end of a category list: opens the name and icon popup */
+.chips li.chip-new { padding: 0.2rem; border-style: dashed; background: transparent; }
+.chips li.chip-new button { color: var(--accent); font-weight: 600; padding: 0.15rem 0.6rem; }
