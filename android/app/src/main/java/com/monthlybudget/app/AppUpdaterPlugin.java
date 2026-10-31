@@ -85,6 +85,13 @@ public class AppUpdaterPlugin extends Plugin {
         call.resolve();
     }
 
+    /** Cancels the background check, when update notifications are turned off. */
+    @PluginMethod
+    public void stopWatchingUpdates(PluginCall call) {
+        UpdateCheckWorker.stop(getContext());
+        call.resolve();
+    }
+
     /** Opens the installer for the APK already downloaded, e.g. after allowing installs. */
     @PluginMethod
     public void installDownloaded(PluginCall call) {

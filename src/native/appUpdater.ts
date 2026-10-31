@@ -6,8 +6,10 @@ interface AppUpdaterPlugin {
   downloadAndInstall(opts: { url: string }): Promise<{ needsPermission: boolean }>
   /** Opens the installer for the APK already downloaded. */
   installDownloaded(): Promise<{ needsPermission: boolean }>
-  /** Checks GitHub for a newer build twice a day in the background and notifies when there is one. */
+  /** Checks GitHub for a newer build every few hours in the background and notifies when there is one. */
   watchForUpdates(opts: { build: number }): Promise<void>
+  /** Stops that background check. */
+  stopWatchingUpdates(): Promise<void>
   addListener(event: 'downloadProgress', cb: (p: { downloaded: number; total: number }) => void): Promise<PluginListenerHandle>
 }
 
