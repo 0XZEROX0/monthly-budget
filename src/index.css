@@ -565,8 +565,8 @@ button.desk-month { display: inline-flex; align-items: center; gap: 0.5rem; bord
   background: color-mix(in srgb, var(--surface) 55%, var(--bg)); border-left: 1px solid var(--border);
 }
 .report-panel-title { font-size: 1.15rem; }
-.report-panel button.range-picker { justify-self: start; }
-.report-panel .center-text { text-align: left; }
+.report-panel button.range-picker { justify-self: center; }
+.report-panel .center-text { text-align: center; }
 .report-panel .stats { gap: 0.4rem; }
 .report-panel .stat { padding: 0.55rem 0.6rem; }
 /* Totals as three rows in the narrow panel, so the amounts never get cut off */
@@ -606,7 +606,9 @@ button.side-add, .side-nav button { transition: width var(--panel-time) var(--ea
 /* The panel keeps its full width inside and is uncovered or covered as its column grows or shrinks */
 .report-panel { overflow-x: hidden; padding: 0; display: flex; justify-content: flex-end; align-items: flex-start; transition: opacity var(--panel-time) ease; }
 .report-panel-inner { flex: none; }
-.report-panel-inner { width: var(--right-full); padding: 1.2rem 1.2rem 2rem; display: grid; align-content: start; gap: 0.9rem; }
+/* Fills the panel's inside, so a scrollbar or the border never eats into the left padding; it only
+   stops shrinking while the panel slides shut, so the content doesn't squash during the animation. */
+.report-panel-inner { width: 100%; min-width: calc(var(--right-full) - 24px); box-sizing: border-box; padding: 1.4rem 1.4rem 2rem 1.6rem; display: grid; align-content: start; gap: 0.9rem; }
 .desk.right-closed .report-panel { opacity: 0; border-left-color: transparent; }
 @media (prefers-reduced-motion: reduce) {
   .desk, .side-label, button.side-add, .side-nav button, .report-panel { transition: none; }
