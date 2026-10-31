@@ -152,6 +152,8 @@ export function MonthView({ backend, user, onSignOut }: Props) {
     </button>
   )
 
+  // Reports and Settings don't depend on the month picked, so they show no month picker.
+  const monthless = (t: Tab) => t === 'reports' || t === 'settings'
   const backToCurrent = month !== currentMonth() && (
     <button className="link back-current" onClick={() => setMonth(currentMonth())}>
       Back to current month
@@ -209,7 +211,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
     ) : view === 'plan' ? (
       <PlanEditor backend={backend} month={month} plan={plan} settings={settings} />
     ) : view === 'reports' ? (
-      <ReportsView backend={backend} settings={settings} month={month} hidden={hidden} onSelectMonth={(m) => {
+      <ReportsView backend={backend} settings={settings} month={currentMonth()} hidden={hidden} onSelectMonth={(m) => {
         setMonth(m)
         setTab('summary')
       }} />
@@ -302,14 +304,16 @@ export function MonthView({ backend, user, onSignOut }: Props) {
               </button>
               <h1>{current.label}</h1>
               <span className="spacer" />
-              {backToCurrent}
-              <button className="desk-month" onClick={() => setPicking(true)} aria-label={`${monthLabel(month)}, choose another month`}>
-                <svg viewBox="0 0 24 24" aria-hidden>
-                  <rect x="3" y="5" width="18" height="16" rx="2" />
-                  <path d="M3 10h18M8 3v4M16 3v4" />
-                </svg>
-                {monthLabel(month)} <span className="caret" aria-hidden>▾</span>
-              </button>
+              {!monthless(view) && backToCurrent}
+              {!monthless(view) && (
+                <button className="desk-month" onClick={() => setPicking(true)} aria-label={`${monthLabel(month)}, choose another month`}>
+                  <svg viewBox="0 0 24 24" aria-hidden>
+                    <rect x="3" y="5" width="18" height="16" rx="2" />
+                    <path d="M3 10h18M8 3v4M16 3v4" />
+                  </svg>
+                  {monthLabel(month)} <span className="caret" aria-hidden>▾</span>
+                </button>
+              )}
               {privacyButton}
               {wideDesk && (
                 <button className="icon ghost panel-toggle" onClick={() => setRightOpen(!rightOpen)} aria-pressed={!rightOpen} aria-label={rightOpen ? 'Hide Reports panel' : 'Show Reports panel'} title={rightOpen ? 'Hide Reports panel' : 'Show Reports panel'}>
@@ -329,7 +333,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
           <aside className="report-panel" aria-label="Reports" aria-hidden={!rightOpen} inert={!rightOpen}>
             <div className="report-panel-inner">
               <h2 className="report-panel-title">Reports</h2>
-              <ReportsView backend={backend} settings={settings} month={month} hidden={hidden} onSelectMonth={setMonth} />
+              <ReportsView backend={backend} settings={settings} month={currentMonth()} hidden={hidden} onSelectMonth={setMonth} />
             </div>
           </aside>
         )}
@@ -342,12 +346,16 @@ export function MonthView({ backend, user, onSignOut }: Props) {
     <div className="app" ref={scroller}>
       <div className="pull" ref={content}>
       <header className="topbar">
-        <button className="month" onClick={() => setPicking(true)} aria-label={`${monthLabel(month)}, choose another month`}>
-          <span>
-            {monthLabel(month)} <span className="caret" aria-hidden>▾</span>
-          </span>
-        </button>
-        {backToCurrent}
+        {monthless(tab) ? (
+          <h1 className="month page-title">{TABS.find((t) => t.id === tab)?.label}</h1>
+        ) : (
+          <button className="month" onClick={() => setPicking(true)} aria-label={`${monthLabel(month)}, choose another month`}>
+            <span>
+              {monthLabel(month)} <span className="caret" aria-hidden>▾</span>
+            </span>
+          </button>
+        )}
+        {!monthless(tab) && backToCurrent}
         {(tab === 'summary' || tab === 'reports') && privacyButton}
       </header>
 
