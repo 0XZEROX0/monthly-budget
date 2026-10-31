@@ -72,7 +72,7 @@ export function SettingsView({ backend, settings, sms, user, onSignOut, lock, in
       {group(
         'money',
         'Money',
-        'Currency, decimals, clock, accounts, debts and opening balances',
+        'Currency, accounts, debts and opening balances',
         '💰',
         <>
           <section className="card">
@@ -80,20 +80,6 @@ export function SettingsView({ backend, settings, sms, user, onSignOut, lock, in
               <span className="grow">Currency</span>
               <Picker label="Currency" value={settings.currency} options={[...new Set([settings.currency, ...CURRENCIES])].map((c) => ({ value: c, label: c }))} onChange={(c) => save({ ...settings, currency: c })} />
             </div>
-            <label className="edit-row toggle-row">
-              <span className="grow">
-                Show decimals
-                <span className="muted small block">Amounts like 1,284.50 instead of 1,285.</span>
-              </span>
-              <input type="checkbox" role="switch" checked={!!settings.decimals} onChange={(e) => save({ ...settings, decimals: e.target.checked })} />
-            </label>
-            <label className="edit-row toggle-row">
-              <span className="grow">
-                12-hour clock
-                <span className="muted small block">Times like 8:30 PM instead of 20:30.</span>
-              </span>
-              <input type="checkbox" role="switch" checked={!!settings.clock12} onChange={(e) => save({ ...settings, clock12: e.target.checked })} />
-            </label>
           </section>
           <AccountsEditor settings={settings} onSave={save} onEdit={editHolder} />
           <DebtsEditor settings={settings} onSave={save} onEdit={editHolder} />
@@ -129,10 +115,27 @@ export function SettingsView({ backend, settings, sms, user, onSignOut, lock, in
       {group(
         'look',
         'Look and security',
-        'Theme colour, dark mode and app lock',
+        'Theme, dark mode, decimals, clock and app lock',
         '🎨',
         <>
           <ThemeCard settings={settings} onSave={save} />
+          <section className="card">
+            <h2>Display</h2>
+            <label className="edit-row toggle-row">
+              <span className="grow">
+                Show decimals
+                <span className="muted small block">Amounts like 1,284.50 instead of 1,285.</span>
+              </span>
+              <input type="checkbox" role="switch" checked={!!settings.decimals} onChange={(e) => save({ ...settings, decimals: e.target.checked })} />
+            </label>
+            <label className="edit-row toggle-row">
+              <span className="grow">
+                12-hour clock
+                <span className="muted small block">Times like 8:30 PM instead of 20:30.</span>
+              </span>
+              <input type="checkbox" role="switch" checked={!!settings.clock12} onChange={(e) => save({ ...settings, clock12: e.target.checked })} />
+            </label>
+          </section>
           <SecurityCard enabled={lock.enabled} onChange={lock.setEnabled} />
         </>,
       )}
