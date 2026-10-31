@@ -78,7 +78,7 @@ fun buildReport(month: String, accounts: List<Pair<String, String>>, debtCategor
         }
         MonthBar(
             m,
-            list.filter { it["kind"] == "income" }.sumOf(::amount),
+            list.filter { it["kind"] == "income" && it["notSpending"] != true }.sumOf(::amount),
             list.filter { (it["kind"] == "expense" && it["notSpending"] != true) || it["kind"] == "repay" }.sumOf(::amount),
             saved,
         )

@@ -199,7 +199,7 @@ object Budget {
         for (t in txns) {
             val amount = (t["amount"] as? Double) ?: 0.0
             when (t["kind"]) {
-                "income" -> income += amount
+                "income" -> if (t["notSpending"] != true) income += amount
                 "expense" -> if (t["notSpending"] != true) (t["category"] as? String)?.let { actualBy[it] = (actualBy[it] ?: 0.0) + amount }
                 "repay" -> debtRow?.let { actualBy[it] = (actualBy[it] ?: 0.0) + amount }
             }
