@@ -74,6 +74,9 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   const { scroller, content } = usePull<HTMLDivElement, HTMLDivElement>()
   const desktop = useDesktop()
   const wideDesk = useDesktop(PANEL_QUERY)
+  // The desktop sidebar (shrinks to icons) and Reports panel (hides) can be folded away; remembered per browser.
+  const [leftOpen, setLeftOpen] = useStoredFlag('budget-app:desk-left')
+  const [rightOpen, setRightOpen] = useStoredFlag('budget-app:desk-right')
   // Set when a Summary row is tapped: the Transactions tab then shows only its entries.
   const [focus, setFocus] = useState<ListFocus | null>(null)
   const openFocus = (f: ListFocus) => {
@@ -156,7 +159,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   )
 
   // On a wide desktop screen Reports sits in its own panel on the right, so it isn't a page.
-  const withPanel = desktop && wideDesk
+  const withPanel = desktop && wideDesk && rightOpen
   const view: Tab = withPanel && tab === 'reports' ? 'summary' : tab
 
   const page =
@@ -248,22 +251,23 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   if (desktop) {
     const current = TABS.find((t) => t.id === view)!
     return (
-      <div className={`desk ${withPanel ? 'with-panel' : ''}`}>
+      <div className={`desk ${withPanel ? 'with-panel' : ''} ${leftOpen ? '' : 'left-closed'}`}>
         <aside className="sidebar">
           <div className="brand">
             <img src="./favicon.svg" alt="" width={34} height={34} />
-            <span>Monthly Budget</span>
+            <span className="side-label">Monthly Budget</span>
           </div>
-          <button className="primary side-add" onClick={() => setEditing('new')}>
-            <span aria-hidden>+</span> Add transaction
+          <button className="primary side-add" onClick={() => setEditing('new')} aria-label="Add transaction" title={leftOpen ? undefined : 'Add transaction'}>
+            <span aria-hidden>+</span>
+            <span className="side-label">Add transaction</span>
           </button>
           <nav className="side-nav" aria-label="Pages">
             {TABS.filter((t) => !(withPanel && t.id === 'reports')).map((t) => (
-              <button key={t.id} className={t.id === view ? 'active' : ''} aria-current={t.id === view ? 'page' : undefined} onClick={() => openTab(t.id)}>
+              <button key={t.id} className={t.id === view ? 'active' : ''} aria-current={t.id === view ? 'page' : undefined} onClick={() => openTab(t.id)} aria-label={t.label} title={leftOpen ? undefined : t.label}>
                 <svg viewBox="0 0 24 24" aria-hidden>
                   <path d={t.icon} />
                 </svg>
-                {t.label}
+                <span className="side-label">{t.label}</span>
               </button>
             ))}
           </nav>
@@ -271,7 +275,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
             {user?.email ? (
               <>
                 {user.photoURL ? <img className="avatar" src={user.photoURL} alt="" referrerPolicy="no-referrer" /> : <span className="avatar">{(user.displayName || user.email)[0].toUpperCase()}</span>}
-                <span className="side-user">
+                <span className="side-user side-label">
                   <strong>{user.displayName || user.email}</strong>
                   {onSignOut && (
                     <button className="link small" onClick={onSignOut}>
@@ -281,13 +285,20 @@ export function MonthView({ backend, user, onSignOut }: Props) {
                 </span>
               </>
             ) : (
-              <span className="muted small">Saved on this device</span>
+              <span className="muted small side-label">Saved on this device</span>
             )}
           </div>
         </aside>
         <div className="desk-main" ref={scroller}>
           <div ref={content}>
             <header className="desk-top">
+              <button className="icon ghost panel-toggle" onClick={() => setLeftOpen(!leftOpen)} aria-pressed={!leftOpen} aria-label={leftOpen ? 'Hide sidebar' : 'Show sidebar'} title={leftOpen ? 'Hide sidebar' : 'Show sidebar'}>
+                <svg viewBox="0 0 24 24" aria-hidden>
+                  <rect x="3" y="4" width="18" height="16" rx="2" />
+                  <path d="M9 4v16" />
+                  {leftOpen ? <path d="M15.5 10l-2 2 2 2" /> : <path d="M13.5 10l2 2-2 2" />}
+                </svg>
+              </button>
               <h1>{current.label}</h1>
               <span className="spacer" />
               {backToCurrent}
@@ -299,6 +310,15 @@ export function MonthView({ backend, user, onSignOut }: Props) {
                 {monthLabel(month)} <span className="caret" aria-hidden>▾</span>
               </button>
               {privacyButton}
+              {wideDesk && (
+                <button className="icon ghost panel-toggle" onClick={() => setRightOpen(!rightOpen)} aria-pressed={!rightOpen} aria-label={rightOpen ? 'Hide Reports panel' : 'Show Reports panel'} title={rightOpen ? 'Hide Reports panel' : 'Show Reports panel'}>
+                  <svg viewBox="0 0 24 24" aria-hidden>
+                    <rect x="3" y="4" width="18" height="16" rx="2" />
+                    <path d="M15 4v16" />
+                    {rightOpen ? <path d="M8.5 10l2 2-2 2" /> : <path d="M10.5 10l-2 2 2 2" />}
+                  </svg>
+                </button>
+              )}
             </header>
             <main className={`desk-content page-${view}`}>{page}</main>
           </div>
@@ -353,6 +373,26 @@ export function MonthView({ backend, user, onSignOut }: Props) {
       {overlays}
     </div>
   )
+}
+
+/** A yes/no choice kept in this browser (default yes), e.g. whether a desktop side panel is open. */
+function useStoredFlag(key: string) {
+  const [on, setOn] = useState(() => {
+    try {
+      return localStorage.getItem(key) !== '0'
+    } catch {
+      return true
+    }
+  })
+  const set = (v: boolean) => {
+    setOn(v)
+    try {
+      localStorage.setItem(key, v ? '1' : '0')
+    } catch {
+      // Not remembered; still applies until the page closes.
+    }
+  }
+  return [on, set] as const
 }
 
 function widgetLines(s: MonthSummary, currency: string, hidden: boolean) {
