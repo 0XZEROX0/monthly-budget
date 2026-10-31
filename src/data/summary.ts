@@ -91,6 +91,13 @@ export function balancesBefore(month: string, settings: Settings, history: Trans
   return apply({ accounts: opening.accounts, debts: opening.debts }, before, settings)
 }
 
+/** Balances at the end of `date`: opening balances plus every entry up to and including that day. */
+export function balancesThrough(date: string, settings: Settings, history: Transaction[]): Balances {
+  const { opening } = settings
+  const upTo = history.filter((t) => t.month >= opening.month && t.date <= date)
+  return apply({ accounts: opening.accounts, debts: opening.debts }, upTo, settings)
+}
+
 const isLiquid = (settings: Settings, name: string) => settings.accounts.find((a) => a.name === name)?.type !== 'investment'
 
 /** Saved in a month: liquidity change, with money moved into investments counted as saved. */
