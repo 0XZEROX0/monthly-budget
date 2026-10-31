@@ -18,6 +18,7 @@ import { UpdatePrompt } from './UpdateCard'
 import type { Backend, NewTransaction, Settings, SmsTarget, Transaction } from '../data/types'
 import { PendingSms } from './PendingSms'
 import { MonthPicker } from './MonthPicker'
+import { useDesktop } from './useDesktop'
 import { usePull } from './usePull'
 import { PlanEditor } from './PlanEditor'
 import { SettingsView } from './SettingsView'
@@ -69,6 +70,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   // The watch follows this phone's privacy mode.
   useEffect(() => shareWithWatch({ hidden }), [hidden])
   const { scroller, content } = usePull<HTMLDivElement, HTMLDivElement>()
+  const desktop = useDesktop()
   // Set when a Summary row is tapped: the Transactions tab then shows only its entries.
   const [focus, setFocus] = useState<ListFocus | null>(null)
   const openFocus = (f: ListFocus) => {
@@ -128,106 +130,86 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   const lock = useAppLock()
   if (lock.locked) return <LockScreen onUnlock={lock.unlock} />
 
-  return (
-    <div className="app" ref={scroller}>
-      <div className="pull" ref={content}>
-      <header className="topbar">
-        <button className="month" onClick={() => setPicking(true)} aria-label={`${monthLabel(month)}, choose another month`}>
-          <span>
-            {monthLabel(month)} <span className="caret" aria-hidden>▾</span>
-          </span>
-        </button>
-        {month !== currentMonth() && (
-          <button className="link back-current" onClick={() => setMonth(currentMonth())}>
-            Back to current month
-          </button>
-        )}
-        {(tab === 'summary' || tab === 'reports') && (
-          <button className="icon ghost privacy" onClick={togglePrivacy} aria-pressed={hidden} aria-label={hidden ? 'Show amounts' : 'Hide amounts'} title={hidden ? 'Show amounts' : 'Hide amounts'}>
-            <svg viewBox="0 0 24 24" aria-hidden>
-              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
-              <circle cx="12" cy="12" r="3" />
-              {hidden && <path d="M4 4l16 16" />}
-            </svg>
-          </button>
-        )}
-      </header>
+  const openTab = (t: Tab) => {
+    setTab(t)
+    setFocus(null)
+    scroller.current?.scrollTo(0, 0)
+  }
 
-      <main className="content">
-        {loading || !summary ? (
-          <p className="center muted">Loading…</p>
-        ) : tab === 'summary' ? (
-          <div className="stack">
-            <PendingSms sms={sms} onAdd={setFromSms} onOpen={() => setTab('transactions')} />
-            <SummaryView
-              backend={backend}
-              month={month}
-              summary={summary}
-              txns={txns}
-              history={history}
-              settings={settings}
-              hasPlan={plan !== null}
-              onPlan={() => setTab('plan')}
-              onSelectMonth={setMonth}
-              onOpen={openFocus}
-              hidden={hidden}
-              onEditGoals={() => {
-                setSettingsGroup('planning')
-                setTab('settings')
-                setTimeout(() => document.getElementById('goals')?.scrollIntoView({ behavior: 'smooth' }), 50)
-              }}
-            />
-          </div>
-        ) : tab === 'transactions' ? (
-          <div className="stack">
-            {!focus && <PendingSms sms={sms} onAdd={setFromSms} />}
-            <TransactionList
-              txns={txns}
-              settings={settings}
-              focus={focus}
-              onClearFocus={() => setFocus(null)}
-              onEdit={(t) => {
-                // Balance updates have no form; they can only be removed.
-                if (t.kind !== 'adjust') return setEditing(t)
-                ask('Delete this balance update?', { ok: 'Delete', danger: true }).then((ok) => {
-                  if (ok) backend.deleteTransaction(t.id).catch((e: Error) => showAlert(e.message))
-                })
-              }}
-            />
-          </div>
-        ) : tab === 'plan' ? (
-          <PlanEditor backend={backend} month={month} plan={plan} settings={settings} />
-        ) : tab === 'reports' ? (
-          <ReportsView backend={backend} settings={settings} month={month} hidden={hidden} onSelectMonth={(m) => {
-            setMonth(m)
-            setTab('summary')
-          }} />
-        ) : (
-          <SettingsView backend={backend} settings={settings} sms={sms} user={user} onSignOut={onSignOut} lock={lock} initialGroup={settingsGroup} />
-        )}
-      </main>
+  const privacyButton = (
+    <button className="icon ghost privacy" onClick={togglePrivacy} aria-pressed={hidden} aria-label={hidden ? 'Show amounts' : 'Hide amounts'} title={hidden ? 'Show amounts' : 'Hide amounts'}>
+      <svg viewBox="0 0 24 24" aria-hidden>
+        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+        <circle cx="12" cy="12" r="3" />
+        {hidden && <path d="M4 4l16 16" />}
+      </svg>
+    </button>
+  )
+
+  const backToCurrent = month !== currentMonth() && (
+    <button className="link back-current" onClick={() => setMonth(currentMonth())}>
+      Back to current month
+    </button>
+  )
+
+  const page =
+    loading || !summary ? (
+      <p className="center muted">Loading…</p>
+    ) : tab === 'summary' ? (
+      <div className="stack">
+        <PendingSms sms={sms} onAdd={setFromSms} onOpen={() => setTab('transactions')} />
+        <SummaryView
+          backend={backend}
+          month={month}
+          summary={summary}
+          txns={txns}
+          history={history}
+          settings={settings}
+          hasPlan={plan !== null}
+          onPlan={() => setTab('plan')}
+          onSelectMonth={setMonth}
+          onOpen={openFocus}
+          hidden={hidden}
+          desktop={desktop}
+          onEditGoals={() => {
+            setSettingsGroup('planning')
+            setTab('settings')
+            setTimeout(() => document.getElementById('goals')?.scrollIntoView({ behavior: 'smooth' }), 50)
+          }}
+        />
       </div>
+    ) : tab === 'transactions' ? (
+      <div className="stack">
+        {!focus && <PendingSms sms={sms} onAdd={setFromSms} />}
+        <TransactionList
+          txns={txns}
+          settings={settings}
+          focus={focus}
+          onClearFocus={() => setFocus(null)}
+          onEdit={(t) => {
+            // Balance updates have no form; they can only be removed.
+            if (t.kind !== 'adjust') return setEditing(t)
+            ask('Delete this balance update?', { ok: 'Delete', danger: true }).then((ok) => {
+              if (ok) backend.deleteTransaction(t.id).catch((e: Error) => showAlert(e.message))
+            })
+          }}
+        />
+      </div>
+    ) : tab === 'plan' ? (
+      <PlanEditor backend={backend} month={month} plan={plan} settings={settings} />
+    ) : tab === 'reports' ? (
+      <ReportsView backend={backend} settings={settings} month={month} hidden={hidden} onSelectMonth={(m) => {
+        setMonth(m)
+        setTab('summary')
+      }} />
+    ) : (
+      <SettingsView backend={backend} settings={settings} sms={sms} user={user} onSignOut={onSignOut} lock={lock} initialGroup={settingsGroup} />
+    )
+
+  // Pop-ups shared by both layouts.
+  const overlays = (
+    <>
       {picking && <MonthPicker month={month} onPick={setMonth} onClose={() => setPicking(false)} />}
-
-      {(tab === 'summary' || tab === 'transactions') && (
-        <button className="fab" aria-label="Add transaction" onClick={() => setEditing('new')}>
-          +
-        </button>
-      )}
-
-      <nav className="tabbar">
-        {TABS.map((t) => (
-          <button key={t.id} className={t.id === tab ? 'active' : ''} onClick={() => {
-              setTab(t.id)
-              setFocus(null)
-            }}>
-            <svg viewBox="0 0 24 24" aria-hidden>
-              <path d={t.icon} />
-            </svg>
-            {t.label}
-          </button>
-        ))}
-      </nav>
 
       {editing && settings && (
         <TransactionForm
@@ -252,6 +234,110 @@ export function MonthView({ backend, user, onSignOut }: Props) {
           onClose={() => setFromSms(null)}
         />
       )}
+    </>
+  )
+
+  // The website on a wide screen: a sidebar of pages on the left and the page using the full width.
+  if (desktop) {
+    const current = TABS.find((t) => t.id === tab)!
+    return (
+      <div className="desk">
+        <aside className="sidebar">
+          <div className="brand">
+            <img src="./favicon.svg" alt="" width={34} height={34} />
+            <span>Monthly Budget</span>
+          </div>
+          <button className="primary side-add" onClick={() => setEditing('new')}>
+            <span aria-hidden>+</span> Add transaction
+          </button>
+          <nav className="side-nav" aria-label="Pages">
+            {TABS.map((t) => (
+              <button key={t.id} className={t.id === tab ? 'active' : ''} aria-current={t.id === tab ? 'page' : undefined} onClick={() => openTab(t.id)}>
+                <svg viewBox="0 0 24 24" aria-hidden>
+                  <path d={t.icon} />
+                </svg>
+                {t.label}
+              </button>
+            ))}
+          </nav>
+          <div className="side-foot">
+            {user?.email ? (
+              <>
+                {user.photoURL ? <img className="avatar" src={user.photoURL} alt="" referrerPolicy="no-referrer" /> : <span className="avatar">{(user.displayName || user.email)[0].toUpperCase()}</span>}
+                <span className="side-user">
+                  <strong>{user.displayName || user.email}</strong>
+                  {onSignOut && (
+                    <button className="link small" onClick={onSignOut}>
+                      Sign out
+                    </button>
+                  )}
+                </span>
+              </>
+            ) : (
+              <span className="muted small">Saved on this device</span>
+            )}
+          </div>
+        </aside>
+        <div className="desk-main" ref={scroller}>
+          <div ref={content}>
+            <header className="desk-top">
+              <h1>{current.label}</h1>
+              <span className="spacer" />
+              {backToCurrent}
+              <button className="desk-month" onClick={() => setPicking(true)} aria-label={`${monthLabel(month)}, choose another month`}>
+                <svg viewBox="0 0 24 24" aria-hidden>
+                  <rect x="3" y="5" width="18" height="16" rx="2" />
+                  <path d="M3 10h18M8 3v4M16 3v4" />
+                </svg>
+                {monthLabel(month)} <span className="caret" aria-hidden>▾</span>
+              </button>
+              {privacyButton}
+            </header>
+            <main className={`desk-content page-${tab}`}>{page}</main>
+          </div>
+        </div>
+        {overlays}
+      </div>
+    )
+  }
+
+  return (
+    <div className="app" ref={scroller}>
+      <div className="pull" ref={content}>
+      <header className="topbar">
+        <button className="month" onClick={() => setPicking(true)} aria-label={`${monthLabel(month)}, choose another month`}>
+          <span>
+            {monthLabel(month)} <span className="caret" aria-hidden>▾</span>
+          </span>
+        </button>
+        {backToCurrent}
+        {(tab === 'summary' || tab === 'reports') && privacyButton}
+      </header>
+
+      <main className="content">{page}</main>
+      </div>
+
+      {(tab === 'summary' || tab === 'transactions') && (
+        <button className="fab" aria-label="Add transaction" onClick={() => setEditing('new')}>
+          +
+        </button>
+      )}
+
+      <nav className="tabbar">
+        {TABS.map((t) => (
+          <button key={t.id} className={t.id === tab ? 'active' : ''} onClick={() => {
+              setTab(t.id)
+              setFocus(null)
+            }}>
+            <svg viewBox="0 0 24 24" aria-hidden>
+              <path d={t.icon} />
+            </svg>
+            {t.label}
+          </button>
+        ))}
+      </nav>
+
+      {overlays}
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { categoryIcon } from '../data/icons'
 import { currentMonth, daysInMonth, formatCompact, formatWhole, shiftMonth, shortMonth, today } from '../data/month'
 import { budgetAlerts, countsAsIncome, countsAsSpending, savedIn, spentIn, type CategoryRow, type MonthSummary } from '../data/summary'
@@ -29,12 +29,14 @@ interface Props {
   hidden: boolean
   /** Opens Settings at the savings goals. */
   onEditGoals: () => void
+  /** The website's wide dashboard: the cards are laid out in columns. */
+  desktop?: boolean
 }
 
 const TREND_MONTHS = 6
 const MASK = '•••••'
 
-export function SummaryView({ backend, month, summary: s, txns, history, settings, hasPlan, onPlan, onSelectMonth, onOpen, hidden, onEditGoals }: Props) {
+export function SummaryView({ backend, month, summary: s, txns, history, settings, hasPlan, onPlan, onSelectMonth, onOpen, hidden, onEditGoals, desktop }: Props) {
   const { currency } = settings
   const money = (n: number) => formatWhole(n, currency)
   const compact = (n: number) => formatCompact(n, currency)
@@ -333,6 +335,7 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
     ),
   }
   const layout = summaryLayout(settings)
+  const shown = layout.order.filter((k) => !layout.hidden.includes(k))
   const saveLayout = (l: SummaryLayout) => backend.saveSettings({ ...settings, summaryLayout: l }).catch((e: Error) => showAlert(`Could not save: ${e.message}`))
 
   if (editing) return <LayoutEditor layout={layout} onChange={saveLayout} onDone={() => setEditing(false)} />
@@ -354,9 +357,15 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
         </button>
       )}
 
-      {layout.order.filter((k) => !layout.hidden.includes(k)).map((k) => (
-        <Fragment key={k}>{sections[k]}</Fragment>
-      ))}
+      {desktop ? (
+        <DeskColumns
+          keys={shown}
+          sections={sections}
+          weight={(k) => SECTION_WEIGHT[k] ?? ({ alerts: 1 + alerts.length, accounts: 2 + settings.accounts.length, categories: 2 + spending.length, debts: 1 + debts.length, income: 1 + income.length, bills: 2 + (settings.bills?.length ?? 0), goals: 2 + (settings.goals?.length ?? 0) * 1.5 } as Partial<Record<SectionKey, number>>)[k] ?? 4}
+        />
+      ) : (
+        shown.map((k) => <Fragment key={k}>{sections[k]}</Fragment>)
+      )}
 
       {updating && (
         <BalanceForm
@@ -369,6 +378,51 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
         />
       )}
     </div>
+  )
+}
+
+// Rough card heights, in list rows, for balancing the desktop columns. Cards whose height
+// depends on the data are worked out in SummaryView.
+const SECTION_WEIGHT: Partial<Record<SectionKey, number>> = { pace: 7, saved: 6, trend: 7 }
+
+/**
+ * The desktop Summary: the "Left to spend" card across the top, then the rest of the cards
+ * in the user's order, each one going to the shortest column so far.
+ */
+function DeskColumns({ keys, sections, weight }: { keys: SectionKey[]; sections: Record<SectionKey, ReactNode>; weight: (k: SectionKey) => number }) {
+  const [cols, setCols] = useState(() => (typeof matchMedia === 'function' && matchMedia('(min-width: 1500px)').matches ? 3 : 2))
+  useEffect(() => {
+    const mq = matchMedia('(min-width: 1500px)')
+    const on = () => setCols(mq.matches ? 3 : 2)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
+  const top = keys.filter((k) => k === 'hero')
+  const columns: SectionKey[][] = Array.from({ length: cols }, () => [])
+  const heights = new Array(cols).fill(0)
+  for (const k of keys) {
+    if (k === 'hero') continue
+    const i = heights.indexOf(Math.min(...heights))
+    columns[i].push(k)
+    heights[i] += weight(k)
+  }
+  return (
+    <>
+      {top.map((k) => (
+        <div className="desk-hero" key={k}>
+          {sections[k]}
+        </div>
+      ))}
+      <div className="desk-columns" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+        {columns.map((list, i) => (
+          <div className="stack" key={i}>
+            {list.map((k) => (
+              <Fragment key={k}>{sections[k]}</Fragment>
+            ))}
+          </div>
+        ))}
+      </div>
+    </>
   )
 }
 

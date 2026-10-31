@@ -504,3 +504,60 @@ button.picker.range-picker .grow { flex: none; }
 /* "What's new" in the update popup and Settings › App */
 .update-changes { text-align: left; background: var(--surface-2); border-radius: 12px; padding: 0.7rem 0.85rem; display: grid; gap: 0.35rem; max-height: 40vh; overflow-y: auto; }
 .update-changes ul { margin: 0; padding-left: 1.1rem; display: grid; gap: 0.25rem; font-size: 0.88rem; }
+/* ---------- Desktop dashboard (website on a wide screen only; see useDesktop) ---------- */
+.desk { display: grid; grid-template-columns: 248px minmax(0, 1fr); height: 100dvh; }
+.sidebar {
+  display: flex; flex-direction: column; gap: 1.1rem; padding: 1.3rem 0.9rem 1rem;
+  background: var(--surface); border-right: 1px solid var(--border); overflow-y: auto;
+}
+.brand { display: flex; align-items: center; gap: 0.65rem; padding: 0 0.5rem; font-weight: 700; font-size: 1.08rem; }
+.brand img { border-radius: 10px; }
+button.side-add { display: flex; align-items: center; justify-content: center; gap: 0.5rem; border-radius: 14px; padding: 0.75rem 1rem; box-shadow: 0 8px 20px color-mix(in srgb, var(--accent) 28%, transparent); }
+button.side-add span { font-size: 1.3rem; line-height: 1; }
+.side-nav { display: grid; gap: 0.2rem; }
+.side-nav button {
+  display: flex; align-items: center; gap: 0.8rem; width: 100%; text-align: left;
+  border: none; background: none; border-radius: 12px; padding: 0.7rem 0.8rem; color: var(--text-2); font-size: 0.95rem;
+}
+.side-nav button:hover { background: var(--surface-2); color: var(--text); }
+.side-nav button.active { background: var(--accent-soft); color: var(--accent); font-weight: 650; }
+.side-nav button:active:not(:disabled) { transform: none; }
+.side-nav svg { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.side-foot { margin-top: auto; display: flex; align-items: center; gap: 0.65rem; padding: 0.8rem 0.5rem 0; border-top: 1px solid var(--border); }
+.avatar { width: 2.2rem; height: 2.2rem; border-radius: 50%; flex: none; object-fit: cover; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.side-user { display: grid; min-width: 0; font-size: 0.85rem; }
+.side-user strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+
+.desk-main { overflow-y: auto; min-width: 0; }
+.desk-top {
+  position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 0.75rem;
+  padding: 1rem 2rem; background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: blur(14px);
+}
+.desk-top h1 { font-size: 1.5rem; letter-spacing: -0.01em; }
+button.desk-month { display: inline-flex; align-items: center; gap: 0.5rem; border-radius: 999px; padding: 0.55rem 1rem; font-weight: 600; background: var(--surface); }
+.desk-month svg, .desk-top .privacy svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.desk-month .caret { color: var(--muted); font-size: 0.8rem; }
+.desk-content { padding: 0.5rem 2rem 3rem; max-width: 1560px; }
+.desk-content .card.hint { justify-content: flex-start; }
+
+/* Summary: the headline across the top, then the cards in balanced columns */
+.desk-content .summary-tools { margin: -0.4rem 0 -0.6rem; }
+.desk-hero .hero { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); align-items: center; gap: 2rem; padding: 1.6rem 2rem; }
+.desk-hero .hero-value { font-size: 3rem; }
+.desk-hero .stats { gap: 0.75rem; }
+.desk-hero .stat { padding: 0.85rem 1rem; }
+.desk-hero .stat strong { font-size: 1.25rem; }
+.desk-columns { display: grid; gap: 0.9rem; align-items: start; }
+
+/* Other pages: a comfortable reading width, or two columns where it helps */
+.page-transactions, .page-settings { max-width: 980px; }
+.page-plan { max-width: 1100px; }
+.page-plan section.card:has(label.inline) { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 2rem; }
+.page-plan section.card:has(label.inline) > :not(label) { grid-column: 1 / -1; }
+.page-reports > .stack { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+.page-reports > .stack > * { grid-column: 1 / -1; }
+.page-reports > .stack > section.card:has(.chart) { grid-column: auto; }
+.page-reports > .stack > section.card:last-child { grid-column: auto; }
+.page-reports button.range-picker { justify-self: start; }
+.page-reports .center-text { text-align: left; margin-top: -0.5rem; }
+.desk-top .privacy { position: static; }
