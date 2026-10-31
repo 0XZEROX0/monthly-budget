@@ -45,6 +45,8 @@ const CURRENCIES: [RegExp, string][] = [
 const CUR = String.raw`EGP|L\.E\.?|LE|USD|EUR|GBP|SAR|AED|KWD|QAR|TRY|\$|€|جنيها|جنيهًا|جنيه|ج\.م\.?|جم|دولار|يورو|ريال`
 const NUM = String.raw`\d[\d,]*(?:\.\d+)?`
 const AMOUNT = new RegExp(String.raw`(?:(${CUR})\s*(${NUM}))|(?:(${NUM})\s*(${CUR}))(?![a-z])`, 'gi')
+// Some wallets leave out the currency: "بقيمة 270.00".
+const AMOUNT_WORD = new RegExp(String.raw`(?:بقيمة|قيمة|بمبلغ|مبلغ|amount(?: of)?|value(?: of)?)\s*:?\s*(${NUM})`, 'i')
 
 // Not a finished payment: codes for approving one, or one that failed.
 const IGNORE = /\b(otp|one[- ]time|passcode|password|verification|pin)\b|كود|رمز|كلمة (?:السر|المرور)|declined|failed|unsuccessful|insufficient|rejected|مرفوض|رفض|لم تتم|غير ناجح/i
@@ -52,7 +54,7 @@ const CREDIT = /\b(credited|refund(?:ed)?|reversal|reversed|deposit(?:ed)?|recei
 // "...to your account" (إلى حسابك) is money coming in.
 const INTO_ACCOUNT = /(?:إلى|الى|ل)\s*حسابك|to your (?:account|card)/i
 const TRANSFER = /\btransfer|تحويل/i
-const SPEND = /\b(purchase[ds]?|charged|debited|spent|paid|payment|pos|withdrawal|withdrawn|deducted|transaction|trx|txn|transfer(?:red)?|bought|sent|used)\b|خصم|شراء|سحب|عملية|مشتريات|دفع|تحويل|شحن/i
+const SPEND = /\b(purchase[ds]?|charged|debited|spent|paid|payment|pos|withdrawal|withdrawn|deducted|transaction|trx|txn|transfer(?:red)?|bought|sent|used|recharged?|top[- ]?up)\b|خصم|شراء|سحب|عملية|مشتريات|دفع|تحويل|شحن/i
 // An amount right after these words is a balance or limit, not what was paid.
 const BALANCE_BEFORE = /(balance|bal|limit|available|avl|avail|remaining|رصيد|المتاح|متاح|الحد)[^\d\n]{0,20}$/i
 
@@ -68,7 +70,7 @@ const CARD = [
 // E-wallet messages name a phone number instead of a card.
 const WALLET_WORDS: [RegExp, string][] = [
   [/vodafone\s*cash|vf[\s-]?cash|فودافون\s*كاش/i, 'Vodafone Cash'],
-  [/orange\s*(?:cash|money)|[أا]ورنج\s*(?:كاش|موني)/i, 'Orange Cash'],
+  [/orange\s*(?:cash|money)|[أا]ورن[جچ]\s*(?:كاش|موني)/i, 'Orange Cash'],
   [/etisalat\s*cash|e&\s*(?:cash|money)|اتصالات\s*كاش|[إا]تصالات\s*كاش/i, 'Etisalat Cash'],
   [/we\s*pay|وي\s*باي/i, 'WE Pay'],
   [/insta\s*pay|[إا]نستا\s*باي/i, 'InstaPay'],
@@ -77,6 +79,11 @@ const WALLET_WORDS: [RegExp, string][] = [
 // A wallet message reports something done. Without a card number, this tells it apart from an ad.
 const DONE = /(?:^|\s)تم\s|\byou have\b|\bha(?:s|ve) been\b|\bsuccessful(?:ly)?\b|بنجاح|رقم العملية|\btransaction (?:id|no|number|ref)/i
 const PROMO = /\b(get|win|offer|enjoy|up to|discount)\b|احصل|اكسب|استمتع|عرض|%/i
+// Wallets add ads and links after the receipt. The receipt ends at the first blank line, link or ad line.
+const AD_LINE = /https?:\/\/|www\.|\b(get|win|offer|enjoy|up to|subscribe|download)\b|احصل|اكسب|استمتع|عرض|اشترك|اشتراك|%/i
+// A mobile recharge: name the carrier from the number's prefix.
+const RECHARGE = /شحن|\brecharged?\b|\btop[- ]?up\b/i
+const CARRIERS: Record<string, string> = { '010': 'Vodafone', '011': 'Etisalat', '012': 'Orange', '015': 'WE' }
 // The person on the other side: "registered to AHMED ALI" / "المسجل باسم احمد علي", else their number.
 const NAMED = [
   /(?:المسجل|المسجلة)\s*(?:باسم|بإسم|بأسم)\s*:?\s*([^\n.,،;؛]+?)(?=\s+(?:على|علي|رصيد|الرصيد|بتاريخ|في|يوم)(?:\s|$)|[\n.,،;؛]|$)/,
@@ -111,7 +118,18 @@ function findAmount(body: string): { amount: number; currency: string } | null {
     const amount = Number((m[2] ?? m[3]).replace(/,/g, ''))
     if (amount > 0) return { amount, currency: currencyCode(m[1] ?? m[4]) }
   }
-  return null
+  const amount = Number(AMOUNT_WORD.exec(body)?.[1].replace(/,/g, ''))
+  return amount > 0 ? { amount, currency: 'EGP' } : null
+}
+
+/** The receipt itself, without the ads and links some senders add after it. */
+function receipt(body: string): string {
+  const lines: string[] = []
+  for (const line of body.split('\n')) {
+    if (lines.length && (!line.trim() || AD_LINE.test(line))) break
+    if (line.trim()) lines.push(line)
+  }
+  return lines.join('\n')
 }
 
 function findMerchant(body: string): string {
@@ -130,12 +148,15 @@ function findPerson(body: string): string {
     const name = re.exec(body)?.[1]?.replace(/\s+/g, ' ').trim()
     if (name && name.length >= 2) return name.slice(0, 40)
   }
-  return PHONE.exec(body)?.[1] ?? ''
+  const phone = PHONE.exec(body)?.[1] ?? ''
+  const carrier = CARRIERS[phone.replace(/^\+?2?/, '').slice(0, 3)]
+  return carrier && RECHARGE.test(body) ? `${carrier} recharge` : phone
 }
 
 /** `walletSender` is the wallet's name when the SMS comes from a known e-wallet sender. */
 export function parseBankSms(sms: SmsMessage, walletSender?: string | null): ParsedSms | null {
-  const body = normalize(sms.body)
+  const full = normalize(sms.body)
+  const body = receipt(full)
   if (IGNORE.test(body)) return null
   const credit = CREDIT.test(body) || INTO_ACCOUNT.test(body)
   if (!credit && !SPEND.test(body)) return null
@@ -145,7 +166,8 @@ export function parseBankSms(sms: SmsMessage, walletSender?: string | null): Par
   const card = CARD.map((re) => re.exec(body)?.[1]).find(Boolean)
   if (!card) {
     // A wallet message instead: from a wallet, or naming one, and reporting a finished payment.
-    const wallet = walletSender ?? WALLET_WORDS.find(([re]) => re.test(body))?.[1]
+    // The ad after a receipt often names the wallet ("ادفع باورنچ كاش") when the receipt doesn't.
+    const wallet = walletSender ?? WALLET_WORDS.find(([re]) => re.test(full))?.[1]
     if (!wallet || !DONE.test(body) || PROMO.test(body)) return null
     return {
       smsId: sms.id,
