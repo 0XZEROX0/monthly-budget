@@ -1,5 +1,5 @@
 import { CapacitorUpdater, type BundleInfo } from '@capgo/capacitor-updater'
-import { Capacitor } from '@capacitor/core'
+import { isAndroid } from '../native/platform'
 
 // Each push to main publishes one GitHub release with the APK, the web files as web.zip,
 // and notes naming the build number and a hash of the Android code. When only the web
@@ -79,7 +79,7 @@ export async function applyWebUpdate(u: Available, now: boolean) {
  * last good one), then fetch any web update quietly for next time.
  */
 export function startUpdates() {
-  if (!Capacitor.isNativePlatform()) return
+  if (!isAndroid) return
   CapacitorUpdater.notifyAppReady().catch(() => {})
   checkForUpdate()
     .then((u) => (u.kind === 'web' ? applyWebUpdate(u, false) : undefined))

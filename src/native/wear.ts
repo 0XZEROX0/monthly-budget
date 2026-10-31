@@ -1,4 +1,5 @@
-import { Capacitor, registerPlugin } from '@capacitor/core'
+import { registerPlugin } from '@capacitor/core'
+import { isAndroid } from './platform'
 import type { User } from 'firebase/auth'
 
 /** The native side is android/app/src/main/java/com/monthlybudget/app/WearPlugin.java. */
@@ -20,7 +21,7 @@ let state: { user: User | null; hidden: boolean } = { user: null, hidden: false 
  */
 export function shareWithWatch(change: Partial<typeof state>) {
   state = { ...state, ...change }
-  if (!Capacitor.isNativePlatform()) return
+  if (!isAndroid) return
   const { user, hidden } = state
   Wear.share(
     user
@@ -42,7 +43,7 @@ let pingTimer: ReturnType<typeof setTimeout> | undefined
  * check. Several edits in a row send one nudge.
  */
 export function notifyWatch() {
-  if (!Capacitor.isNativePlatform()) return
+  if (!isAndroid) return
   clearTimeout(pingTimer)
   pingTimer = setTimeout(() => Wear.ping().catch(() => {}), 3_000)
 }

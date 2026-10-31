@@ -2,6 +2,7 @@ import { Capacitor } from '@capacitor/core'
 import { LocalNotifications, type LocalNotificationSchema } from '@capacitor/local-notifications'
 import { isPaid, reminderDays, reminderText } from '../data/bills'
 import { currentMonth, shiftMonth } from '../data/month'
+import { isAndroid } from './platform'
 import type { Settings, Transaction } from '../data/types'
 
 // Phone notifications for bill reminders and budget alerts, through Android's alarm
@@ -15,10 +16,10 @@ const SMALL_ICON = 'ic_stat_budget'
 
 let channels: Promise<void> | null = null
 const setup = () =>
-  (channels ??= Promise.all([
+  (channels ??= (isAndroid ? Promise.all([
     LocalNotifications.createChannel({ id: 'bills', name: 'Bill reminders', importance: 4 }),
     LocalNotifications.createChannel({ id: 'alerts', name: 'Budget alerts', importance: 3 }),
-  ]).then(() => {}))
+  ]) : Promise.resolve()).then(() => {}))
 
 /** Asks once (Android 13+); true when notifications may be shown. */
 export async function notificationsAllowed(ask: boolean): Promise<boolean> {

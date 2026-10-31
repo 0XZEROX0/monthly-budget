@@ -91,7 +91,7 @@ export function BackupCard({ backend, settings }: { backend: Backend; settings: 
     <section className="card">
       <h2>Backup and export</h2>
       <p className="muted small">
-        {native ? 'Back up opens Android\'s share menu: pick Drive to save the file to your Google Drive.' : 'Back up downloads a file you can keep in Google Drive.'}
+        {native ? 'Back up opens the share menu: pick Drive to save the file to your Google Drive.' : 'Back up downloads a file you can keep in Google Drive.'}
         {backend.mode === 'cloud' && ' Your data also syncs to your Google account all the time.'}
         {last && ` Last backup: ${last}.`}
       </p>

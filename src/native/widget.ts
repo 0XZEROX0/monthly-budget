@@ -1,4 +1,5 @@
-import { Capacitor, registerPlugin } from '@capacitor/core'
+import { registerPlugin } from '@capacitor/core'
+import { isAndroid } from './platform'
 
 /** The native side is android/app/src/main/java/com/monthlybudget/app/WidgetPlugin.java. */
 interface WidgetPlugin {
@@ -10,7 +11,7 @@ const Widget = registerPlugin<WidgetPlugin>('Widget')
 
 let last = ''
 export function updateWidget(data: Parameters<WidgetPlugin['update']>[0]) {
-  if (!Capacitor.isNativePlatform()) return
+  if (!isAndroid) return
   const key = JSON.stringify(data)
   if (key === last) return
   last = key

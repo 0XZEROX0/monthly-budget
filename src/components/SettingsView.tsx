@@ -12,6 +12,7 @@ import { BackupCard } from './BackupCard'
 import { BillsEditor } from './Bills'
 import { GoalsEditor } from './Goals'
 import { SmsSettingsCard } from './SmsSettingsCard'
+import { isIOS } from '../native/platform'
 import { UpdateCard } from './UpdateCard'
 import { useReorder } from './useReorder'
 import { ask, askText, showAlert } from './dialog'
@@ -110,7 +111,7 @@ export function SettingsView({ backend, settings, sms, user, onSignOut, lock, in
         </>,
       )}
 
-      {group('sms', 'Bank SMS', 'Add entries from your bank and wallet messages', '✉️', <SmsSettingsCard sms={sms} settings={settings} onSave={save} />)}
+      {!isIOS && group('sms', 'Bank SMS', 'Add entries from your bank and wallet messages', '✉️', <SmsSettingsCard sms={sms} settings={settings} onSave={save} />)}
 
       {group(
         'look',

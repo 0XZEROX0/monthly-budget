@@ -1,9 +1,9 @@
 import { App } from '@capacitor/app'
-import { Capacitor } from '@capacitor/core'
 import { CapacitorUpdater } from '@capgo/capacitor-updater'
 import { useEffect, useState } from 'react'
 import { applyWebUpdate, BUILD, checkForUpdate, type Available } from '../data/appUpdate'
 import { AppUpdater } from '../native/appUpdater'
+import { isAndroid } from '../native/platform'
 import { notificationsAllowed } from '../native/notify'
 
 type Status =
@@ -112,9 +112,9 @@ export function UpdateCard() {
   const [notify, setNotify] = useState(notifyOn)
   const [blocked, setBlocked] = useState(false)
   useEffect(() => {
-    if (Capacitor.isNativePlatform() && notify) notificationsAllowed(false).then((ok) => setBlocked(!ok), () => {})
+    if (isAndroid && notify) notificationsAllowed(false).then((ok) => setBlocked(!ok), () => {})
   }, [notify])
-  if (!Capacitor.isNativePlatform()) return null
+  if (!isAndroid) return null
 
   const toggleNotify = async (on: boolean) => {
     setNotify(on)
@@ -172,7 +172,7 @@ export function UpdatePrompt() {
   const { status, check, install } = useUpdater()
   const [dismissed, setDismissed] = useState(false)
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return
+    if (!isAndroid) return
     check(true)
     if (notifyOn()) {
       // Asks for notification permission once, the first time this runs.

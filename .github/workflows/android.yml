@@ -32,10 +32,10 @@ jobs:
       - run: npm ci
 
       # Identifies the Android side: tracked files under android/ plus the Capacitor
-      # plugins. The app installs web-only updates (web.zip) when this matches its own.
+      # plugins (not the iPhone platform). The app installs web-only updates (web.zip) when this matches its own.
       - name: Hash the Android code
         run: |
-          plugins=$(node -p "Object.entries(require('./package.json').dependencies).filter(([k]) => k.startsWith('@cap')).join()")
+          plugins=$(node -p "Object.entries(require('./package.json').dependencies).filter(([k]) => k.startsWith('@cap') && k !== '@capacitor/ios').join()")
           echo "VITE_NATIVE_HASH=$( (git ls-files -s android; echo "$plugins") | sha1sum | cut -c1-12)" >> "$GITHUB_ENV"
           echo "VITE_BUILD=${{ github.run_number }}" >> "$GITHUB_ENV"
 
