@@ -5,7 +5,7 @@ import { currentMonth, dayLabel, daysInMonth, formatCompact, formatWhole, monthL
 import { balancesBefore, balancesThrough, countsAsIncome, savedIn, spentIn } from '../data/summary'
 import type { Backend, Settings, Transaction } from '../data/types'
 import { Legend, LineChart, MonthsChart, SavedChart } from './charts'
-import { askChoice, askForm, showAlert } from './dialog'
+import { askChoice, askForm, askMonth, showAlert } from './dialog'
 
 /** Report ranges: a few days counted back from today (or yesterday), or whole months back from the month on screen. */
 const PERIODS = [
@@ -136,8 +136,7 @@ async function askRange(current: Choice, settings: Settings): Promise<Choice | n
   if (!id) return null
   if (id === 'month') {
     const first = settings.opening.month < shiftMonth(currentMonth(), -23) ? settings.opening.month : shiftMonth(currentMonth(), -23)
-    const months = monthsFrom(first, currentMonth()).reverse()
-    const m = await askChoice('Which month?', months.map((v) => ({ value: v, label: monthLabel(v) })), current.id === 'month' ? current.month : currentMonth())
+    const m = await askMonth('Which month?', current.id === 'month' ? current.month : currentMonth(), first, currentMonth())
     return m ? { id: 'month', month: m } : null
   }
   if (id === 'custom') {
