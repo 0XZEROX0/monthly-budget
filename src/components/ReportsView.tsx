@@ -87,7 +87,7 @@ export function ReportsView({ backend, settings, month, hidden, onSelectMonth }:
 
   return (
     <div className="stack">
-      <Picker label="Report range" value={period.id} options={PERIODS.map((p) => ({ value: p.id, label: p.label }))} onChange={(id) => setPeriodId(id as Period['id'])} />
+      <Picker className="range-picker" label="Report range" value={period.id} options={PERIODS.map((p) => ({ value: p.id, label: p.label }))} onChange={(id) => setPeriodId(id as Period['id'])} />
       <p className="muted small center-text">{rangeLabel}</p>
 
       <section className="card">
