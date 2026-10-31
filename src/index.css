@@ -501,3 +501,6 @@ button.holder-name strong { overflow: hidden; text-overflow: ellipsis; white-spa
 /* Reports range: a compact centred dropdown */
 button.picker.range-picker { width: auto; min-width: 9.5rem; justify-self: center; justify-content: center; text-align: center; border-radius: 999px; padding: 0.55rem 1.1rem; }
 button.picker.range-picker .grow { flex: none; }
+/* "What's new" in the update popup and Settings › App */
+.update-changes { text-align: left; background: var(--surface-2); border-radius: 12px; padding: 0.7rem 0.85rem; display: grid; gap: 0.35rem; max-height: 40vh; overflow-y: auto; }
+.update-changes ul { margin: 0; padding-left: 1.1rem; display: grid; gap: 0.25rem; font-size: 0.88rem; }

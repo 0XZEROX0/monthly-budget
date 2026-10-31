@@ -18,6 +18,8 @@ export interface Available {
   size: number
   /** SHA-256 of the file, hex; the updater refuses a download without it. */
   checksum: string
+  /** What changed since this build, newest first (from the release notes). */
+  changes: string[]
 }
 export type Update = { kind: 'none' } | Available
 
@@ -37,11 +39,13 @@ export async function checkForUpdate(): Promise<Update> {
     // GitHub gives each asset's digest as "sha256:<hex>".
     return a && { url: a.browser_download_url, size: a.size, checksum: a.digest?.replace(/^sha256:/, '') ?? '' }
   }
+  // "- 31|Reports: centre the range dropdown": the change and the build that brought it.
+  const changes = [...rel.body.matchAll(/^- (\d+)\|(.+)$/gm)].filter((m) => Number(m[1]) > BUILD).map((m) => m[2].trim())
   const web = asset('web.zip')
   // Same Android code: the new web files run on this APK.
-  if (web?.checksum && native === NATIVE) return { kind: 'web', build, ...web }
+  if (web?.checksum && native === NATIVE) return { kind: 'web', build, changes, ...web }
   const apk = asset('monthly-budget.apk')
-  return apk ? { kind: 'app', build, ...apk } : { kind: 'none' }
+  return apk ? { kind: 'app', build, changes, ...apk } : { kind: 'none' }
 }
 
 // The quiet download at launch and a tap on Update now can ask for the same build; they

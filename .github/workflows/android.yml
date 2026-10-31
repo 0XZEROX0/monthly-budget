@@ -17,6 +17,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The release notes list the PRs merged since the last release.
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -84,11 +87,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # The app reads "build N" from the title, and "native:" and the What's new lines
+          # from the notes (src/data/appUpdate.ts, scripts/release-notes.mjs).
+          PREV_BODY=$(gh release view android --json body -q .body 2>/dev/null || true) \
+            BUILD=${{ github.run_number }} NATIVE=$VITE_NATIVE_HASH SHA=${{ github.sha }} \
+            node scripts/release-notes.mjs > "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md"
           gh release delete android --yes --cleanup-tag || true
-          # The app reads "build N" from the title and "native:" from the notes (src/data/appUpdate.ts).
           gh release create android "$RUNNER_TEMP/monthly-budget.apk" "$RUNNER_TEMP/web.zip" \
             --title "Monthly Budget for Android (build ${{ github.run_number }})" \
-            --notes "Built from ${{ github.sha }}. Install on your phone: open this page on Android and tap monthly-budget.apk.
-
-          native: $VITE_NATIVE_HASH" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
             --target "${{ github.sha }}" --latest

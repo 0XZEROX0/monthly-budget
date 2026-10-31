@@ -13,6 +13,24 @@ type Status =
   | { state: 'error'; message: string }
 
 const mb = (bytes: number) => `${(bytes / 1_048_576).toFixed(1)} MB`
+const MAX_CHANGES = 6
+
+/** The update's "What's new" list, trimmed to the latest few. */
+function Changes({ changes }: { changes: string[] }) {
+  if (changes.length === 0) return null
+  const more = changes.length - MAX_CHANGES
+  return (
+    <div className="update-changes">
+      <strong className="small">What's new</strong>
+      <ul>
+        {changes.slice(0, MAX_CHANGES).map((c, i) => (
+          <li key={i}>{c}</li>
+        ))}
+      </ul>
+      {more > 0 && <p className="muted small">and {more} more</p>}
+    </div>
+  )
+}
 
 /** Checking for and installing updates; shared by Settings › App and the prompt at launch. */
 function useUpdater() {
@@ -76,6 +94,7 @@ export function UpdateCard() {
             Build {status.update.build} is ready ({mb(status.update.size)}).{' '}
             {status.update.kind === 'web' ? 'It installs in a moment, right here.' : 'This one changes the Android side, so Android will ask you to confirm the install.'}
           </p>
+          <Changes changes={status.update.changes} />
           <button className="primary" onClick={() => install(status.update)}>
             Update now
           </button>
@@ -130,6 +149,7 @@ export function UpdatePrompt() {
               Build {status.update.build} is ready ({mb(status.update.size)}); you have build {BUILD}.{' '}
               {status.update.kind === 'web' ? 'It installs in a few seconds.' : 'Android will ask you to confirm the install.'}
             </p>
+            <Changes changes={status.update.changes} />
             <div className="row">
               <button className="grow" onClick={close}>
                 Later
