@@ -19,6 +19,8 @@ import com.google.android.gms.wearable.Wearable;
 @CapacitorPlugin(name = "Wear")
 public class WearPlugin extends Plugin {
     static final String PATH = "/budget/link";
+    /** Changes whenever the budget is edited on the phone; the watch then fetches just the changes. */
+    static final String CHANGED_PATH = "/budget/changed";
 
     @PluginMethod
     public void share(PluginCall call) {
@@ -39,5 +41,15 @@ public class WearPlugin extends Plugin {
         map.putBoolean("hidden", Boolean.TRUE.equals(call.getBoolean("hidden", false)));
         // Phones without Wear OS services fail here; there's no watch to tell, so that's fine.
         client.putDataItem(req.asPutDataRequest().setUrgent()).addOnCompleteListener(t -> call.resolve());
+    }
+
+    @PluginMethod
+    public void ping(PluginCall call) {
+        PutDataMapRequest req = PutDataMapRequest.create(CHANGED_PATH);
+        // A new value each time, since the Data Layer only tells the watch about changes.
+        req.getDataMap().putLong("at", System.currentTimeMillis());
+        Wearable.getDataClient(getContext())
+            .putDataItem(req.asPutDataRequest().setUrgent())
+            .addOnCompleteListener(t -> call.resolve());
     }
 }

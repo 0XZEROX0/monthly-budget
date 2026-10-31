@@ -4,6 +4,7 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -100,8 +101,18 @@ class Firestore(private val link: Link) {
             if (e.code == 404) null else throw e
         }
 
-    /** Documents in a collection under users/{uid} whose `field` compares to `value`, e.g. op GREATER_THAN_OR_EQUAL. */
-    suspend fun where(collection: String, field: String, value: String, op: String = "EQUAL"): List<Map<String, Any?>> {
+    /** Rows from a query, and the server time it read at (everything committed before it is included). */
+    class Rows(val rows: List<Map<String, Any?>>, val readTime: String?)
+
+    /**
+     * Documents in a collection under users/{uid} whose `field` compares to `value`, e.g. op
+     * GREATER_THAN_OR_EQUAL. A java.time.Instant value compares as a timestamp.
+     */
+    suspend fun where(collection: String, field: String, value: Any, op: String = "EQUAL"): List<Map<String, Any?>> =
+        query(collection, field, value, op).rows
+
+    suspend fun query(collection: String, field: String, value: Any, op: String = "EQUAL"): Rows {
+        val v = if (value is Instant) JSONObject().put("timestampValue", value.toString()) else encode(value)
         val query = JSONObject().put(
             "structuredQuery",
             JSONObject()
@@ -113,24 +124,40 @@ class Firestore(private val link: Link) {
                         JSONObject()
                             .put("field", JSONObject().put("fieldPath", field))
                             .put("op", op)
-                            .put("value", JSONObject().put("stringValue", value)),
+                            .put("value", v),
                     ),
                 ),
         )
-        val rows = JSONArray(call(":runQuery", "POST", query))
+        val res = JSONArray(call(":runQuery", "POST", query))
+        val items = (0 until res.length()).map { res.getJSONObject(it) }
         // "__id" carries the document id, e.g. to spot a bill marked paid as bill-{id}-{month}.
-        return (0 until rows.length()).mapNotNull { rows.getJSONObject(it).optJSONObject("document") }
+        val rows = items.mapNotNull { it.optJSONObject("document") }
             .map { fields(it.optJSONObject("fields")) + ("__id" to it.optString("name").substringAfterLast('/')) }
+        return Rows(rows, items.firstNotNullOfOrNull { it.optString("readTime").ifEmpty { null } })
     }
 
-    /** Creates collection/id. Already there counts as done, so a retried entry isn't added twice. */
-    suspend fun create(collection: String, id: String, data: Map<String, Any>) {
+    /**
+     * Writes collection/id, stamping updatedAt with the server's clock so the phone fetches it
+     * as a change. Writing the same entry again (a retry) just rewrites it, so it's never added twice.
+     */
+    suspend fun put(collection: String, id: String, data: Map<String, Any>) {
         val fields = JSONObject()
         for ((k, v) in data) fields.put(k, encode(v))
+        val name = "projects/${link.projectId}/databases/(default)/documents/users/${link.uid}/$collection/$id"
+        val write = JSONObject()
+            .put("update", JSONObject().put("name", name).put("fields", fields))
+            .put("updateTransforms", JSONArray().put(JSONObject().put("fieldPath", "updatedAt").put("setToServerValue", "REQUEST_TIME")))
+        commit(JSONObject().put("writes", JSONArray().put(write)))
+    }
+
+    private suspend fun commit(body: JSONObject) {
+        val url = "https://firestore.googleapis.com/v1/projects/${link.projectId}/databases/(default)/documents:commit"
         try {
-            call("/$collection?documentId=$id", "POST", JSONObject().put("fields", fields))
+            http(url, "POST", body.toString(), "application/json", Auth.token(link))
         } catch (e: HttpException) {
-            if (e.code != 409) throw e
+            if (e.code != 401) throw e
+            Auth.forget()
+            http(url, "POST", body.toString(), "application/json", Auth.token(link))
         }
     }
 
@@ -142,6 +169,7 @@ class Firestore(private val link: Link) {
         v.has("integerValue") -> v.getString("integerValue").toDouble()
         v.has("doubleValue") -> v.getDouble("doubleValue")
         v.has("booleanValue") -> v.getBoolean("booleanValue")
+        v.has("timestampValue") -> v.getString("timestampValue")
         v.has("mapValue") -> fields(v.getJSONObject("mapValue").optJSONObject("fields"))
         v.has("arrayValue") -> v.getJSONObject("arrayValue").optJSONArray("values")
             ?.let { a -> (0 until a.length()).map { decode(a.getJSONObject(it)) } } ?: emptyList<Any?>()

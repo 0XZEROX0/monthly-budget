@@ -19,13 +19,12 @@ import androidx.work.WorkerParameters
 import java.util.concurrent.TimeUnit
 
 /**
- * Every few hours: refreshes the tile's figures and, when a newer watch build is out,
- * posts a notification that opens the app, where Update watch app installs it.
+ * Every few hours: when a newer watch build is out, posts a notification that opens the
+ * app, where Update watch app installs it. (The budget itself syncs hourly in SyncWorker.)
  */
 class UpdateWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         val context = applicationContext
-        runCatching { Budget.refresh(context) }.onSuccess { Surfaces.update(context) }
         val release = runCatching { Updater.check(context) }.getOrNull() ?: return Result.success()
         if (release.build > Store.notifiedBuild(context)) {
             notifyUpdate(context, release.build)

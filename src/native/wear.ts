@@ -5,6 +5,8 @@ import type { User } from 'firebase/auth'
 interface WearPlugin {
   /** Without refreshToken it unlinks the watch. */
   share(opts: { refreshToken?: string; uid?: string; apiKey?: string; projectId?: string; hidden?: boolean }): Promise<void>
+  /** Tells the watch the budget changed, so it fetches just the changes. */
+  ping(): Promise<void>
 }
 
 const Wear = registerPlugin<WearPlugin>('Wear')
@@ -31,4 +33,16 @@ export function shareWithWatch(change: Partial<typeof state>) {
         }
       : {},
   ).catch(() => {})
+}
+
+let pingTimer: ReturnType<typeof setTimeout> | undefined
+
+/**
+ * After an edit on the phone, nudges the watch to sync now instead of waiting for its hourly
+ * check. Several edits in a row send one nudge.
+ */
+export function notifyWatch() {
+  if (!Capacitor.isNativePlatform()) return
+  clearTimeout(pingTimer)
+  pingTimer = setTimeout(() => Wear.ping().catch(() => {}), 3_000)
 }

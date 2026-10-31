@@ -13,6 +13,9 @@ import kotlinx.coroutines.tasks.await
 /** Where the phone app (android/.../WearPlugin.java) puts the sign-in. */
 const val LINK_PATH = "/budget/link"
 
+/** Changes each time the budget is edited in the phone app, so the watch syncs right away. */
+const val CHANGED_PATH = "/budget/changed"
+
 /** The phone app's Firebase sign-in, and whether the phone is in privacy mode. */
 data class Link(
     val refreshToken: String,
@@ -39,14 +42,25 @@ suspend fun pullLink(context: Context): Link? {
     }
 }
 
-/** Hears the phone app sign in, sign out, or switch privacy mode. */
+/** Hears the phone app sign in, sign out, switch privacy mode, or change the budget. */
 class LinkListenerService : WearableListenerService() {
     override fun onDataChanged(events: DataEventBuffer) {
+        var sync = false
         for (event in events) {
-            if (event.dataItem.uri.path != LINK_PATH) continue
-            val link = if (event.type == DataEvent.TYPE_DELETED) null else linkFrom(DataMapItem.fromDataItem(event.dataItem).dataMap)
-            Store.saveLink(this, link)
+            when (event.dataItem.uri.path) {
+                LINK_PATH -> {
+                    val link = if (event.type == DataEvent.TYPE_DELETED) null else linkFrom(DataMapItem.fromDataItem(event.dataItem).dataMap)
+                    Store.saveLink(this, link)
+                    if (link != null) {
+                        SyncWorker.scheduleHourly(this)
+                        sync = true
+                    }
+                }
+                CHANGED_PATH -> if (event.type == DataEvent.TYPE_CHANGED) sync = true
+            }
         }
+        // Fetches only what changed; the tile and complication redraw when it's done.
+        if (sync && Store.link(this) != null) SyncWorker.scheduleSoon(this)
         Surfaces.update(this)
     }
 }
