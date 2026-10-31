@@ -31,8 +31,10 @@ private const val RESOURCES = "1"
 private const val PRIVACY = "privacy"
 private const val EXPENSE = 0xFFFF8A80.toInt()
 private const val INCOME = 0xFF81C995.toInt()
+private const val TRANSFER = 0xFF8AB4F8.toInt()
+private const val DEBT = 0xFFFDD663.toInt()
 
-/** Left to spend with a ring for the month, and − / + to add an expense or income. */
+/** Left to spend with a ring for the month, and buttons to add an expense, income, transfer or debt entry. */
 class BudgetTileService : TileService() {
     override fun onTileRequest(requestParams: RequestBuilders.TileRequest): ListenableFuture<TileBuilders.Tile> =
         SuspendToFutureAdapter.launchFuture(Dispatchers.IO) {
@@ -86,12 +88,16 @@ private fun budget(context: Context, device: DeviceParameters, g: Glance, hidden
         hidden -> "${(g.fractionSpent * 100).toInt()}% spent"
         else -> "${compact(g.spent)} of ${compact(g.planned)} ${g.currency}"
     }
-    fun button(id: String, label: String, kind: String, color: Int) =
-        Button.Builder(context, open(context, id, kind))
+    // Four in a row, sized to fit inside the ring.
+    val size = minOf(40f, (device.screenWidthDp * 0.74f - 12f) / 4f)
+    fun button(label: String, kind: String, description: String, color: Int) =
+        Button.Builder(context, open(context, kind, kind))
             .setTextContent(label)
-            .setContentDescription(if (kind == "income") "Add income" else "Add expense")
+            .setSize(dp(size))
+            .setContentDescription(description)
             .setButtonColors(ButtonColors(color, 0xFF000000.toInt()))
             .build()
+    fun gap() = LayoutElementBuilders.Spacer.Builder().setWidth(dp(4f)).build()
     val content = LayoutElementBuilders.Column.Builder()
         .setHorizontalAlignment(LayoutElementBuilders.HORIZONTAL_ALIGN_CENTER)
         .addContent(
@@ -112,9 +118,13 @@ private fun budget(context: Context, device: DeviceParameters, g: Glance, hidden
         .addContent(LayoutElementBuilders.Spacer.Builder().setHeight(dp(6f)).build())
         .addContent(
             LayoutElementBuilders.Row.Builder()
-                .addContent(button("expense", "−", "expense", EXPENSE))
-                .addContent(LayoutElementBuilders.Spacer.Builder().setWidth(dp(10f)).build())
-                .addContent(button("income", "+", "income", INCOME))
+                .addContent(button("−", "expense", "Add expense", EXPENSE))
+                .addContent(gap())
+                .addContent(button("+", "income", "Add income", INCOME))
+                .addContent(gap())
+                .addContent(button("⇄", "transfer", "Add transfer", TRANSFER))
+                .addContent(gap())
+                .addContent(button("💳", "debt", "Add debt payment or borrowing", DEBT))
                 .build(),
         )
         .build()
