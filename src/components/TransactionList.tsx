@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { categoryIcon } from '../data/icons'
 import { dayLabel, formatMoney, formatWhole, showTime } from '../data/month'
-import { countsAsSpending } from '../data/summary'
+import { countsAsIncome, countsAsSpending } from '../data/summary'
 import type { Settings, Transaction } from '../data/types'
 
 /** A drill-down from the Summary: one category, account or debt. */
@@ -75,7 +75,7 @@ export function TransactionList({ txns, settings, onEdit, focus, onClearFocus }:
   )
   const days = new Map<string, Transaction[]>()
   for (const t of shown) days.set(t.date, [...(days.get(t.date) ?? []), t])
-  const totalIn = shown.filter((t) => t.kind === 'income').reduce((a, t) => a + t.amount, 0)
+  const totalIn = shown.filter(countsAsIncome).reduce((a, t) => a + t.amount, 0)
   const totalOut = shown.filter(countsAsSpending).reduce((a, t) => a + t.amount, 0)
 
   return (
@@ -118,7 +118,7 @@ export function TransactionList({ txns, settings, onEdit, focus, onClearFocus }:
         </div>
       ) : (
         [...days].map(([date, list]) => {
-          const net = list.reduce((a, t) => a + (t.kind === 'income' ? t.amount : countsAsSpending(t) ? -t.amount : 0), 0)
+          const net = list.reduce((a, t) => a + (countsAsIncome(t) ? t.amount : countsAsSpending(t) ? -t.amount : 0), 0)
           return (
             <section key={date} className="day">
               <div className="day-head">
@@ -137,7 +137,7 @@ export function TransactionList({ txns, settings, onEdit, focus, onClearFocus }:
                           <span className="muted small">
                             {d.sub}
                             {t.time && ` · ${showTime(t.time, settings.clock12)}`}
-                            {t.notSpending && ' · not counted as spending'}
+                            {t.notSpending && (t.kind === 'income' ? ' · not counted as income' : ' · not counted as spending')}
                           </span>
                         </span>
                         <strong className={d.sign === '+' ? 'amount-in' : d.sign === '' ? 'muted' : ''}>

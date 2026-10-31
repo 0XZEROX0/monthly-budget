@@ -115,6 +115,9 @@ export function savedIn(txns: Transaction[], settings: Settings): number {
 /** Expenses and debt repayments, except those marked as not spending. */
 export const countsAsSpending = (t: Transaction) => (t.kind === 'expense' || t.kind === 'repay') && !t.notSpending
 
+/** Income, except entries marked as not counted. */
+export const countsAsIncome = (t: Transaction) => t.kind === 'income' && !t.notSpending
+
 /** Expenses plus debt repayments. */
 export const spentIn = (txns: Transaction[]) => sum(txns.filter(countsAsSpending).map((t) => t.amount))
 

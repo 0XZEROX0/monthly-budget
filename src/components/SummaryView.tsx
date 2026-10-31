@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState, type ReactNode } from 'react'
 import { categoryIcon } from '../data/icons'
 import { currentMonth, daysInMonth, formatCompact, formatWhole, shiftMonth, shortMonth, today } from '../data/month'
-import { budgetAlerts, countsAsSpending, savedIn, spentIn, type CategoryRow, type MonthSummary } from '../data/summary'
+import { budgetAlerts, countsAsIncome, countsAsSpending, savedIn, spentIn, type CategoryRow, type MonthSummary } from '../data/summary'
 import type { Account, Backend, Settings, Transaction } from '../data/types'
 import { summaryLayout, type SectionKey, type SummaryLayout } from '../data/summaryLayout'
 import { BalanceForm } from './BalanceForm'
@@ -58,7 +58,7 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
       return {
         month: m,
         label: shortMonth(m),
-        income: list.filter((t) => t.kind === 'income').reduce((a, t) => a + t.amount, 0),
+        income: list.filter(countsAsIncome).reduce((a, t) => a + t.amount, 0),
         expense: spentIn(list),
         saved: savedIn(list, settings),
         any: list.length > 0,

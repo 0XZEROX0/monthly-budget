@@ -25,7 +25,7 @@ export interface Transaction {
   debt?: string
   /** HH:MM it happened or was added, to order entries within a day. */
   time?: string
-  /** Leaves an expense out of spending, budgets and charts; it still comes out of the account. */
+  /** Leaves an expense out of spending, or an income out of income, in totals, budgets and charts; the account still changes. */
   notSpending?: boolean
 }
 
