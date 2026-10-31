@@ -513,7 +513,7 @@ button.picker.range-picker .grow { flex: none; }
 .brand { display: flex; align-items: center; gap: 0.65rem; padding: 0 0.5rem; font-weight: 700; font-size: 1.08rem; }
 .brand img { border-radius: 10px; }
 button.side-add { display: flex; align-items: center; justify-content: center; gap: 0.5rem; border-radius: 14px; padding: 0.75rem 1rem; box-shadow: 0 8px 20px color-mix(in srgb, var(--accent) 28%, transparent); }
-button.side-add span { font-size: 1.3rem; line-height: 1; }
+button.side-add span[aria-hidden] { font-size: 1.3rem; line-height: 1; }
 .side-nav { display: grid; gap: 0.2rem; }
 .side-nav button {
   display: flex; align-items: center; gap: 0.8rem; width: 100%; text-align: left;
@@ -583,3 +583,19 @@ button.desk-month { display: inline-flex; align-items: center; gap: 0.5rem; bord
 /* "+ New" at the end of a category list: opens the name and icon popup */
 .chips li.chip-new { padding: 0.2rem; border-style: dashed; background: transparent; }
 .chips li.chip-new button { color: var(--accent); font-weight: 600; padding: 0.15rem 0.6rem; }
+/* Folding the desktop side panels away: the sidebar shrinks to icons, the Reports panel hides */
+.desk { --left-w: 248px; transition: grid-template-columns 0.2s ease; }
+.desk.left-closed { --left-w: 76px; }
+.desk { grid-template-columns: var(--left-w) minmax(0, 1fr); }
+.desk.with-panel { grid-template-columns: var(--left-w) minmax(0, 1fr) clamp(360px, 28vw, 460px); }
+.desk.left-closed .sidebar { padding-inline: 0.75rem; align-items: center; }
+.desk.left-closed .side-label { display: none; }
+.desk.left-closed .brand { padding: 0; }
+.desk.left-closed button.side-add { width: 2.9rem; height: 2.9rem; padding: 0; border-radius: 14px; }
+.desk.left-closed .side-nav { justify-items: center; }
+.desk.left-closed .side-nav button { width: 2.9rem; height: 2.9rem; padding: 0; justify-content: center; }
+.desk.left-closed .side-foot { padding-inline: 0; justify-content: center; width: 100%; }
+.desk-top .panel-toggle { color: var(--text-2); width: 2.4rem; height: 2.4rem; flex: none; }
+.desk-top .panel-toggle svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.desk-top .panel-toggle:hover { background: var(--surface-2); color: var(--text); }
+.desk-top h1 { margin-left: 0.15rem; }
