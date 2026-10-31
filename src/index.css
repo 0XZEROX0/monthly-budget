@@ -560,7 +560,6 @@ button.desk-month { display: inline-flex; align-items: center; gap: 0.5rem; bord
 .page-reports .center-text { text-align: left; margin-top: -0.5rem; }
 .desk-top .privacy { position: static; }
 /* Reports as a fixed panel on the right of every page (desktop website from 1280px) */
-.desk.with-panel { grid-template-columns: 248px minmax(0, 1fr) clamp(360px, 28vw, 460px); }
 .report-panel {
   overflow-y: auto; padding: 1.2rem 1.2rem 2rem; display: grid; align-content: start; gap: 0.9rem;
   background: color-mix(in srgb, var(--surface) 55%, var(--bg)); border-left: 1px solid var(--border);
@@ -583,18 +582,35 @@ button.desk-month { display: inline-flex; align-items: center; gap: 0.5rem; bord
 /* "+ New" at the end of a category list: opens the name and icon popup */
 .chips li.chip-new { padding: 0.2rem; border-style: dashed; background: transparent; }
 .chips li.chip-new button { color: var(--accent); font-weight: 600; padding: 0.15rem 0.6rem; }
-/* Folding the desktop side panels away: the sidebar shrinks to icons, the Reports panel hides */
-.desk { --left-w: 248px; transition: grid-template-columns 0.2s ease; }
+/* Folding the desktop side panels away: the sidebar slides down to its icons, the Reports panel slides
+   out. Both ease the same way, and the page in the middle grows with them. */
+.desk {
+  --ease-panel: cubic-bezier(0.32, 0.72, 0, 1); --panel-time: 0.42s;
+  --left-w: 248px; --right-full: clamp(360px, 28vw, 460px); --right-w: var(--right-full);
+  grid-template-columns: var(--left-w) minmax(0, 1fr);
+  transition: grid-template-columns var(--panel-time) var(--ease-panel);
+}
 .desk.left-closed { --left-w: 76px; }
-.desk { grid-template-columns: var(--left-w) minmax(0, 1fr); }
-.desk.with-panel { grid-template-columns: var(--left-w) minmax(0, 1fr) clamp(360px, 28vw, 460px); }
-.desk.left-closed .sidebar { padding-inline: 0.75rem; align-items: center; }
-.desk.left-closed .side-label { display: none; }
-.desk.left-closed .brand { padding: 0; }
-.desk.left-closed button.side-add { width: 2.9rem; height: 2.9rem; padding: 0; border-radius: 14px; }
-.desk.left-closed .side-nav { justify-items: center; }
-.desk.left-closed .side-nav button { width: 2.9rem; height: 2.9rem; padding: 0; justify-content: center; }
-.desk.left-closed .side-foot { padding-inline: 0; justify-content: center; width: 100%; }
+.desk.has-panel { grid-template-columns: var(--left-w) minmax(0, 1fr) var(--right-w); }
+.desk.right-closed { --right-w: 0px; }
+.sidebar { overflow-x: hidden; }
+.side-label {
+  display: inline-block; white-space: nowrap; overflow: hidden; max-width: 14rem;
+  transition: opacity 0.25s ease, max-width var(--panel-time) var(--ease-panel);
+}
+.desk.left-closed .side-label { opacity: 0; max-width: 0; }
+button.side-add, .side-nav button { transition: width var(--panel-time) var(--ease-panel), gap var(--panel-time) var(--ease-panel), padding var(--panel-time) var(--ease-panel), background 0.15s; }
+.side-nav button { width: 100%; }
+.desk.left-closed button.side-add { width: 2.9rem; padding-inline: 0; gap: 0; }
+.desk.left-closed .side-nav button { width: 2.9rem; gap: 0; padding-inline: 0.8rem; }
+/* The panel keeps its full width inside and is uncovered or covered as its column grows or shrinks */
+.report-panel { overflow-x: hidden; padding: 0; display: flex; justify-content: flex-end; align-items: flex-start; transition: opacity var(--panel-time) ease; }
+.report-panel-inner { flex: none; }
+.report-panel-inner { width: var(--right-full); padding: 1.2rem 1.2rem 2rem; display: grid; align-content: start; gap: 0.9rem; }
+.desk.right-closed .report-panel { opacity: 0; border-left-color: transparent; }
+@media (prefers-reduced-motion: reduce) {
+  .desk, .side-label, button.side-add, .side-nav button, .report-panel { transition: none; }
+}
 .desk-top .panel-toggle { color: var(--text-2); width: 2.4rem; height: 2.4rem; flex: none; }
 .desk-top .panel-toggle svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .desk-top .panel-toggle:hover { background: var(--surface-2); color: var(--text); }
