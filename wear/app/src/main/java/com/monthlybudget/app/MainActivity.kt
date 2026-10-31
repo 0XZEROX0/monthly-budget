@@ -78,12 +78,37 @@ import kotlinx.coroutines.launch
 
 private val ExpenseColor = Color(0xFFFF8A80)
 private val IncomeColor = Color(0xFF81C995)
+private val TransferColor = Color(0xFF8AB4F8)
+private val DebtColor = Color(0xFFFDD663)
+
+/** Expense, income, transfer or debt (repay and borrow), as on the phone's add sheet. */
+private fun kindColor(kind: String) = when (kind) {
+    "income" -> IncomeColor
+    "transfer" -> TransferColor
+    "debt", "repay", "borrow" -> DebtColor
+    else -> ExpenseColor
+}
+
+private fun kindSign(kind: String) = when (kind) {
+    "income", "borrow" -> "+"
+    "transfer" -> ""
+    else -> "−"
+}
+
+/** What an entry was for and where the money went, e.g. "Food · Cash" or "Bank → Thndr". */
+private fun entryLine(e: Entry) =
+    if (e.kind == "transfer") "${e.account} → ${e.toAccount}"
+    else listOf(e.category.ifEmpty { e.debt }, e.account).filter { it.isNotEmpty() }.joinToString(" · ")
+
+private fun entryIcon(e: Entry) = if (e.kind == "transfer") "⇄" else categoryIcon(e.category.ifEmpty { e.debt.ifEmpty { "debt" } })
 
 private sealed interface Screen {
     data object Home : Screen
     /** With a bill: its amount wasn't set, so it's typed here and then confirmed. */
     data class Amount(val kind: String, val bill: Bill? = null) : Screen
     data class Category(val kind: String, val amount: Double) : Screen
+    data class Transfer(val amount: Double) : Screen
+    data class Debt(val amount: Double) : Screen
     /** A spoken entry or a bill payment, shown before it's saved. */
     data class Confirm(val entry: Entry, val title: String) : Screen
     data class Done(val sent: Boolean, val entry: Entry) : Screen
@@ -167,8 +192,21 @@ private fun App(start: String?, onStarted: () -> Unit, finish: () -> Unit) {
         is Screen.Amount -> {
             BackHandler { home() }
             AmountScreen(s.kind, onNext = { amount ->
-                screen = if (s.bill != null) Screen.Confirm(billEntry(context, s.bill, amount), "Pay ${s.bill.name}") else Screen.Category(s.kind, amount)
+                screen = when {
+                    s.bill != null -> Screen.Confirm(billEntry(context, s.bill, amount), "Pay ${s.bill.name}")
+                    s.kind == "transfer" -> Screen.Transfer(amount)
+                    s.kind == "debt" -> Screen.Debt(amount)
+                    else -> Screen.Category(s.kind, amount)
+                }
             })
+        }
+        is Screen.Transfer -> {
+            BackHandler { screen = Screen.Amount("transfer") }
+            TransferScreen(s.amount, onSave = save)
+        }
+        is Screen.Debt -> {
+            BackHandler { screen = Screen.Amount("debt") }
+            DebtScreen(s.amount, onSave = save)
         }
         is Screen.Category -> {
             BackHandler { screen = Screen.Amount(s.kind) }
@@ -378,6 +416,12 @@ private fun HomeScreen(
                             Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                                 AddButton("−", "Add expense", ExpenseColor) { onAdd("expense") }
                                 AddButton("+", "Add income", IncomeColor) { onAdd("income") }
+                            }
+                        }
+                        item {
+                            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                                AddButton("⇄", "Add transfer", TransferColor) { onAdd("transfer") }
+                                AddButton("💳", "Add debt payment or borrowing", DebtColor) { onAdd("debt") }
                             }
                         }
                         if (waiting > 0) {
@@ -828,8 +872,7 @@ private fun GoalLine(goal: Goal, hidden: Boolean) {
 
 @Composable
 private fun ConfirmScreen(title: String, entry: Entry, onSave: () -> Unit, onChange: (() -> Unit)?) {
-    val color = if (entry.kind == "income") IncomeColor else ExpenseColor
-    val label = entry.category.ifEmpty { entry.debt }
+    val color = kindColor(entry.kind)
     Column(
         Modifier.fillMaxSize().padding(horizontal = 22.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -837,10 +880,10 @@ private fun ConfirmScreen(title: String, entry: Entry, onSave: () -> Unit, onCha
     ) {
         Text(title, style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant, maxLines = 2, textAlign = TextAlign.Center)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            IconBadge(categoryIcon(label.ifEmpty { "debt" }), color, 32.dp)
-            Text((if (entry.kind == "income") "+" else "−") + whole(entry.amount), style = MaterialTheme.typography.title2, color = color)
+            IconBadge(entryIcon(entry), color, 32.dp)
+            Text(kindSign(entry.kind) + whole(entry.amount), style = MaterialTheme.typography.title2, color = color)
         }
-        Text("$label · ${entry.account}", style = MaterialTheme.typography.caption2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(entryLine(entry), style = MaterialTheme.typography.caption2, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
             onChange?.let { CompactChip(onClick = it, label = { Text("Change") }, colors = ChipDefaults.secondaryChipColors()) }
             CompactChip(onClick = onSave, label = { Text("Save") }, colors = ChipDefaults.primaryChipColors(backgroundColor = color, contentColor = Color.Black))
@@ -867,7 +910,7 @@ private fun IconBadge(icon: String, tint: Color, size: Dp = 26.dp) {
 private fun AmountScreen(kind: String, onNext: (Double) -> Unit) {
     var digits by remember { mutableStateOf("") }
     val haptics = LocalHapticFeedback.current
-    val color = if (kind == "income") IncomeColor else ExpenseColor
+    val color = kindColor(kind)
     val amount = digits.toDoubleOrNull() ?: 0.0
     val screen = LocalConfiguration.current.screenHeightDp.dp
     val keyHeight = screen * 0.13f
@@ -876,7 +919,7 @@ private fun AmountScreen(kind: String, onNext: (Double) -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically),
     ) {
-        Text(if (kind == "income") "Income" else "Expense", style = MaterialTheme.typography.caption3, color = color)
+        Text(kind.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.caption3, color = color)
         Text(if (digits.isEmpty()) "0" else whole(amount), style = MaterialTheme.typography.title2, color = MaterialTheme.colors.onSurface)
         val rows = listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf("⌫", "0", "✓"))
         for ((i, keys) in rows.withIndex()) {
@@ -968,18 +1011,125 @@ private fun CategoryScreen(kind: String, amount: Double, onSaved: (Boolean, Entr
     }
 }
 
+/** Moves money between two accounts, investments included. Tap a chip to change the account. */
+@Composable
+private fun TransferScreen(amount: Double, onSave: (Entry) -> Unit) {
+    val context = LocalContext.current
+    val settings = remember { Store.settings(context) }
+    val accounts = settings.allAccounts
+    var from by remember {
+        mutableStateOf(Store.lastAccount(context, "transfer")?.takeIf { it in accounts } ?: settings.accounts.firstOrNull { it in accounts } ?: accounts.first())
+    }
+    var to by remember { mutableStateOf(accounts.firstOrNull { it != from } ?: "") }
+    val others = accounts.filter { it != from }
+    val listState = rememberScalingLazyListState()
+    Scaffold(positionIndicator = { PositionIndicator(scalingLazyListState = listState) }) {
+        ScalingLazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+            item { Text("${whole(amount)} ${settings.currency}", style = MaterialTheme.typography.title3, color = TransferColor) }
+            item {
+                Chip(
+                    onClick = {
+                        from = accounts[(accounts.indexOf(from) + 1) % accounts.size]
+                        if (to == from) to = accounts.firstOrNull { it != from } ?: ""
+                    },
+                    label = { Text("From") },
+                    secondaryLabel = { Text(categoryIcon(from) + " " + from) },
+                    colors = ChipDefaults.secondaryChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            item {
+                Chip(
+                    onClick = { if (others.isNotEmpty()) to = others[(others.indexOf(to) + 1) % others.size] },
+                    label = { Text("To") },
+                    secondaryLabel = { Text(if (to.isEmpty()) "Add another account on the phone" else categoryIcon(to) + " " + to) },
+                    colors = ChipDefaults.secondaryChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            item {
+                CompactChip(
+                    onClick = { onSave(Entry(newId(), "transfer", amount, "", from, LocalDate.now().toString(), toAccount = to)) },
+                    enabled = to.isNotEmpty() && to != from,
+                    label = { Text("Save") },
+                    colors = ChipDefaults.primaryChipColors(backgroundColor = TransferColor, contentColor = Color.Black),
+                )
+            }
+        }
+    }
+}
+
+/** Pays toward a debt, or records money borrowed. Tap a debt to save. */
+@Composable
+private fun DebtScreen(amount: Double, onSave: (Entry) -> Unit) {
+    val context = LocalContext.current
+    val settings = remember { Store.settings(context) }
+    var borrowed by remember { mutableStateOf(false) }
+    // Borrowed money doesn't have to go into an account, so it can be "No account".
+    val accounts = if (borrowed) settings.accounts + "" else settings.accounts
+    var account by remember {
+        mutableStateOf(Store.lastAccount(context, "repay")?.takeIf { it in settings.accounts } ?: settings.accounts.first())
+    }
+    val listState = rememberScalingLazyListState()
+    Scaffold(positionIndicator = { PositionIndicator(scalingLazyListState = listState) }) {
+        ScalingLazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+            item { Text("${whole(amount)} ${settings.currency}", style = MaterialTheme.typography.title3, color = DebtColor) }
+            item {
+                CompactChip(
+                    onClick = {
+                        borrowed = !borrowed
+                        if (!borrowed && account.isEmpty()) account = settings.accounts.first()
+                    },
+                    label = { Text(if (borrowed) "I borrowed  ⇄" else "I paid  ⇄") },
+                    colors = ChipDefaults.secondaryChipColors(),
+                )
+            }
+            item {
+                CompactChip(
+                    onClick = { account = accounts[(accounts.indexOf(account) + 1) % accounts.size] },
+                    label = {
+                        Text(
+                            when {
+                                account.isEmpty() -> "No account  ⇄"
+                                borrowed -> "${categoryIcon(account)} Into $account  ⇄"
+                                else -> "${categoryIcon(account)} From $account  ⇄"
+                            },
+                        )
+                    },
+                    colors = ChipDefaults.secondaryChipColors(),
+                )
+            }
+            if (settings.debts.isEmpty()) {
+                item { Text("Add a debt in the phone app first", style = MaterialTheme.typography.caption2, textAlign = TextAlign.Center) }
+            }
+            items(settings.debts) { debt ->
+                Chip(
+                    onClick = {
+                        val kind = if (borrowed) "borrow" else "repay"
+                        onSave(Entry(newId(), kind, amount, "", account, LocalDate.now().toString(), debt = debt))
+                    },
+                    label = { Text(debt, style = MaterialTheme.typography.caption1, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    icon = { IconBadge(categoryIcon(debt), DebtColor) },
+                    colors = ChipDefaults.primaryChipColors(backgroundColor = MaterialTheme.colors.surface, contentColor = MaterialTheme.colors.onSurface),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                    modifier = Modifier.fillMaxWidth().height(42.dp),
+                )
+            }
+        }
+    }
+}
 
 @Composable
 private fun DoneScreen(sent: Boolean, entry: Entry, warning: String?) {
-    val color = if (entry.kind == "income") IncomeColor else ExpenseColor
+    val color = kindColor(entry.kind)
     Column(
         Modifier.fillMaxSize().padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
     ) {
-        IconBadge(categoryIcon(entry.category.ifEmpty { entry.debt.ifEmpty { "debt" } }), color, 52.dp)
-        Text((if (entry.kind == "income") "+" else "−") + whole(entry.amount), style = MaterialTheme.typography.title2, color = color)
-        Text("${entry.category.ifEmpty { entry.debt }} · ${entry.account}", style = MaterialTheme.typography.caption2, color = MaterialTheme.colors.onSurfaceVariant)
+        IconBadge(entryIcon(entry), color, 52.dp)
+        Text(kindSign(entry.kind) + whole(entry.amount), style = MaterialTheme.typography.title2, color = color)
+        Text(entryLine(entry), style = MaterialTheme.typography.caption2, color = MaterialTheme.colors.onSurfaceVariant)
         Text(if (sent) "✓ Saved" else "✓ Saved · syncs when online", style = MaterialTheme.typography.caption2, textAlign = TextAlign.Center)
         warning?.let { Text("⚠ $it", style = MaterialTheme.typography.caption2, color = ExpenseColor, textAlign = TextAlign.Center) }
     }

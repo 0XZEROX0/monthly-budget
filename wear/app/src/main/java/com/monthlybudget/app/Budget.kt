@@ -112,7 +112,9 @@ object Budget {
                     put("amount", e.amount)
                     put("description", "")
                     put("category", e.category)
-                    put("account", e.account)
+                    // Borrowing can come in without going into an account.
+                    if (e.account.isNotEmpty()) put("account", e.account)
+                    if (e.toAccount.isNotEmpty()) put("toAccount", e.toAccount)
                     if (e.debt.isNotEmpty()) put("debt", e.debt)
                 },
             )
@@ -163,6 +165,8 @@ object Budget {
             // Like withDefaults in the web app: missing means the default.
             debtCategory = if (doc.containsKey("debtCategory")) doc["debtCategory"] as? String else d.debtCategory,
             clock12 = doc["clock12"] == true,
+            allAccounts = (doc["accounts"] as? List<*>)?.mapNotNull { (it as? Map<*, *>)?.get("name") as? String }?.takeIf { it.isNotEmpty() } ?: d.allAccounts,
+            debts = (doc["debts"] as? List<*>)?.mapNotNull { (it as? Map<*, *>)?.get("name") as? String }.orEmpty(),
         )
     }
 
@@ -299,9 +303,15 @@ object Budget {
     }
 
     private operator fun Detail.plus(e: Entry): Detail {
-        val txn = txn(mapOf("kind" to e.kind, "date" to e.date, "amount" to e.amount, "category" to e.category, "account" to e.account, "debt" to e.debt, "time" to e.time))
-        val sign = if (e.kind == "income") 1 else -1
-        val balances = balances.map { if (it.name == e.account) it.copy(amount = it.amount + sign * e.amount) else it }
+        val txn = txn(mapOf("kind" to e.kind, "date" to e.date, "amount" to e.amount, "category" to e.category, "account" to e.account, "toAccount" to e.toAccount, "debt" to e.debt, "time" to e.time))
+        val sign = if (e.kind == "income" || e.kind == "borrow") 1 else -1
+        val balances = balances.map {
+            when (it.name) {
+                e.account -> it.copy(amount = it.amount + sign * e.amount)
+                e.toAccount -> it.copy(amount = it.amount + e.amount)
+                else -> it
+            }
+        }
         // A bill paid from the watch stops showing as due.
         val base = copy(recent = listOf(txn) + recent, balances = balances, due = due.filter { e.id != "bill-${it.id}-${e.date.take(7)}" })
         return when (e.kind) {

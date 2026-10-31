@@ -14,6 +14,10 @@ data class WatchSettings(
     val debtCategory: String?,
     /** Show entry times as "8:30 PM" instead of "20:30", like the phone. */
     val clock12: Boolean = false,
+    /** Every account, investments too, for transfers. */
+    val allAccounts: List<String> = accounts,
+    /** The phone's debts, by name, for debt payments and borrowing. */
+    val debts: List<String> = emptyList(),
 ) {
     fun categories(kind: String) = if (kind == "income") income else expense
 
@@ -117,6 +121,8 @@ data class Entry(
     val debt: String = "",
     /** HH:MM, so the phone can order same-day entries. */
     val time: String = java.time.LocalTime.now().toString().take(5),
+    /** Where a transfer goes. */
+    val toAccount: String = "",
 )
 
 /** Everything the watch keeps on itself. */
@@ -300,6 +306,8 @@ object Store {
             list("accounts"),
             if (o.isNull("debtCategory")) null else o.getString("debtCategory"),
             o.optBoolean("clock12"),
+            o.optJSONArray("allAccounts")?.let { a -> (0 until a.length()).map(a::getString) } ?: list("accounts"),
+            o.optJSONArray("debts")?.let { a -> (0 until a.length()).map(a::getString) } ?: emptyList(),
         )
     }
 
@@ -311,6 +319,8 @@ object Store {
             .put("accounts", JSONArray(s.accounts))
             .put("debtCategory", s.debtCategory ?: JSONObject.NULL)
             .put("clock12", s.clock12)
+            .put("allAccounts", JSONArray(s.allAccounts))
+            .put("debts", JSONArray(s.debts))
         prefs(context).edit().putString("settings", o.toString()).apply()
     }
 
@@ -318,7 +328,7 @@ object Store {
         val a = prefs(context).getString("queue", null)?.let(::JSONArray) ?: return emptyList()
         return (0 until a.length()).map {
             val o = a.getJSONObject(it)
-            Entry(o.getString("id"), o.getString("kind"), o.getDouble("amount"), o.getString("category"), o.getString("account"), o.getString("date"), o.optString("debt"), o.optString("time"))
+            Entry(o.getString("id"), o.getString("kind"), o.getDouble("amount"), o.getString("category"), o.getString("account"), o.getString("date"), o.optString("debt"), o.optString("time"), o.optString("toAccount"))
         }
     }
 
@@ -334,7 +344,8 @@ object Store {
                     .put("account", e.account)
                     .put("date", e.date)
                     .put("debt", e.debt)
-                    .put("time", e.time),
+                    .put("time", e.time)
+                    .put("toAccount", e.toAccount),
             )
         }
         prefs(context).edit().putString("queue", a.toString()).apply()
