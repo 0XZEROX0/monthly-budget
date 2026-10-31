@@ -2,15 +2,15 @@ import { useMemo, useState } from 'react'
 import { useRange } from '../data/hooks'
 import { categoryIcon } from '../data/icons'
 import { currentMonth, dayLabel, daysInMonth, formatCompact, formatWhole, monthLabel, shiftDay, shiftMonth, shortDay, shortMonth, today } from '../data/month'
-import { balancesBefore, balancesThrough, savedIn, spentIn } from '../data/summary'
+import { balancesBefore, balancesThrough, countsAsIncome, savedIn, spentIn } from '../data/summary'
 import type { Backend, Settings, Transaction } from '../data/types'
 import { Legend, LineChart, MonthsChart, SavedChart } from './charts'
 import { Picker } from './Picker'
 
-/** Report ranges: a few days counted back from today, or whole months back from the month on screen. */
+/** Report ranges: a few days counted back from today (or yesterday), or whole months back from the month on screen. */
 const PERIODS = [
   { id: 'd1', label: 'Day', days: 1, before: 'the day before' },
-  { id: 'd3', label: '3 days', days: 3, before: 'the 3 days before' },
+  { id: 'y', label: 'Yesterday', days: 1, back: 1, before: 'the day before' },
   { id: 'd7', label: 'Week', days: 7, before: 'the week before' },
   { id: 'm3', label: '3 months', months: 3, before: 'the 3 months before' },
   { id: 'm6', label: '6 months', months: 6, before: 'the 6 months before' },
@@ -26,7 +26,8 @@ export function ReportsView({ backend, settings, month, hidden, onSelectMonth }:
   const byDay = 'days' in period
   const count = byDay ? period.days : period.months
   // Day ranges end today, or on the last day of a past month being viewed.
-  const end = byDay ? (month === currentMonth() ? today() : `${month}-${String(daysInMonth(month)).padStart(2, '0')}`) : month
+  const lastDay = month === currentMonth() ? today() : `${month}-${String(daysInMonth(month)).padStart(2, '0')}`
+  const end = byDay ? shiftDay(lastDay, -('back' in period ? period.back : 0)) : month
   const from = byDay ? shiftDay(end, -(count - 1)) : shiftMonth(month, -(count - 1))
   // The same length before, to compare against, and everything from the opening for balances.
   const prevFrom = byDay ? shiftDay(from, -count) : shiftMonth(from, -count)
@@ -49,7 +50,7 @@ export function ReportsView({ backend, settings, month, hidden, onSelectMonth }:
       return {
         month: k,
         label: byDay ? shortDay(k, count < 7) : shortMonth(k),
-        income: list.filter((t) => t.kind === 'income').reduce((a, t) => a + t.amount, 0),
+        income: list.filter(countsAsIncome).reduce((a, t) => a + t.amount, 0),
         expense: spentIn(list),
         saved: savedIn(list, settings),
         value: settings.accounts.reduce((a, acc) => a + (capitalAt.accounts[acc.name] ?? 0), 0),

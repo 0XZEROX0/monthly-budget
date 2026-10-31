@@ -189,7 +189,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
     if (time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return void showAlert(clock12 ? 'Type the time like 09:30 and pick AM or PM.' : 'Type the time like 09:30 or 21:15.')
     const base = { amount: value, date, ...(time && { time }), description: description.trim(), category: '' }
     let t: NewTransaction
-    if (tab === 'expense' || tab === 'income') t = { ...base, kind: tab, category, account, ...(tab === 'expense' && notSpending && { notSpending: true }) }
+    if (tab === 'expense' || tab === 'income') t = { ...base, kind: tab, category, account, ...(notSpending && { notSpending: true }) }
     else if (tab === 'transfer') {
       if (account === toAccount) return void showAlert('Pick two different accounts.')
       t = { ...base, kind: 'transfer', account, toAccount }
@@ -375,11 +375,15 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
           <span className="field-label">Note</span>
           <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What was it for? (optional)" />
         </label>
-        {tab === 'expense' && (
+        {(tab === 'expense' || tab === 'income') && (
           <label className="edit-row toggle-row">
             <span className="grow">
-              Don't count as an expense
-              <span className="muted small block">It still comes out of {account || 'the account'}, but stays out of spending, budgets and charts.</span>
+              {tab === 'expense' ? "Don't count as an expense" : "Don't count as income"}
+              <span className="muted small block">
+                {tab === 'expense'
+                  ? `It still comes out of ${account || 'the account'}, but stays out of spending, budgets and charts.`
+                  : `It still goes into ${account || 'the account'}, but stays out of income, the plan and charts.`}
+              </span>
             </span>
             <input type="checkbox" role="switch" checked={notSpending} onChange={(e) => setNotSpending(e.target.checked)} />
           </label>
