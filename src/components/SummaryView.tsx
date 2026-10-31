@@ -390,13 +390,16 @@ const SECTION_WEIGHT: Partial<Record<SectionKey, number>> = { pace: 7, saved: 6,
  * in the user's order, each one going to the shortest column so far.
  */
 function DeskColumns({ keys, sections, weight }: { keys: SectionKey[]; sections: Record<SectionKey, ReactNode>; weight: (k: SectionKey) => number }) {
-  const [cols, setCols] = useState(() => (typeof matchMedia === 'function' && matchMedia('(min-width: 1500px)').matches ? 3 : 2))
+  // Columns follow the space this page actually has, which the Reports panel narrows.
+  const [width, setWidth] = useState(0)
+  const [box, setBox] = useState<HTMLDivElement | null>(null)
   useEffect(() => {
-    const mq = matchMedia('(min-width: 1500px)')
-    const on = () => setCols(mq.matches ? 3 : 2)
-    mq.addEventListener('change', on)
-    return () => mq.removeEventListener('change', on)
-  }, [])
+    if (!box) return
+    const ro = new ResizeObserver(([e]) => setWidth(e.contentRect.width))
+    ro.observe(box)
+    return () => ro.disconnect()
+  }, [box])
+  const cols = width >= 1150 ? 3 : width >= 640 ? 2 : 1
   const top = keys.filter((k) => k === 'hero')
   const columns: SectionKey[][] = Array.from({ length: cols }, () => [])
   const heights = new Array(cols).fill(0)
@@ -413,7 +416,7 @@ function DeskColumns({ keys, sections, weight }: { keys: SectionKey[]; sections:
           {sections[k]}
         </div>
       ))}
-      <div className="desk-columns" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+      <div className="desk-columns" ref={setBox} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
         {columns.map((list, i) => (
           <div className="stack" key={i}>
             {list.map((k) => (

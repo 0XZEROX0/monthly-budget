@@ -30,6 +30,8 @@ import { ask, showAlert } from './dialog'
 type Tab = 'summary' | 'transactions' | 'plan' | 'reports' | 'settings'
 
 const PRIVACY_KEY = 'budget-app:privacy'
+/** From this width the desktop website shows Reports as a panel on the right. */
+const PANEL_QUERY = '(min-width: 1280px)'
 
 // Stroke icons drawn on a 24x24 grid.
 const TABS: { id: Tab; label: string; icon: string }[] = [
@@ -71,6 +73,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   useEffect(() => shareWithWatch({ hidden }), [hidden])
   const { scroller, content } = usePull<HTMLDivElement, HTMLDivElement>()
   const desktop = useDesktop()
+  const wideDesk = useDesktop(PANEL_QUERY)
   // Set when a Summary row is tapped: the Transactions tab then shows only its entries.
   const [focus, setFocus] = useState<ListFocus | null>(null)
   const openFocus = (f: ListFocus) => {
@@ -152,10 +155,14 @@ export function MonthView({ backend, user, onSignOut }: Props) {
     </button>
   )
 
+  // On a wide desktop screen Reports sits in its own panel on the right, so it isn't a page.
+  const withPanel = desktop && wideDesk
+  const view: Tab = withPanel && tab === 'reports' ? 'summary' : tab
+
   const page =
     loading || !summary ? (
       <p className="center muted">Loading…</p>
-    ) : tab === 'summary' ? (
+    ) : view === 'summary' ? (
       <div className="stack">
         <PendingSms sms={sms} onAdd={setFromSms} onOpen={() => setTab('transactions')} />
         <SummaryView
@@ -178,7 +185,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
           }}
         />
       </div>
-    ) : tab === 'transactions' ? (
+    ) : view === 'transactions' ? (
       <div className="stack">
         {!focus && <PendingSms sms={sms} onAdd={setFromSms} />}
         <TransactionList
@@ -195,9 +202,9 @@ export function MonthView({ backend, user, onSignOut }: Props) {
           }}
         />
       </div>
-    ) : tab === 'plan' ? (
+    ) : view === 'plan' ? (
       <PlanEditor backend={backend} month={month} plan={plan} settings={settings} />
-    ) : tab === 'reports' ? (
+    ) : view === 'reports' ? (
       <ReportsView backend={backend} settings={settings} month={month} hidden={hidden} onSelectMonth={(m) => {
         setMonth(m)
         setTab('summary')
@@ -239,9 +246,9 @@ export function MonthView({ backend, user, onSignOut }: Props) {
 
   // The website on a wide screen: a sidebar of pages on the left and the page using the full width.
   if (desktop) {
-    const current = TABS.find((t) => t.id === tab)!
+    const current = TABS.find((t) => t.id === view)!
     return (
-      <div className="desk">
+      <div className={`desk ${withPanel ? 'with-panel' : ''}`}>
         <aside className="sidebar">
           <div className="brand">
             <img src="./favicon.svg" alt="" width={34} height={34} />
@@ -251,8 +258,8 @@ export function MonthView({ backend, user, onSignOut }: Props) {
             <span aria-hidden>+</span> Add transaction
           </button>
           <nav className="side-nav" aria-label="Pages">
-            {TABS.map((t) => (
-              <button key={t.id} className={t.id === tab ? 'active' : ''} aria-current={t.id === tab ? 'page' : undefined} onClick={() => openTab(t.id)}>
+            {TABS.filter((t) => !(withPanel && t.id === 'reports')).map((t) => (
+              <button key={t.id} className={t.id === view ? 'active' : ''} aria-current={t.id === view ? 'page' : undefined} onClick={() => openTab(t.id)}>
                 <svg viewBox="0 0 24 24" aria-hidden>
                   <path d={t.icon} />
                 </svg>
@@ -293,9 +300,15 @@ export function MonthView({ backend, user, onSignOut }: Props) {
               </button>
               {privacyButton}
             </header>
-            <main className={`desk-content page-${tab}`}>{page}</main>
+            <main className={`desk-content page-${view}`}>{page}</main>
           </div>
         </div>
+        {withPanel && settings && (
+          <aside className="report-panel" aria-label="Reports">
+            <h2 className="report-panel-title">Reports</h2>
+            <ReportsView backend={backend} settings={settings} month={month} hidden={hidden} onSelectMonth={setMonth} />
+          </aside>
+        )}
         {overlays}
       </div>
     )
