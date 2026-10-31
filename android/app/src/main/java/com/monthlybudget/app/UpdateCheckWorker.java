@@ -21,19 +21,25 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.json.JSONObject;
 
 /**
- * Twice a day, with the app closed, asks GitHub for the latest build (the same release
- * src/data/appUpdate.ts reads) and posts one notification per new build. Tapping it
- * opens the app, which then shows its update popup.
+ * Every few hours, with the app closed, asks GitHub for the latest build (the same release
+ * src/data/appUpdate.ts reads) and posts one notification per new build, with the first
+ * lines of its What's new list. Tapping it opens the app, which then shows its update popup.
+ * Settings › App can turn it off.
  */
 public class UpdateCheckWorker extends Worker {
     private static final String RELEASE_API = "https://api.github.com/repos/0XZEROX0/monthly-budget/releases/tags/android";
     private static final String CHANNEL = "updates";
     private static final String WORK = "update-check";
+    /** One small request to GitHub this often; Android may stretch it to save battery. */
+    private static final int HOURS = 6;
 
     public UpdateCheckWorker(@NonNull Context ctx, @NonNull WorkerParameters params) {
         super(ctx, params);
@@ -45,10 +51,20 @@ public class UpdateCheckWorker extends Worker {
 
     /** Records the running build and makes sure the check is scheduled. */
     static void watch(Context ctx, int build) {
-        prefs(ctx).edit().putInt("build", build).apply();
+        SharedPreferences p = prefs(ctx);
+        p.edit().putInt("build", build).apply();
         Constraints net = new Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build();
-        PeriodicWorkRequest req = new PeriodicWorkRequest.Builder(UpdateCheckWorker.class, 12, TimeUnit.HOURS).setConstraints(net).build();
-        WorkManager.getInstance(ctx).enqueueUniquePeriodicWork(WORK, ExistingPeriodicWorkPolicy.KEEP, req);
+        PeriodicWorkRequest req = new PeriodicWorkRequest.Builder(UpdateCheckWorker.class, HOURS, TimeUnit.HOURS).setConstraints(net).build();
+        // Replaces a schedule left by an older build with a different interval; otherwise keeps it.
+        boolean current = p.getInt("hours", 0) == HOURS;
+        WorkManager.getInstance(ctx).enqueueUniquePeriodicWork(WORK, current ? ExistingPeriodicWorkPolicy.KEEP : ExistingPeriodicWorkPolicy.UPDATE, req);
+        p.edit().putInt("hours", HOURS).apply();
+    }
+
+    /** Stops the background check (update notifications turned off). */
+    static void stop(Context ctx) {
+        WorkManager.getInstance(ctx).cancelUniqueWork(WORK);
+        prefs(ctx).edit().remove("hours").apply();
     }
 
     @NonNull
@@ -71,20 +87,30 @@ public class UpdateCheckWorker extends Worker {
             } finally {
                 c.disconnect();
             }
+            JSONObject rel = new JSONObject(body);
             // The title reads "Monthly Budget for Android (build N)".
-            Matcher m = Pattern.compile("\"name\"\\s*:\\s*\"[^\"]*build (\\d+)").matcher(body);
+            Matcher m = Pattern.compile("build (\\d+)").matcher(rel.optString("name"));
             if (!m.find()) return Result.success();
             int latest = Integer.parseInt(m.group(1));
-            if (latest <= p.getInt("build", 0) || latest <= p.getInt("notified", 0)) return Result.success();
+            int running = p.getInt("build", 0);
+            if (latest <= running || latest <= p.getInt("notified", 0)) return Result.success();
             p.edit().putInt("notified", latest).apply();
-            notify(ctx, latest);
+            notify(ctx, latest, changes(rel.optString("body"), running));
         } catch (Exception e) {
             return Result.retry();
         }
         return Result.success();
     }
 
-    private static void notify(Context ctx, int build) {
+    /** The What's new lines ("- 31|Reports: …") newer than the running build, newest first. */
+    private static List<String> changes(String notes, int running) {
+        List<String> out = new ArrayList<>();
+        Matcher m = Pattern.compile("(?m)^- (\\d+)\\|(.+)$").matcher(notes);
+        while (m.find()) if (Integer.parseInt(m.group(1)) > running) out.add(m.group(2).trim());
+        return out;
+    }
+
+    private static void notify(Context ctx, int build, List<String> changes) {
         NotificationManagerCompat nm = NotificationManagerCompat.from(ctx);
         if (!nm.areNotificationsEnabled()) return;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -96,9 +122,16 @@ public class UpdateCheckWorker extends Worker {
         NotificationCompat.Builder n = new NotificationCompat.Builder(ctx, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_budget)
             .setContentTitle("Monthly Budget update is out")
-            .setContentText("Build " + build + " is ready. Tap to update.")
+            .setContentText(changes.isEmpty() ? "Build " + build + " is ready. Tap to update." : changes.get(0))
             .setContentIntent(tap)
             .setAutoCancel(true);
+        if (!changes.isEmpty()) {
+            // Expanded: up to four changes, then how many more.
+            StringBuilder text = new StringBuilder("Build " + build + " is ready. What's new:");
+            for (int i = 0; i < Math.min(4, changes.size()); i++) text.append("\n• ").append(changes.get(i));
+            if (changes.size() > 4) text.append("\nand ").append(changes.size() - 4).append(" more");
+            n.setStyle(new NotificationCompat.BigTextStyle().bigText(text));
+        }
         try {
             nm.notify(300_000, n.build());
         } catch (SecurityException ignored) {

@@ -4,6 +4,7 @@ import { CapacitorUpdater } from '@capgo/capacitor-updater'
 import { useEffect, useState } from 'react'
 import { applyWebUpdate, BUILD, checkForUpdate, type Available } from '../data/appUpdate'
 import { AppUpdater } from '../native/appUpdater'
+import { notificationsAllowed } from '../native/notify'
 
 type Status =
   | { state: 'idle' | 'checking' | 'latest' }
@@ -13,6 +14,32 @@ type Status =
   | { state: 'error'; message: string }
 
 const mb = (bytes: number) => `${(bytes / 1_048_576).toFixed(1)} MB`
+
+// Update notifications are a per-phone choice, on unless turned off in Settings › App.
+const NOTIFY_KEY = 'update-notify'
+const ASKED_KEY = 'update-notify-asked'
+const stored = (key: string) => {
+  try {
+    return localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+const store = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    // Private mode or blocked storage: the choice lasts until the app closes.
+  }
+}
+const notifyOn = () => stored(NOTIFY_KEY) !== 'off'
+
+/** Starts the background check; `ask` shows Android's notification prompt if it hasn't answered yet. */
+async function watchUpdates(ask: boolean): Promise<boolean> {
+  const allowed = await notificationsAllowed(ask).catch(() => false)
+  if (BUILD) await AppUpdater.watchForUpdates({ build: BUILD }).catch(() => {})
+  return allowed
+}
 const MAX_CHANGES = 6
 
 /** The update's "What's new" list, trimmed to the latest few. */
@@ -82,7 +109,19 @@ function useUpdater() {
 /** Settings › App: the running build, and updating it without leaving the app. Android only. */
 export function UpdateCard() {
   const { status, check, install } = useUpdater()
+  const [notify, setNotify] = useState(notifyOn)
+  const [blocked, setBlocked] = useState(false)
+  useEffect(() => {
+    if (Capacitor.isNativePlatform() && notify) notificationsAllowed(false).then((ok) => setBlocked(!ok), () => {})
+  }, [notify])
   if (!Capacitor.isNativePlatform()) return null
+
+  const toggleNotify = async (on: boolean) => {
+    setNotify(on)
+    store(NOTIFY_KEY, on ? 'on' : 'off')
+    if (on) setBlocked(!(await watchUpdates(true)))
+    else await AppUpdater.stopWatchingUpdates().catch(() => {})
+  }
 
   return (
     <section className="card">
@@ -113,6 +152,14 @@ export function UpdateCard() {
       )}
       {status.state === 'latest' && <p className="muted small">You have the latest version.</p>}
       {status.state === 'error' && <p className="error small">{status.message}</p>}
+      <label className="edit-row toggle-row">
+        <span className="grow">
+          Notify me about new updates
+          <span className="muted small block">Checks every few hours, even with the app closed, and tells you what changed.</span>
+        </span>
+        <input type="checkbox" role="switch" checked={notify} onChange={(e) => toggleNotify(e.target.checked)} />
+      </label>
+      {notify && blocked && <p className="muted small">Notifications are off for Monthly Budget. Allow them in Android's settings to get these.</p>}
     </section>
   )
 }
@@ -127,7 +174,11 @@ export function UpdatePrompt() {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return
     check(true)
-    if (BUILD) AppUpdater.watchForUpdates({ build: BUILD }).catch(() => {})
+    if (notifyOn()) {
+      // Asks for notification permission once, the first time this runs.
+      watchUpdates(!stored(ASKED_KEY))
+      store(ASKED_KEY, '1')
+    }
     // Opened again later (say from the update notification): look again.
     const h = App.addListener('resume', () => check(true))
     return () => {
