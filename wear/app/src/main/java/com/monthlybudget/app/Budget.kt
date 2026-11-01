@@ -167,6 +167,7 @@ object Budget {
             clock12 = doc["clock12"] == true,
             allAccounts = (doc["accounts"] as? List<*>)?.mapNotNull { (it as? Map<*, *>)?.get("name") as? String }?.takeIf { it.isNotEmpty() } ?: d.allAccounts,
             debts = (doc["debts"] as? List<*>)?.mapNotNull { (it as? Map<*, *>)?.get("name") as? String }.orEmpty(),
+            decimals = doc["decimals"] == true,
         )
     }
 

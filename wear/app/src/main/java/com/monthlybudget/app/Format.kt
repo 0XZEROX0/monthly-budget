@@ -6,8 +6,15 @@ import kotlin.math.roundToLong
 
 const val MASK = "••••"
 
-/** 12,345 */
-fun whole(n: Double): String = String.format(Locale.US, "%,d", n.roundToLong())
+/** Whether amounts show two decimals, following the phone's Settings › Show decimals. */
+@Volatile
+var showDecimals = false
+
+/** 12,345, or 12,345.50 with decimals on. */
+fun whole(n: Double): String = if (showDecimals) String.format(Locale.US, "%,.2f", n) else integer(n)
+
+/** 12,345 always: for the keypad and tight spots like complications. */
+fun integer(n: Double): String = String.format(Locale.US, "%,d", n.roundToLong())
 
 /** 950, 12.3K, 1.2M: fits a complication. */
 fun compact(n: Double): String {
@@ -16,7 +23,7 @@ fun compact(n: Double): String {
     return when {
         a >= 1_000_000 -> sign + trim(a / 1_000_000) + "M"
         a >= 1_000 -> sign + trim(a / 1_000) + "K"
-        else -> whole(n)
+        else -> integer(n)
     }
 }
 

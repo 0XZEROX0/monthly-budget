@@ -123,6 +123,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         start = startOf(intent)
+        Store.settings(this) // loads the decimals setting before any amount is drawn
         // For the "update ready" notification.
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -920,7 +921,7 @@ private fun AmountScreen(kind: String, onNext: (Double) -> Unit) {
         verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically),
     ) {
         Text(kind.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.caption3, color = color)
-        Text(if (digits.isEmpty()) "0" else whole(amount), style = MaterialTheme.typography.title2, color = MaterialTheme.colors.onSurface)
+        Text(if (digits.isEmpty()) "0" else integer(amount), style = MaterialTheme.typography.title2, color = MaterialTheme.colors.onSurface)
         val rows = listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf("⌫", "0", "✓"))
         for ((i, keys) in rows.withIndex()) {
             val width = screen * (if (i == rows.lastIndex) 0.54f else 0.62f)

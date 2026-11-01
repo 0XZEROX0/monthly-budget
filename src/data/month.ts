@@ -41,9 +41,14 @@ export function formatMoney(amount: number, currency: string, opts: Intl.NumberF
   }
 }
 
+/** A bare number for tight tiles: 1,284, or 1,284.50 with decimals on. */
+export const formatPlain = (amount: number) => {
+  const digits = decimals ? 2 : 0
+  return amount.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits })
+}
+
 /** Headline figures: $1,284, or $1,284.50 with decimals on. */
-export const formatWhole = (amount: number, currency: string) =>
-  formatMoney(amount, currency, { maximumFractionDigits: 0, minimumFractionDigits: 0 })
+export const formatWhole = (amount: number, currency: string) => formatMoney(amount, currency)
 
 /** Compact, for chart axes: $1.2K */
 export const formatCompact = (amount: number, currency: string) =>

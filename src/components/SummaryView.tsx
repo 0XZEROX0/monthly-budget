@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { categoryIcon } from '../data/icons'
-import { currentMonth, daysInMonth, formatCompact, formatWhole, shiftMonth, shortMonth, today } from '../data/month'
+import { currentMonth, daysInMonth, formatCompact, formatPlain, formatWhole, shiftMonth, shortMonth, today } from '../data/month'
 import { budgetAlerts, countsAsIncome, countsAsSpending, savedIn, spentIn, type CategoryRow, type MonthSummary } from '../data/summary'
 import type { Account, Backend, Settings, Transaction } from '../data/types'
 import { summaryLayout, type SectionKey, type SummaryLayout } from '../data/summaryLayout'
@@ -41,7 +41,7 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
   const money = (n: number) => formatWhole(n, currency)
   const compact = (n: number) => formatCompact(n, currency)
   // Hero tiles are narrow, so they drop the currency the headline already shows.
-  const plain = (n: number) => (hidden ? MASK : Math.round(n).toLocaleString())
+  const plain = (n: number) => (hidden ? MASK : formatPlain(n))
   // Wealth figures that privacy mode hides; budgets and categories stay visible.
   const secret = (n: number) => (hidden ? MASK : money(n))
   const [updating, setUpdating] = useState<Account | null>(null)
@@ -95,7 +95,7 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
           <Stat label="Spent" value={plain(s.spent)} color="var(--expense)" />
           <Stat
             label={s.saved >= 0 ? 'Saved' : 'Overspent'}
-            value={Math.round(Math.abs(s.saved)).toLocaleString()}
+            value={formatPlain(Math.abs(s.saved))}
             tone={s.saved >= 0 ? 'good' : 'bad'}
             sub={s.savingsPct !== null ? `${s.savingsPct >= 0 ? '+' : ''}${s.savingsPct.toFixed(0)}% of income` : undefined}
           />

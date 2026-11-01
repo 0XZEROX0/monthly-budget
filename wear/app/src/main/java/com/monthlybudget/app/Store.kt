@@ -18,6 +18,8 @@ data class WatchSettings(
     val allAccounts: List<String> = accounts,
     /** The phone's debts, by name, for debt payments and borrowing. */
     val debts: List<String> = emptyList(),
+    /** Show amounts with two decimals, like the phone's Settings › Show decimals. */
+    val decimals: Boolean = false,
 ) {
     fun categories(kind: String) = if (kind == "income") income else expense
 
@@ -308,7 +310,8 @@ object Store {
             o.optBoolean("clock12"),
             o.optJSONArray("allAccounts")?.let { a -> (0 until a.length()).map(a::getString) } ?: list("accounts"),
             o.optJSONArray("debts")?.let { a -> (0 until a.length()).map(a::getString) } ?: emptyList(),
-        )
+            o.optBoolean("decimals"),
+        ).also { showDecimals = it.decimals }
     }
 
     fun saveSettings(context: Context, s: WatchSettings) {
@@ -321,7 +324,9 @@ object Store {
             .put("clock12", s.clock12)
             .put("allAccounts", JSONArray(s.allAccounts))
             .put("debts", JSONArray(s.debts))
+            .put("decimals", s.decimals)
         prefs(context).edit().putString("settings", o.toString()).apply()
+        showDecimals = s.decimals
     }
 
     fun queue(context: Context): List<Entry> {
