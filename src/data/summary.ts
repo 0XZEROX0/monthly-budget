@@ -100,10 +100,15 @@ export function balancesThrough(date: string, settings: Settings, history: Trans
 
 const isLiquid = (settings: Settings, name: string) => settings.accounts.find((a) => a.name === name)?.type !== 'investment'
 
-/** Saved in a month: liquidity change, with money moved into investments counted as saved. */
+/**
+ * Saved in a month: liquidity change, with money moved into investments counted as saved.
+ * Entries marked as not counted are left out, so they neither lower nor raise savings,
+ * just as they are left out of spending and income.
+ */
 export function savedIn(txns: Transaction[], settings: Settings): number {
   let saved = 0
   for (const t of txns) {
+    if (t.notSpending) continue
     const e = effects(t, settings)
     for (const [k, v] of Object.entries(e.accounts)) if (isLiquid(settings, k)) saved += v
     if (t.kind === 'transfer' && t.toAccount && isLiquid(settings, t.account ?? '') !== isLiquid(settings, t.toAccount))
