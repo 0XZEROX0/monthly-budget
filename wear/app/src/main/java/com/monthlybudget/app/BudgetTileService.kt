@@ -39,6 +39,7 @@ class BudgetTileService : TileService() {
     override fun onTileRequest(requestParams: RequestBuilders.TileRequest): ListenableFuture<TileBuilders.Tile> =
         SuspendToFutureAdapter.launchFuture(Dispatchers.IO) {
             val context = this@BudgetTileService
+            Store.settings(context) // loads the decimals setting for the amounts below
             // Tapping the number on the tile switches privacy mode.
             val toggled = requestParams.currentState.lastClickableId == PRIVACY
             if (toggled) {
