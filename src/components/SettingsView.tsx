@@ -114,8 +114,6 @@ export function SettingsView({ backend, settings, sms, user, onSignOut, lock, in
         </>,
       )}
 
-      {quickBarSupported && group('quick', 'Quick add', 'A bar in your notifications to add entries fast', '⚡', <QuickBarCard />)}
-
       {group('sms', 'Bank SMS', 'Add entries from your bank and wallet messages', '✉️', <SmsSettingsCard sms={sms} settings={settings} onSave={save} />)}
 
       {group(
@@ -160,9 +158,10 @@ export function SettingsView({ backend, settings, sms, user, onSignOut, lock, in
       {group(
         'app',
         'App',
-        'Updates and erasing your data',
+        quickBarSupported ? 'Quick-add bar, updates and erasing your data' : 'Updates and erasing your data',
         '⚙️',
         <>
+          {quickBarSupported && <QuickBarCard />}
           <UpdateCard />
           <section className="card">
             <h2>Danger zone</h2>

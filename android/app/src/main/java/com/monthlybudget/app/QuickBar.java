@@ -75,6 +75,10 @@ final class QuickBar {
             .setCustomContentView(v)
             .setCustomBigContentView(v)
             .setContentIntent(link(ctx, "monthlybudget://summary", 14))
+            // Swiped away or cleared by mistake: QuickBarReceiver puts it straight back.
+            .setDeleteIntent(PendingIntent.getBroadcast(ctx, 15,
+                new Intent(ctx, QuickBarReceiver.class).setAction(QuickBarReceiver.REPOST),
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT))
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setSilent(true)

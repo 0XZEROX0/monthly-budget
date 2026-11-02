@@ -23,7 +23,8 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onResume() {
         super.onResume();
-        // Android 14+ lets the quick-add bar be swiped away; opening the app brings it back.
+        // The quick-add bar normally comes straight back when cleared; this also covers the
+        // rare case it didn't (e.g. notifications were off for a while).
         QuickBar.show(this);
     }
 }
