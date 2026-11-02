@@ -74,6 +74,8 @@ export interface BankSms {
   /** Messages from the chosen senders that aren't added or skipped yet, newest first. */
   pending: ParsedSms[]
   skip: (p: ParsedSms) => void
+  /** Skips by SMS id, e.g. messages skipped on the watch. */
+  skipIds: (ids: string[]) => void
   refresh: () => void
   error: string
 }
@@ -154,8 +156,10 @@ export function useBankSms(backend: Backend, settings: Settings | null): BankSms
     return fresh.filter((p) => !recorded.has(p.smsId))
   }, [parsed, isWatched, skipped, txns])
 
-  const skip = (p: ParsedSms) => {
-    const next = new Set(skipped).add(p.smsId)
+  const skip = (p: ParsedSms) => skipIds([p.smsId])
+  const skipIds = (ids: string[]) => {
+    if (ids.every((id) => skipped.has(id))) return
+    const next = new Set([...skipped, ...ids])
     setSkipped(next)
     try {
       localStorage.setItem(SKIPPED_KEY, JSON.stringify([...next]))
@@ -181,5 +185,5 @@ export function useBankSms(backend: Backend, settings: Settings | null): BankSms
     }
   }
 
-  return { available: smsAvailable, permission, requestPermission, detectedSenders, isWatched, pending, skip, refresh, error }
+  return { available: smsAvailable, permission, requestPermission, detectedSenders, isWatched, pending, skip, skipIds, refresh, error }
 }

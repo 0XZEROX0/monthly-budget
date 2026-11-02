@@ -7,6 +7,25 @@ interface WearPlugin {
   share(opts: { refreshToken?: string; uid?: string; apiKey?: string; projectId?: string; hidden?: boolean }): Promise<void>
   /** Tells the watch the budget changed, so it fetches just the changes. */
   ping(): Promise<void>
+  /** Bank SMS waiting to be added, as a JSON array of WatchSms. */
+  shareSms(opts: { items: string }): Promise<void>
+  /** SMS ids skipped on the watch. */
+  smsSkipped(): Promise<{ ids: string[] }>
+}
+
+/** A bank SMS for the watch, filled in like the add form would be (wear/.../Sms.kt reads it). */
+export interface WatchSms {
+  smsId: string
+  title: string
+  sub: string
+  body: string
+  kind: string
+  amount: number
+  account: string
+  debt: string
+  category: string
+  description: string
+  date: string
 }
 
 const Wear = registerPlugin<WearPlugin>('Wear')
@@ -45,4 +64,25 @@ export function notifyWatch() {
   if (!Capacitor.isNativePlatform()) return
   clearTimeout(pingTimer)
   pingTimer = setTimeout(() => Wear.ping().catch(() => {}), 3_000)
+}
+
+let lastSms = ''
+
+/** Sends the bank SMS waiting to be added to the watch, so they can be added or skipped there. */
+export function shareSmsWithWatch(items: WatchSms[]) {
+  if (!Capacitor.isNativePlatform()) return
+  const json = JSON.stringify(items)
+  if (json === lastSms) return
+  lastSms = json
+  Wear.shareSms({ items: json }).catch(() => {})
+}
+
+/** SMS ids skipped on the watch, to skip on the phone too. */
+export async function smsSkippedOnWatch(): Promise<string[]> {
+  if (!Capacitor.isNativePlatform()) return []
+  try {
+    return (await Wear.smsSkipped()).ids
+  } catch {
+    return []
+  }
 }
