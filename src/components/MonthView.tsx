@@ -86,6 +86,8 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   }
   // null: form closed; 'new': adding; a transaction: editing it.
   const [editing, setEditing] = useState<Transaction | 'new' | null>(null)
+  // The tab a new entry opens on (the notification bar has a button for each).
+  const [startOn, setStartOn] = useState<StartOn>()
   // A bank SMS being reviewed in the add form.
   const [fromSms, setFromSms] = useState<ParsedSms | null>(null)
 
@@ -156,16 +158,30 @@ export function MonthView({ backend, user, onSignOut }: Props) {
     if (!settings.alerts?.off) alertOnce(month, summary, settings.alerts?.pct ?? 80, settings.currency)
   })
 
-  // The widget's + button opens monthlybudget://add.
+  // The widget's + button opens monthlybudget://add; the notification bar's buttons open
+  // monthlybudget://add/expense, /income, /transfer and monthlybudget://summary.
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return
-    const isAdd = (url?: string) => !!url && url.startsWith('monthlybudget://add')
-    CapApp.getLaunchUrl().then((r) => isAdd(r?.url) && setEditing('new')).catch(() => {})
-    const h = CapApp.addListener('appUrlOpen', ({ url }) => isAdd(url) && setEditing('new'))
+    const open = (url?: string) => {
+      const link = url && parseLink(url)
+      if (!link) return
+      if (link === 'summary') {
+        setEditing(null)
+        setFocus(null)
+        setMonth(currentMonth())
+        setTab('summary')
+        scroller.current?.scrollTo(0, 0)
+        return
+      }
+      setStartOn(link.startOn)
+      setEditing('new')
+    }
+    CapApp.getLaunchUrl().then((r) => open(r?.url)).catch(() => {})
+    const h = CapApp.addListener('appUrlOpen', ({ url }) => open(url))
     return () => {
       h.then((x) => x.remove())
     }
-  }, [])
+  }, [scroller])
 
   const lock = useAppLock()
   if (lock.locked) return <LockScreen onUnlock={lock.unlock} />
@@ -260,11 +276,16 @@ export function MonthView({ backend, user, onSignOut }: Props) {
 
       {editing && settings && (
         <TransactionForm
+          key={editing === 'new' ? `new-${startOn ?? ''}` : editing.id}
           backend={backend}
           settings={settings}
           month={month}
           existing={editing === 'new' ? null : editing}
-          onClose={() => setEditing(null)}
+          startOn={editing === 'new' ? startOn : undefined}
+          onClose={() => {
+            setEditing(null)
+            setStartOn(undefined)
+          }}
         />
       )}
 
@@ -439,6 +460,15 @@ function useStoredFlag(key: string) {
     }
   }
   return [on, set] as const
+}
+
+type StartOn = 'expense' | 'income' | 'transfer'
+
+/** What a monthlybudget:// link from the widget or the notification bar asks for. */
+function parseLink(url: string): 'summary' | { startOn?: StartOn } | null {
+  if (url.startsWith('monthlybudget://summary')) return 'summary'
+  const m = url.match(/^monthlybudget:\/\/add(?:\/(expense|income|transfer))?/)
+  return m ? { startOn: m[1] as StartOn | undefined } : null
 }
 
 function widgetLines(s: MonthSummary, currency: string, hidden: boolean) {

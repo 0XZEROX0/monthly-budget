@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="quick_btn">#2E2E2B</color>
+    <color name="quick_text">#F0EFEC</color>
+    <color name="quick_expense">#F07C7C</color>
+    <color name="quick_income">#5FCB8C</color>
+</resources>
