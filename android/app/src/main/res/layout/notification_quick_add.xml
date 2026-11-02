@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The quick-add bar's buttons (QuickBar.java). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingTop="4dp"
+    android:paddingBottom="4dp">
+
+    <TextView
+        android:id="@+id/quick_expense"
+        style="@style/QuickBarButton"
+        android:contentDescription="Add expense"
+        android:text="− Expense"
+        android:textColor="@color/quick_expense" />
+
+    <TextView
+        android:id="@+id/quick_income"
+        style="@style/QuickBarButton"
+        android:contentDescription="Add income"
+        android:text="+ Income"
+        android:textColor="@color/quick_income" />
+
+    <TextView
+        android:id="@+id/quick_transfer"
+        style="@style/QuickBarButton"
+        android:contentDescription="Add transfer"
+        android:text="⇄ Transfer" />
+
+    <TextView
+        android:id="@+id/quick_summary"
+        style="@style/QuickBarButton"
+        android:contentDescription="See summary"
+        android:text="Summary" />
+</LinearLayout>

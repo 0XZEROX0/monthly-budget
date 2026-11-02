@@ -13,9 +13,17 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(WearPlugin.class);
         registerPlugin(AppLockPlugin.class);
         registerPlugin(WidgetPlugin.class);
+        registerPlugin(QuickBarPlugin.class);
         super.onCreate(savedInstanceState);
         // Android 12+ stretches the whole WebView on overscroll, fixed tab bar and + button
         // included. Turn that off; the page draws its own pull effect on the background.
         getBridge().getWebView().setOverScrollMode(View.OVER_SCROLL_NEVER);
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        // Android 14+ lets the quick-add bar be swiped away; opening the app brings it back.
+        QuickBar.show(this);
     }
 }

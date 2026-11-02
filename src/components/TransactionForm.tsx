@@ -17,6 +17,8 @@ interface Props {
   draft?: { id: string; txn: NewTransaction }
   onSaved?: (t: NewTransaction) => void
   onClose: () => void
+  /** Which tab a new entry starts on, like Income from the notification bar's button. */
+  startOn?: 'expense' | 'income' | 'transfer'
 }
 
 type Tab = 'expense' | 'income' | 'transfer' | 'debt'
@@ -64,7 +66,7 @@ const shiftDay = (iso: string, days: number) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-export function TransactionForm({ backend, settings: saved, month, existing, draft, onSaved, onClose }: Props) {
+export function TransactionForm({ backend, settings: saved, month, existing, draft, onSaved, onClose, startOn }: Props) {
   // Accounts and categories added here show at once, before the saved settings come back.
   const [settings, setSettings] = useState(saved)
   if (saved !== settings && saved.accounts.length >= settings.accounts.length && saved.categories.expense.length >= settings.categories.expense.length && saved.categories.income.length >= settings.categories.income.length) setSettings(saved)
@@ -77,7 +79,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
   const defaultDate = today().startsWith(month) ? today() : `${month}-01`
 
   const init = existing ?? draft?.txn
-  const [tab, setTab] = useState<Tab>(init ? tabOf(init.kind) : 'expense')
+  const [tab, setTab] = useState<Tab>(init ? tabOf(init.kind) : startOn ?? 'expense')
   const [debtMode, setDebtMode] = useState<'repay' | 'borrow'>(init?.kind === 'borrow' ? 'borrow' : 'repay')
   const [amount, setAmount] = useState(init ? String(init.amount) : '')
   const [date, setDate] = useState(init?.date ?? defaultDate)
@@ -95,7 +97,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
     setTime(from12(text, isPm))
   }
   // A draft starts with no category so one has to be picked, unless it remembered one.
-  const [category, setCategory] = useState(draft ? draft.txn.category : existing?.category || settings.categories.expense[0] || '')
+  const [category, setCategory] = useState(draft ? draft.txn.category : existing?.category || settings.categories[!init && startOn === 'income' ? 'income' : 'expense'][0] || '')
   const [account, setAccount] = useState(init?.account ?? liquid[0] ?? accounts[0] ?? '')
   const [toAccount, setToAccount] = useState(init?.toAccount ?? accounts.find((a) => a !== account) ?? '')
   // A transfer fee, saved as its own expense; only offered when adding money going out.

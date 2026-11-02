@@ -24,6 +24,8 @@ public class WidgetPlugin extends Plugin {
             .putBoolean("over", Boolean.TRUE.equals(call.getBoolean("over", false)))
             .apply();
         BudgetWidget.refreshAll(getContext());
+        // The quick-add bar shows the same "left to spend" line.
+        QuickBar.show(getContext());
         call.resolve();
     }
 }
