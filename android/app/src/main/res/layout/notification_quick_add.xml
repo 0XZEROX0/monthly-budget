@@ -12,25 +12,23 @@
         android:id="@+id/quick_expense"
         style="@style/QuickBarButton"
         android:contentDescription="Add expense"
-        android:text="− Expense"
-        android:textColor="@color/quick_expense" />
+        android:text="💸" />
 
     <TextView
         android:id="@+id/quick_income"
         style="@style/QuickBarButton"
         android:contentDescription="Add income"
-        android:text="+ Income"
-        android:textColor="@color/quick_income" />
+        android:text="💰" />
 
     <TextView
         android:id="@+id/quick_transfer"
         style="@style/QuickBarButton"
         android:contentDescription="Add transfer"
-        android:text="⇄ Transfer" />
+        android:text="🔁" />
 
     <TextView
         android:id="@+id/quick_summary"
         style="@style/QuickBarButton"
         android:contentDescription="See summary"
-        android:text="Summary" />
+        android:text="📊" />
 </LinearLayout>

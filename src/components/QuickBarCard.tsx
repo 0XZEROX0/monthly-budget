@@ -30,7 +30,7 @@ export function QuickBarCard() {
       <label className="edit-row toggle-row">
         <span className="grow">
           Quick-add bar
-          <span className="muted small block">Keeps buttons in your notifications to add an expense, income or transfer, or open your summary.</span>
+          <span className="muted small block">Buttons in your notifications: 💸 expense, 💰 income, 🔁 transfer, 📊 summary. Comes back if cleared.</span>
         </span>
         <input type="checkbox" role="switch" disabled={!state} checked={!!state?.on} onChange={(e) => void toggle(e.target.checked)} />
       </label>
