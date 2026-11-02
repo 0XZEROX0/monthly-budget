@@ -46,6 +46,10 @@
                     android:host="*"
                     android:path="/budget/changed"
                     android:scheme="wear" />
+                <data
+                    android:host="*"
+                    android:path="/budget/sms"
+                    android:scheme="wear" />
             </intent-filter>
         </service>
 

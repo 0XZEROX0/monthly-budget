@@ -106,7 +106,10 @@ private sealed interface Screen {
     data object Home : Screen
     /** With a bill: its amount wasn't set, so it's typed here and then confirmed. */
     data class Amount(val kind: String, val bill: Bill? = null) : Screen
-    data class Category(val kind: String, val amount: Double) : Screen
+    /** With [preset]: a bank SMS (or an entry being changed) whose id, account and note are kept. */
+    data class Category(val kind: String, val amount: Double, val preset: Entry? = null) : Screen
+    data object SmsList : Screen
+    data class SmsReview(val item: SmsItem) : Screen
     data class Transfer(val amount: Double) : Screen
     data class Debt(val amount: Double) : Screen
     /** A spoken entry or a bill payment, shown before it's saved. */
@@ -166,12 +169,13 @@ private fun App(start: String?, onStarted: () -> Unit, finish: () -> Unit) {
     }
     val scope = rememberCoroutineScope()
     var saving by remember { mutableStateOf(false) }
-    val save: (Entry) -> Unit = { entry ->
+    val save: (Entry, Entry?) -> Unit = { entry, fee ->
         if (!saving) {
             saving = true
             Store.rememberAccount(context, entry.kind, entry.account)
+            if (entry.id.startsWith("sms-")) Sms.markAdded(context, entry.id.removePrefix("sms-"))
             scope.launch {
-                val sent = Budget.add(context, entry)
+                val sent = Budget.add(context, entry, fee)
                 saving = false
                 screen = Screen.Done(sent, entry)
             }
@@ -180,7 +184,8 @@ private fun App(start: String?, onStarted: () -> Unit, finish: () -> Unit) {
     when (val s = screen) {
         Screen.Home -> HomeScreen(
             onAdd = { quick = false; screen = Screen.Amount(it) },
-            onSave = save,
+            onSave = { save(it, null) },
+            onSms = { screen = Screen.SmsList },
             onConfirm = { entry, title -> screen = Screen.Confirm(entry, title) },
             onPickCategory = { kind, amount -> screen = Screen.Category(kind, amount) },
             page = homePage,
@@ -211,16 +216,40 @@ private fun App(start: String?, onStarted: () -> Unit, finish: () -> Unit) {
         }
         is Screen.Category -> {
             BackHandler { screen = Screen.Amount(s.kind) }
-            CategoryScreen(s.kind, s.amount, onSaved = { sent, entry -> screen = Screen.Done(sent, entry) })
+            CategoryScreen(s.kind, s.amount, s.preset, onSave = save)
+        }
+        Screen.SmsList -> {
+            BackHandler { home() }
+            SmsListScreen(onOpen = { screen = Screen.SmsReview(it) }, onEmpty = home)
+        }
+        is Screen.SmsReview -> {
+            BackHandler { screen = Screen.SmsList }
+            SmsReviewScreen(
+                s.item,
+                onAdd = {
+                    val entry = s.item.entry()
+                    screen = when {
+                        // No category remembered for this shop: pick one, as on the phone.
+                        (entry.kind == "expense" || entry.kind == "income") && entry.category.isEmpty() -> Screen.Category(entry.kind, entry.amount, entry)
+                        else -> Screen.Confirm(entry, s.item.title)
+                    }
+                },
+                onSkip = {
+                    scope.launch {
+                        Sms.skip(context, s.item.smsId)
+                        screen = Screen.SmsList
+                    }
+                },
+            )
         }
         is Screen.Confirm -> {
             BackHandler { home() }
             ConfirmScreen(
                 s.title,
                 s.entry,
-                onSave = { save(s.entry) },
+                onSave = { save(s.entry, null) },
                 onChange = if (s.entry.debt.isEmpty() && !s.entry.id.startsWith("bill-")) {
-                    { screen = Screen.Category(s.entry.kind, s.entry.amount) }
+                    { screen = Screen.Category(s.entry.kind, s.entry.amount, s.entry.takeIf { it.id.startsWith("sms-") }) }
                 } else null,
             )
         }
@@ -266,6 +295,7 @@ private fun overBudget(context: android.content.Context, e: Entry): String? {
 private fun HomeScreen(
     onAdd: (String) -> Unit,
     onSave: (Entry) -> Unit,
+    onSms: () -> Unit,
     onConfirm: (Entry, String) -> Unit,
     onPickCategory: (String, Double) -> Unit,
     onPayBill: (Bill) -> Unit,
@@ -284,6 +314,7 @@ private fun HomeScreen(
     var updating by remember { mutableStateOf<String?>(null) }
     val waiting = remember(glance) { Store.queue(context).size }
     var favorites by remember { mutableStateOf(Store.favorites(context)) }
+    var smsWaiting by remember { mutableStateOf(Sms.pending(context).size) }
     val haptics = LocalHapticFeedback.current
     val pin: (Favorite) -> Unit = { f ->
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -295,6 +326,11 @@ private fun HomeScreen(
     LaunchedEffect(Unit) {
         // Refresh every time the app comes back on screen.
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            smsWaiting = Sms.pending(context).size
+            launch {
+                Sms.pull(context)
+                smsWaiting = Sms.pending(context).size
+            }
             status = if (glance == null) "Loading…" else null
             status = try {
                 glance = Budget.refresh(context)
@@ -423,6 +459,18 @@ private fun HomeScreen(
                             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                                 AddButton("⇄", "Add transfer", TransferColor) { onAdd("transfer") }
                                 AddButton("💳", "Add debt payment or borrowing", DebtColor) { onAdd("debt") }
+                            }
+                        }
+                        if (smsWaiting > 0) {
+                            item {
+                                Chip(
+                                    onClick = onSms,
+                                    label = { Text("$smsWaiting bank ${if (smsWaiting == 1) "SMS" else "messages"}", maxLines = 1) },
+                                    secondaryLabel = { Text("Tap to add or skip", maxLines = 1) },
+                                    icon = { Text("✉️", fontSize = 16.sp) },
+                                    colors = ChipDefaults.secondaryChipColors(),
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
                             }
                         }
                         if (waiting > 0) {
@@ -882,7 +930,7 @@ private fun ConfirmScreen(title: String, entry: Entry, onSave: () -> Unit, onCha
         Text(title, style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant, maxLines = 2, textAlign = TextAlign.Center)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             IconBadge(entryIcon(entry), color, 32.dp)
-            Text(kindSign(entry.kind) + whole(entry.amount), style = MaterialTheme.typography.title2, color = color)
+            Text(kindSign(entry.kind) + exact(entry.amount), style = MaterialTheme.typography.title2, color = color)
         }
         Text(entryLine(entry), style = MaterialTheme.typography.caption2, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
@@ -904,33 +952,56 @@ private fun IconBadge(icon: String, tint: Color, size: Dp = 26.dp) {
 }
 
 /**
- * A keypad sized to the screen and kept inside the circle: the bottom row, with ⌫ and ✓,
- * is narrower so its keys don't fall off the round edge. Whole amounts, as the sheet uses.
+ * A keypad sized to the screen and kept inside the circle: the bottom row, with . 0 ✓, is
+ * narrower so its keys don't fall off the round edge. ⌫ sits next to the amount; hold it to clear.
  */
 @Composable
 private fun AmountScreen(kind: String, onNext: (Double) -> Unit) {
-    var digits by remember { mutableStateOf("") }
+    var typed by remember { mutableStateOf("") }
     val haptics = LocalHapticFeedback.current
     val color = kindColor(kind)
-    val amount = digits.toDoubleOrNull() ?: 0.0
+    val amount = typed.toDoubleOrNull() ?: 0.0
     val screen = LocalConfiguration.current.screenHeightDp.dp
-    val keyHeight = screen * 0.13f
+    val keyHeight = screen * 0.145f
+    val press: (String) -> Unit = { key ->
+        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        val decimals = typed.substringAfter('.', "")
+        when {
+            key == "⌫" -> typed = typed.dropLast(1)
+            key == "✓" -> onNext(amount)
+            key == "." -> if ('.' !in typed) typed = typed.ifEmpty { "0" } + "."
+            // Up to two decimals, and nine whole digits.
+            '.' in typed -> if (decimals.length < 2) typed += key
+            typed.length < 9 && !(typed.isEmpty() && key == "0") -> typed += key
+        }
+    }
     Column(
         Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically),
     ) {
         Text(kind.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.caption3, color = color)
-        Text(if (digits.isEmpty()) "0" else integer(amount), style = MaterialTheme.typography.title2, color = MaterialTheme.colors.onSurface)
-        val rows = listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf("⌫", "0", "✓"))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(typedAmount(typed), style = MaterialTheme.typography.title2, color = MaterialTheme.colors.onSurface)
+            Box(
+                Modifier
+                    .size(keyHeight * 0.8f)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colors.surface.copy(alpha = 0.6f))
+                    .combinedClickable(onLongClick = { typed = "" }, onClick = { press("⌫") })
+                    .semantics { contentDescription = "Delete" },
+                contentAlignment = Alignment.Center,
+            ) { Text("⌫", fontSize = 15.sp) }
+        }
+        val rows = listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf(".", "0", "✓"))
         for ((i, keys) in rows.withIndex()) {
-            val width = screen * (if (i == rows.lastIndex) 0.54f else 0.62f)
+            val width = screen * (if (i == rows.lastIndex) 0.58f else 0.72f)
             Row(Modifier.width(width), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                 for (key in keys) {
                     val enabled = key != "✓" || amount > 0
                     val background = when {
                         key == "✓" && enabled -> color
-                        key == "✓" || key == "⌫" -> MaterialTheme.colors.surface.copy(alpha = 0.6f)
+                        key == "✓" -> MaterialTheme.colors.surface.copy(alpha = 0.6f)
                         else -> MaterialTheme.colors.surface
                     }
                     Box(
@@ -939,22 +1010,10 @@ private fun AmountScreen(kind: String, onNext: (Double) -> Unit) {
                             .height(keyHeight)
                             .clip(RoundedCornerShape(keyHeight / 2))
                             .background(background)
-                            .combinedClickable(
-                                enabled = enabled,
-                                // Hold ⌫ to clear.
-                                onLongClick = { if (key == "⌫") digits = "" },
-                                onClick = {
-                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    when (key) {
-                                        "⌫" -> digits = digits.dropLast(1)
-                                        "✓" -> onNext(amount)
-                                        else -> if (digits.length < 9 && !(digits.isEmpty() && key == "0")) digits += key
-                                    }
-                                },
-                            ),
+                            .combinedClickable(enabled = enabled, onClick = { press(key) }),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(key, fontSize = 15.sp, color = if (key == "✓" && enabled) Color.Black else MaterialTheme.colors.onSurface)
+                        Text(key, fontSize = 18.sp, color = if (key == "✓" && enabled) Color.Black else MaterialTheme.colors.onSurface)
                     }
                 }
             }
@@ -962,44 +1021,106 @@ private fun AmountScreen(kind: String, onNext: (Double) -> Unit) {
     }
 }
 
-/** Tap a category to save. The account chip switches between Cash, Bank and so on. */
+/** What's typed so far with thousands separators, keeping a trailing dot or zero: 1,250.5 */
+private fun typedAmount(typed: String): String {
+    if (typed.isEmpty()) return "0"
+    val whole = typed.substringBefore('.').toLongOrNull() ?: 0L
+    return String.format(Locale.US, "%,d", whole) + if ('.' in typed) "." + typed.substringAfter('.') else ""
+}
+
+/** The fee picked for money going out: none, InstaPay, E-wallet or one of the phone's own. */
+private class FeeChoice(private val settings: WatchSettings, account: String) {
+    var id by mutableStateOf(defaultFee(account, settings.fees))
+    private var touched = false
+    val template get() = feeTemplates(settings).firstOrNull { it.id == id }
+
+    /** A new account brings its usual fee, unless one was picked by hand. */
+    fun follow(account: String) {
+        if (!touched) id = defaultFee(account, settings.fees)
+    }
+
+    fun next() {
+        val ids = listOf<String?>(null) + feeTemplates(settings).map { it.id }
+        id = ids[(ids.indexOf(id) + 1) % ids.size]
+        touched = true
+    }
+
+    fun entry(main: Entry) = template?.let { feeEntry(main, it, settings) }
+}
+
 @Composable
-private fun CategoryScreen(kind: String, amount: Double, onSaved: (Boolean, Entry) -> Unit) {
+private fun FeeChip(fee: FeeChoice, amount: Double) {
+    CompactChip(
+        onClick = fee::next,
+        label = { Text(fee.template?.let { "+ ${exact(feeFor(it, amount))} ${it.name} fee  ⇄" } ?: "No fee  ⇄", maxLines = 1) },
+        colors = ChipDefaults.secondaryChipColors(),
+    )
+}
+
+/** "Counts as expense" or "Not counted": the phone's "Don't count as expense/income". */
+@Composable
+private fun CountsChip(kind: String, counts: Boolean, onToggle: () -> Unit) {
+    CompactChip(
+        onClick = onToggle,
+        label = { Text(if (counts) "✓ Counts as $kind" else "✗ Not counted as $kind", maxLines = 1) },
+        colors = ChipDefaults.secondaryChipColors(),
+    )
+}
+
+/** Tap a category to save. The chips above switch the account, the fee and whether it counts. */
+@Composable
+private fun CategoryScreen(kind: String, amount: Double, preset: Entry?, onSave: (Entry, Entry?) -> Unit) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
     val settings = remember { Store.settings(context) }
     // The phone's order: hold and drag a category there to change it.
     val categories = remember { settings.categories(kind) }
     var account by remember {
-        mutableStateOf(Store.lastAccount(context, kind)?.takeIf { it in settings.accounts } ?: settings.accounts.first())
+        mutableStateOf(
+            preset?.account?.takeIf { it.isNotEmpty() }
+                ?: Store.lastAccount(context, kind)?.takeIf { it in settings.accounts }
+                ?: settings.accounts.first(),
+        )
     }
-    var saving by remember { mutableStateOf(false) }
+    val fee = remember { FeeChoice(settings, account) }
+    var counts by remember { mutableStateOf(preset?.notSpending != true) }
     val listState = rememberScalingLazyListState()
-    val color = if (kind == "income") IncomeColor else ExpenseColor
+    val color = kindColor(kind)
 
     Scaffold(positionIndicator = { PositionIndicator(scalingLazyListState = listState) }) {
         ScalingLazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-            item { Text("${whole(amount)} ${settings.currency}", style = MaterialTheme.typography.title3, color = color) }
+            item { Text("${exact(amount)} ${settings.currency}", style = MaterialTheme.typography.title3, color = color) }
+            preset?.description?.takeIf { it.isNotEmpty() }?.let { note ->
+                item { Text(note, style = MaterialTheme.typography.caption2, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            }
             item {
                 CompactChip(
                     onClick = {
                         val i = settings.accounts.indexOf(account)
                         account = settings.accounts[(i + 1) % settings.accounts.size]
+                        fee.follow(account)
                     },
                     label = { Text(categoryIcon(account) + (if (kind == "income") " Into " else " From ") + account + if (settings.accounts.size > 1) "  ⇄" else "") },
                     colors = ChipDefaults.secondaryChipColors(),
                 )
             }
+            if (kind == "expense") item { FeeChip(fee, amount) }
+            item { CountsChip(kind, counts) { counts = !counts } }
             items(categories) { category ->
                 Chip(
                     onClick = {
-                        if (saving) return@Chip
-                        saving = true
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        Store.rememberAccount(context, kind, account)
-                        val entry = Entry(newId(), kind, amount, category, account, LocalDate.now().toString())
-                        scope.launch { onSaved(Budget.add(context, entry), entry) }
+                        val entry = Entry(
+                            id = preset?.id ?: newId(),
+                            kind = kind,
+                            amount = amount,
+                            category = category,
+                            account = account,
+                            date = preset?.date ?: LocalDate.now().toString(),
+                            description = preset?.description ?: "",
+                            notSpending = !counts,
+                        )
+                        onSave(entry, if (kind == "expense") fee.entry(entry) else null)
                     },
                     label = { Text(category, style = MaterialTheme.typography.caption1, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     icon = { IconBadge(categoryIcon(category), color) },
@@ -1014,7 +1135,7 @@ private fun CategoryScreen(kind: String, amount: Double, onSaved: (Boolean, Entr
 
 /** Moves money between two accounts, investments included. Tap a chip to change the account. */
 @Composable
-private fun TransferScreen(amount: Double, onSave: (Entry) -> Unit) {
+private fun TransferScreen(amount: Double, onSave: (Entry, Entry?) -> Unit) {
     val context = LocalContext.current
     val settings = remember { Store.settings(context) }
     val accounts = settings.allAccounts
@@ -1022,16 +1143,18 @@ private fun TransferScreen(amount: Double, onSave: (Entry) -> Unit) {
         mutableStateOf(Store.lastAccount(context, "transfer")?.takeIf { it in accounts } ?: settings.accounts.firstOrNull { it in accounts } ?: accounts.first())
     }
     var to by remember { mutableStateOf(accounts.firstOrNull { it != from } ?: "") }
+    val fee = remember { FeeChoice(settings, from) }
     val others = accounts.filter { it != from }
     val listState = rememberScalingLazyListState()
     Scaffold(positionIndicator = { PositionIndicator(scalingLazyListState = listState) }) {
         ScalingLazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-            item { Text("${whole(amount)} ${settings.currency}", style = MaterialTheme.typography.title3, color = TransferColor) }
+            item { Text("${exact(amount)} ${settings.currency}", style = MaterialTheme.typography.title3, color = TransferColor) }
             item {
                 Chip(
                     onClick = {
                         from = accounts[(accounts.indexOf(from) + 1) % accounts.size]
                         if (to == from) to = accounts.firstOrNull { it != from } ?: ""
+                        fee.follow(from)
                     },
                     label = { Text("From") },
                     secondaryLabel = { Text(categoryIcon(from) + " " + from) },
@@ -1048,9 +1171,13 @@ private fun TransferScreen(amount: Double, onSave: (Entry) -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
+            item { FeeChip(fee, amount) }
             item {
                 CompactChip(
-                    onClick = { onSave(Entry(newId(), "transfer", amount, "", from, LocalDate.now().toString(), toAccount = to)) },
+                    onClick = {
+                        val entry = Entry(newId(), "transfer", amount, "", from, LocalDate.now().toString(), toAccount = to)
+                        onSave(entry, fee.entry(entry))
+                    },
                     enabled = to.isNotEmpty() && to != from,
                     label = { Text("Save") },
                     colors = ChipDefaults.primaryChipColors(backgroundColor = TransferColor, contentColor = Color.Black),
@@ -1062,7 +1189,7 @@ private fun TransferScreen(amount: Double, onSave: (Entry) -> Unit) {
 
 /** Pays toward a debt, or records money borrowed. Tap a debt to save. */
 @Composable
-private fun DebtScreen(amount: Double, onSave: (Entry) -> Unit) {
+private fun DebtScreen(amount: Double, onSave: (Entry, Entry?) -> Unit) {
     val context = LocalContext.current
     val settings = remember { Store.settings(context) }
     var borrowed by remember { mutableStateOf(false) }
@@ -1071,10 +1198,11 @@ private fun DebtScreen(amount: Double, onSave: (Entry) -> Unit) {
     var account by remember {
         mutableStateOf(Store.lastAccount(context, "repay")?.takeIf { it in settings.accounts } ?: settings.accounts.first())
     }
+    val fee = remember { FeeChoice(settings, account) }
     val listState = rememberScalingLazyListState()
     Scaffold(positionIndicator = { PositionIndicator(scalingLazyListState = listState) }) {
         ScalingLazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-            item { Text("${whole(amount)} ${settings.currency}", style = MaterialTheme.typography.title3, color = DebtColor) }
+            item { Text("${exact(amount)} ${settings.currency}", style = MaterialTheme.typography.title3, color = DebtColor) }
             item {
                 CompactChip(
                     onClick = {
@@ -1087,7 +1215,10 @@ private fun DebtScreen(amount: Double, onSave: (Entry) -> Unit) {
             }
             item {
                 CompactChip(
-                    onClick = { account = accounts[(accounts.indexOf(account) + 1) % accounts.size] },
+                    onClick = {
+                        account = accounts[(accounts.indexOf(account) + 1) % accounts.size]
+                        fee.follow(account)
+                    },
                     label = {
                         Text(
                             when {
@@ -1100,14 +1231,16 @@ private fun DebtScreen(amount: Double, onSave: (Entry) -> Unit) {
                     colors = ChipDefaults.secondaryChipColors(),
                 )
             }
+            // A fee only when money goes out.
+            if (!borrowed) item { FeeChip(fee, amount) }
             if (settings.debts.isEmpty()) {
                 item { Text("Add a debt in the phone app first", style = MaterialTheme.typography.caption2, textAlign = TextAlign.Center) }
             }
             items(settings.debts) { debt ->
                 Chip(
                     onClick = {
-                        val kind = if (borrowed) "borrow" else "repay"
-                        onSave(Entry(newId(), kind, amount, "", account, LocalDate.now().toString(), debt = debt))
+                        val entry = Entry(newId(), if (borrowed) "borrow" else "repay", amount, "", account, LocalDate.now().toString(), debt = debt)
+                        onSave(entry, if (borrowed) null else fee.entry(entry))
                     },
                     label = { Text(debt, style = MaterialTheme.typography.caption1, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     icon = { IconBadge(categoryIcon(debt), DebtColor) },
@@ -1115,6 +1248,54 @@ private fun DebtScreen(amount: Double, onSave: (Entry) -> Unit) {
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                     modifier = Modifier.fillMaxWidth().height(42.dp),
                 )
+            }
+        }
+    }
+}
+
+/** Bank messages the phone read and hasn't added yet. Tap one to add or skip it. */
+@Composable
+private fun SmsListScreen(onOpen: (SmsItem) -> Unit, onEmpty: () -> Unit) {
+    val context = LocalContext.current
+    val items = remember { Sms.pending(context) }
+    LaunchedEffect(items) { if (items.isEmpty()) onEmpty() }
+    val listState = rememberScalingLazyListState()
+    Scaffold(positionIndicator = { PositionIndicator(scalingLazyListState = listState) }) {
+        ScalingLazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+            item { Text("Bank SMS", style = MaterialTheme.typography.title3) }
+            items(items) { item ->
+                val color = kindColor(item.kind)
+                Chip(
+                    onClick = { onOpen(item) },
+                    label = { Text(item.title, style = MaterialTheme.typography.caption1, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    secondaryLabel = { Text("${if (item.incoming) "+" else "−"}${exact(item.amount)} · ${item.sub}", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    icon = { IconBadge(if (item.incoming) "↓" else "💳", color) },
+                    colors = ChipDefaults.primaryChipColors(backgroundColor = MaterialTheme.colors.surface, contentColor = MaterialTheme.colors.onSurface),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+    }
+}
+
+/** One bank message: what it says, then Add (pick a category if needed) or Skip. */
+@Composable
+private fun SmsReviewScreen(item: SmsItem, onAdd: () -> Unit, onSkip: () -> Unit) {
+    val color = kindColor(item.kind)
+    val listState = rememberScalingLazyListState()
+    Scaffold(positionIndicator = { PositionIndicator(scalingLazyListState = listState) }) {
+        ScalingLazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+            item { Text((if (item.incoming) "+" else "−") + exact(item.amount), style = MaterialTheme.typography.title2, color = color) }
+            item { Text(item.title, style = MaterialTheme.typography.caption1, textAlign = TextAlign.Center, maxLines = 2) }
+            item { Text(item.sub, style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant) }
+            if (item.body.isNotEmpty()) {
+                item { Text(item.body, style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant, maxLines = 6, overflow = TextOverflow.Ellipsis) }
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
+                    CompactChip(onClick = onSkip, label = { Text("Skip") }, colors = ChipDefaults.secondaryChipColors())
+                    CompactChip(onClick = onAdd, label = { Text("Add") }, colors = ChipDefaults.primaryChipColors(backgroundColor = color, contentColor = Color.Black))
+                }
             }
         }
     }
@@ -1129,7 +1310,7 @@ private fun DoneScreen(sent: Boolean, entry: Entry, warning: String?) {
         verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
     ) {
         IconBadge(entryIcon(entry), color, 52.dp)
-        Text(kindSign(entry.kind) + whole(entry.amount), style = MaterialTheme.typography.title2, color = color)
+        Text(kindSign(entry.kind) + exact(entry.amount), style = MaterialTheme.typography.title2, color = color)
         Text(entryLine(entry), style = MaterialTheme.typography.caption2, color = MaterialTheme.colors.onSurfaceVariant)
         Text(if (sent) "✓ Saved" else "✓ Saved · syncs when online", style = MaterialTheme.typography.caption2, textAlign = TextAlign.Center)
         warning?.let { Text("⚠ $it", style = MaterialTheme.typography.caption2, color = ExpenseColor, textAlign = TextAlign.Center) }

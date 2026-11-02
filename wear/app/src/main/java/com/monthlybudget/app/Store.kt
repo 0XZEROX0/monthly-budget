@@ -20,6 +20,8 @@ data class WatchSettings(
     val debts: List<String> = emptyList(),
     /** Show amounts with two decimals, like the phone's Settings › Show decimals. */
     val decimals: Boolean = false,
+    /** The phone user's own fee templates (InstaPay and E-wallet are built in). */
+    val fees: List<FeeTemplate> = emptyList(),
 ) {
     fun categories(kind: String) = if (kind == "income") income else expense
 
@@ -125,6 +127,10 @@ data class Entry(
     val time: String = java.time.LocalTime.now().toString().take(5),
     /** Where a transfer goes. */
     val toAccount: String = "",
+    /** The note, e.g. the shop from a bank SMS or "InstaPay fee". */
+    val description: String = "",
+    /** "Don't count as expense/income": still moves the account, left out of totals. */
+    val notSpending: Boolean = false,
 )
 
 /** Everything the watch keeps on itself. */
@@ -311,6 +317,11 @@ object Store {
             o.optJSONArray("allAccounts")?.let { a -> (0 until a.length()).map(a::getString) } ?: list("accounts"),
             o.optJSONArray("debts")?.let { a -> (0 until a.length()).map(a::getString) } ?: emptyList(),
             o.optBoolean("decimals"),
+            o.optJSONArray("fees")?.let { a ->
+                (0 until a.length()).map { a.getJSONObject(it) }.map {
+                    FeeTemplate(it.getString("id"), it.getString("name"), it.getDouble("pct"), it.optDouble("min").takeIf { v -> !v.isNaN() }, it.optDouble("max").takeIf { v -> !v.isNaN() })
+                }
+            } ?: emptyList(),
         ).also { showDecimals = it.decimals }
     }
 
@@ -325,6 +336,7 @@ object Store {
             .put("allAccounts", JSONArray(s.allAccounts))
             .put("debts", JSONArray(s.debts))
             .put("decimals", s.decimals)
+            .put("fees", JSONArray().also { a -> for (f in s.fees) a.put(JSONObject().put("id", f.id).put("name", f.name).put("pct", f.pct).put("min", f.min ?: JSONObject.NULL).put("max", f.max ?: JSONObject.NULL)) })
         prefs(context).edit().putString("settings", o.toString()).apply()
         showDecimals = s.decimals
     }
@@ -333,7 +345,7 @@ object Store {
         val a = prefs(context).getString("queue", null)?.let(::JSONArray) ?: return emptyList()
         return (0 until a.length()).map {
             val o = a.getJSONObject(it)
-            Entry(o.getString("id"), o.getString("kind"), o.getDouble("amount"), o.getString("category"), o.getString("account"), o.getString("date"), o.optString("debt"), o.optString("time"), o.optString("toAccount"))
+            Entry(o.getString("id"), o.getString("kind"), o.getDouble("amount"), o.getString("category"), o.getString("account"), o.getString("date"), o.optString("debt"), o.optString("time"), o.optString("toAccount"), o.optString("description"), o.optBoolean("notSpending"))
         }
     }
 
@@ -350,7 +362,9 @@ object Store {
                     .put("date", e.date)
                     .put("debt", e.debt)
                     .put("time", e.time)
-                    .put("toAccount", e.toAccount),
+                    .put("toAccount", e.toAccount)
+                    .put("description", e.description)
+                    .put("notSpending", e.notSpending),
             )
         }
         prefs(context).edit().putString("queue", a.toString()).apply()

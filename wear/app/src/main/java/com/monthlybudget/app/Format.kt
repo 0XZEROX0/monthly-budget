@@ -38,3 +38,7 @@ fun clock(time: String, clock12: Boolean): String {
 }
 
 fun leftLabel(g: Glance) = if (g.planned <= 0) "No plan this month" else if (g.left >= 0) "Left to spend" else "Over budget by"
+
+/** An amount as typed: 250, or 250.5 when it has a fraction, whatever Show decimals says. */
+fun exact(n: Double): String =
+    if (n % 1.0 == 0.0) integer(n) else String.format(Locale.US, "%,.2f", n).trimEnd('0').trimEnd('.')

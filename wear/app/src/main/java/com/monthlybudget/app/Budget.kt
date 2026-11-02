@@ -79,14 +79,15 @@ object Budget {
         return withTimeoutOrNull(10_000) { runCatching { refresh(context) }.getOrNull() } ?: cached
     }
 
-    /** Saves the entry on the watch and sends it. Returns false when it's waiting for a connection. */
-    suspend fun add(context: Context, entry: Entry): Boolean {
-        sending.withLock { Store.saveQueue(context, Store.queue(context) + entry) }
+    /** Saves the entry (and its fee, if any) on the watch and sends it. Returns false when it's waiting for a connection. */
+    suspend fun add(context: Context, entry: Entry, fee: Entry? = null): Boolean {
+        val entries = listOfNotNull(entry, fee)
+        sending.withLock { Store.saveQueue(context, Store.queue(context) + entries) }
         // Show it in the figures straight away.
         Store.glance(context)?.let {
             if (it.month != entry.date.substring(0, 7)) return@let
-            Store.saveGlance(context, it + listOf(entry))
-            Store.detail(context)?.let { d -> Store.saveDetail(context, d + entry) }
+            Store.saveGlance(context, it + entries)
+            Store.detail(context)?.let { d -> Store.saveDetail(context, entries.fold(d) { acc, e -> acc + e }) }
         }
         val sent = runCatching { flush(context) }.getOrDefault(false)
         if (!sent) SyncWorker.schedule(context)
@@ -110,7 +111,8 @@ object Budget {
                     if (e.time.isNotEmpty()) put("time", e.time)
                     put("month", e.date.substring(0, 7))
                     put("amount", e.amount)
-                    put("description", "")
+                    put("description", e.description)
+                    if (e.notSpending) put("notSpending", true)
                     put("category", e.category)
                     // Borrowing can come in without going into an account.
                     if (e.account.isNotEmpty()) put("account", e.account)
@@ -168,6 +170,10 @@ object Budget {
             allAccounts = (doc["accounts"] as? List<*>)?.mapNotNull { (it as? Map<*, *>)?.get("name") as? String }?.takeIf { it.isNotEmpty() } ?: d.allAccounts,
             debts = (doc["debts"] as? List<*>)?.mapNotNull { (it as? Map<*, *>)?.get("name") as? String }.orEmpty(),
             decimals = doc["decimals"] == true,
+            fees = (doc["feeTemplates"] as? List<*>)?.mapNotNull { it as? Map<*, *> }?.mapNotNull { f ->
+                val id = f["id"] as? String ?: return@mapNotNull null
+                FeeTemplate(id, f["name"] as? String ?: id, (f["pct"] as? Double) ?: 0.0, f["min"] as? Double, f["max"] as? Double)
+            }.orEmpty(),
         )
     }
 
@@ -304,7 +310,7 @@ object Budget {
     }
 
     private operator fun Detail.plus(e: Entry): Detail {
-        val txn = txn(mapOf("kind" to e.kind, "date" to e.date, "amount" to e.amount, "category" to e.category, "account" to e.account, "toAccount" to e.toAccount, "debt" to e.debt, "time" to e.time))
+        val txn = txn(mapOf("kind" to e.kind, "date" to e.date, "amount" to e.amount, "category" to e.category, "account" to e.account, "toAccount" to e.toAccount, "debt" to e.debt, "time" to e.time, "description" to e.description, "notSpending" to e.notSpending))
         val sign = if (e.kind == "income" || e.kind == "borrow") 1 else -1
         val balances = balances.map {
             when (it.name) {
@@ -316,8 +322,8 @@ object Budget {
         // A bill paid from the watch stops showing as due.
         val base = copy(recent = listOf(txn) + recent, balances = balances, due = due.filter { e.id != "bill-${it.id}-${e.date.take(7)}" })
         return when (e.kind) {
-            "income" -> base.copy(income = income + e.amount)
-            "expense" -> {
+            "income" -> if (e.notSpending) base else base.copy(income = income + e.amount)
+            "expense" -> if (e.notSpending) base else {
                 val has = rows.any { it.category == e.category }
                 val rows = (if (has) rows else rows + CategoryRow(e.category, 0.0, 0.0))
                     .map { if (it.category == e.category) it.copy(actual = it.actual + e.amount) else it }
@@ -329,7 +335,7 @@ object Budget {
 
     /** Adds entries that Firestore doesn't have yet. */
     private operator fun Glance.plus(entries: List<Entry>) =
-        copy(spent = spent + entries.filter { it.kind == "expense" && it.date.startsWith(month) }.sumOf { it.amount })
+        copy(spent = spent + entries.filter { it.kind == "expense" && !it.notSpending && it.date.startsWith(month) }.sumOf { it.amount })
 }
 
 /** Redraws the tile and complication. */
