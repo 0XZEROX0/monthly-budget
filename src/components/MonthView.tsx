@@ -1,16 +1,16 @@
 import { App as CapApp } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
 import type { User } from 'firebase/auth'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { describe, draftFor, smsSettings, smsTxnId, useBankSms } from '../data/bankSms'
 import { emptyPlan } from '../data/defaults'
 import { usePlan, useRange, useSettings, useTransactions } from '../data/hooks'
-import { currentMonth, formatWhole, monthLabel, shiftMonth } from '../data/month'
+import { currentMonth, dayLabel, formatWhole, monthLabel, shiftMonth } from '../data/month'
 import { balancesBefore, budgetAlerts, summarize, type MonthSummary } from '../data/summary'
 import { applyTheme } from '../data/theme'
 import type { ParsedSms } from '../data/smsParser'
 import { notifyNow, scheduleBillReminders } from '../native/notify'
-import { shareWithWatch } from '../native/wear'
+import { shareSmsWithWatch, shareWithWatch, smsSkippedOnWatch } from '../native/wear'
 import { updateWidget } from '../native/widget'
 import { LockScreen, useAppLock } from './AppLock'
 import { ReportsView } from './ReportsView'
@@ -97,6 +97,40 @@ export function MonthView({ backend, user, onSignOut }: Props) {
     if (theme) applyTheme(theme)
   }, [theme])
   const sms = useBankSms(backend, settings)
+  // The watch shows the same waiting bank SMS, to add or skip there.
+  useEffect(() => {
+    if (!settings || !sms.available) return
+    shareSmsWithWatch(
+      sms.pending.map((p) => {
+        const t = draftFor(p, settings)
+        return {
+          smsId: p.smsId,
+          title: describe(p),
+          sub: `${dayLabel(p.date)} · ${p.wallet ?? `${p.sender} ••${p.card}`}`,
+          body: p.body,
+          kind: t.kind,
+          amount: t.amount,
+          account: t.account ?? '',
+          debt: t.debt ?? '',
+          category: t.category,
+          description: t.description,
+          date: t.date,
+        }
+      }),
+    )
+  }, [sms.pending, sms.available, settings])
+  // And skips here what was skipped there, whenever the app comes back to the front.
+  const skipIds = useRef(sms.skipIds)
+  useEffect(() => {
+    skipIds.current = sms.skipIds
+  })
+  useEffect(() => {
+    if (!sms.available) return
+    const check = () => void smsSkippedOnWatch().then((ids) => ids.length && skipIds.current(ids))
+    check()
+    const handle = CapApp.addListener('resume', check)
+    return () => void handle.then((h) => h.remove())
+  }, [sms.available])
   const plan = usePlan(backend, month)
   const txns = useTransactions(backend, month)
 
