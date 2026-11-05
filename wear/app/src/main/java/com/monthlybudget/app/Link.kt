@@ -57,7 +57,8 @@ class LinkListenerService : WearableListenerService() {
                     }
                 }
                 CHANGED_PATH -> if (event.type == DataEvent.TYPE_CHANGED) sync = true
-                SMS_PATH -> Sms.save(this, if (event.type == DataEvent.TYPE_DELETED) null else DataMapItem.fromDataItem(event.dataItem).dataMap.getString("items"))
+                SMS_PATH -> Sms.save(this, if (event.type == DataEvent.TYPE_DELETED) null else DataMapItem.fromDataItem(event.dataItem).dataMap)
+                SMS_NEW_PATH -> Sms.saveNew(this, if (event.type == DataEvent.TYPE_DELETED) null else DataMapItem.fromDataItem(event.dataItem).dataMap.getString("items"))
             }
         }
         // Fetches only what changed; the tile and complication redraw when it's done.

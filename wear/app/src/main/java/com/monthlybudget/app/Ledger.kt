@@ -59,6 +59,10 @@ object Ledger {
         return rows.values.filter { (it["month"] as? String ?: "") >= since }
     }
 
+    /** The saved entries as they stood after the last sync, without asking Firestore. */
+    fun rows(context: Context): List<Map<String, Any?>> =
+        runCatching { read(context) }.getOrNull()?.rows?.values?.filter { it["deleted"] != true }.orEmpty()
+
     fun clear(context: Context) {
         synchronized(lock) { file(context).delete() }
         // The file before this change.

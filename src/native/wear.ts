@@ -8,7 +8,7 @@ interface WearPlugin {
   /** Tells the watch the budget changed, so it fetches just the changes. */
   ping(): Promise<void>
   /** Bank SMS waiting to be added, as a JSON array of WatchSms. */
-  shareSms(opts: { items: string }): Promise<void>
+  shareSms(opts: { items: string; seen: number }): Promise<void>
   /** SMS ids skipped on the watch. */
   smsSkipped(): Promise<{ ids: string[] }>
 }
@@ -68,13 +68,17 @@ export function notifyWatch() {
 
 let lastSms = ''
 
-/** Sends the bank SMS waiting to be added to the watch, so they can be added or skipped there. */
-export function shareSmsWithWatch(items: WatchSms[]) {
+/**
+ * Sends the bank SMS waiting to be added to the watch, so they can be added or skipped there.
+ * `seen` is the newest inbox message id this list took into account; the phone passes newer
+ * messages to the watch as they arrive (WearSms.java), and the watch reads those itself.
+ */
+export function shareSmsWithWatch(items: WatchSms[], seen: number) {
   if (!Capacitor.isNativePlatform()) return
   const json = JSON.stringify(items)
-  if (json === lastSms) return
-  lastSms = json
-  Wear.shareSms({ items: json }).catch(() => {})
+  if (json + seen === lastSms) return
+  lastSms = json + seen
+  Wear.shareSms({ items: json, seen }).catch(() => {})
 }
 
 /** SMS ids skipped on the watch, to skip on the phone too. */

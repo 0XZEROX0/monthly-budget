@@ -119,8 +119,9 @@ export function MonthView({ backend, user, onSignOut }: Props) {
           date: t.date,
         }
       }),
+      sms.newestId,
     )
-  }, [sms.pending, sms.available, settings])
+  }, [sms.pending, sms.newestId, sms.available, settings])
   // And skips here what was skipped there, whenever the app comes back to the front.
   const skipIds = useRef(sms.skipIds)
   useEffect(() => {

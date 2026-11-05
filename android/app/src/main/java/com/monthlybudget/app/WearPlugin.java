@@ -65,6 +65,9 @@ public class WearPlugin extends Plugin {
     public void shareSms(PluginCall call) {
         PutDataMapRequest req = PutDataMapRequest.create(SMS_PATH);
         req.getDataMap().putString("items", call.getString("items", "[]"));
+        // The newest inbox message the app had read: the watch reads newer ones itself (WearSms).
+        Long seen = call.getLong("seen", 0L);
+        req.getDataMap().putLong("seen", seen == null ? 0L : seen);
         Wearable.getDataClient(getContext())
             .putDataItem(req.asPutDataRequest().setUrgent())
             .addOnCompleteListener(t -> call.resolve());
