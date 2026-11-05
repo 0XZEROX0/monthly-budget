@@ -42,6 +42,7 @@ object Budget {
         val settingsDoc = db.get("settings/main")
         val settings = parseSettings(settingsDoc)
         Store.saveSettings(context, settings)
+        Sms.saveRules(context, settingsDoc)
         val month = currentMonth()
         val plan = db.get("plans/$month")
         // Balances need every entry since the opening balances, and Reports the last twelve

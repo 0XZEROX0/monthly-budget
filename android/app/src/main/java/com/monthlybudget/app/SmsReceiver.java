@@ -14,7 +14,8 @@ import androidx.core.app.NotificationManagerCompat;
 
 /**
  * Runs when an SMS arrives, even with the app closed. A message from one of the bank
- * senders picked in Settings raises a notification that opens the app's review list.
+ * senders picked in Settings raises a notification that opens the app's review list, and
+ * goes to the Galaxy Watch's list too (WearSms).
  */
 public class SmsReceiver extends BroadcastReceiver {
 
@@ -32,7 +33,19 @@ public class SmsReceiver extends BroadcastReceiver {
         long date = parts[0].getTimestampMillis();
 
         SmsReaderPlugin.notifyReceived(address, body.toString(), date);
-        if (isWatched(context, address)) notify(context, address, body.toString());
+        if (!isWatched(context, address)) return;
+        notify(context, address, body.toString());
+        // And on to the watch's queue, without waiting for the phone app to be opened.
+        PendingResult pending = goAsync();
+        Context app = context.getApplicationContext();
+        String text = body.toString();
+        new Thread(() -> {
+            try {
+                WearSms.forward(app, address, text);
+            } finally {
+                pending.finish();
+            }
+        }).start();
     }
 
     /** Senders are compared like src/data/egyptBanks.ts senderKey: lowercase, letters and digits only. */

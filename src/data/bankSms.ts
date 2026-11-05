@@ -74,6 +74,8 @@ export interface BankSms {
   /** Messages from the chosen senders that aren't added or skipped yet, newest first. */
   pending: ParsedSms[]
   skip: (p: ParsedSms) => void
+  /** The newest inbox message id read, so the watch knows which messages this list covers. */
+  newestId: number
   /** Skips by SMS id, e.g. messages skipped on the watch. */
   skipIds: (ids: string[]) => void
   refresh: () => void
@@ -127,6 +129,7 @@ export function useBankSms(backend: Backend, settings: Settings | null): BankSms
     () => messages.map((m) => parseBankSms(m, walletName(m.address))).filter((p): p is ParsedSms => p !== null),
     [messages],
   )
+  const newestId = useMemo(() => messages.reduce((n, m) => Math.max(n, Number(m.id) || 0), 0), [messages])
   const detectedSenders = useMemo(() => [...new Set(parsed.map((p) => p.sender))].sort(), [parsed])
   const on = (sms?.senders ?? []).map(senderKey).join('\n')
   const off = (sms?.excluded ?? []).map(senderKey).join('\n')
@@ -185,5 +188,5 @@ export function useBankSms(backend: Backend, settings: Settings | null): BankSms
     }
   }
 
-  return { available: smsAvailable, permission, requestPermission, detectedSenders, isWatched, pending, skip, skipIds, refresh, error }
+  return { available: smsAvailable, permission, requestPermission, detectedSenders, isWatched, pending, newestId, skip, skipIds, refresh, error }
 }

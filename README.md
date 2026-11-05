@@ -75,6 +75,7 @@ debts and categories of a real "Monthly budget" Google Sheet.
 | **Egyptian banks and e-wallets** | Reads card and transfer SMS from CIB and other Egyptian banks, any sender that shows a masked card, and e-wallets (Vodafone Cash, Orange Cash, Etisalat Cash, WE Pay, InstaPay, Telda). |
 | **Pending review** | Nothing is added on its own: each message waits under Transactions › Pending so you check it and pick a category. Entries already in the budget are skipped, and merchants remember their last category. |
 | **Notifications** | A notification when a bank SMS arrives, even with the app closed. |
+| **On the watch** | The same pending list is on the Galaxy Watch to add or skip. New messages reach the watch as they arrive, without opening the phone app. |
 
 #### 🎨 Make it yours
 
@@ -194,7 +195,9 @@ replaces the `android` release, so the latest APK is always at
 - **Bank SMS.** The app reads card and transfer messages from the bank senders picked in
   Settings › Bank SMS (`SmsReaderPlugin.java`), parses them in `src/data/smsParser.ts`, and
   lists them under Transactions › Pending until each is reviewed. `SmsReceiver.java` raises a
-  notification when one arrives with the app closed. Check the parser with `npm run test:sms`.
+  notification when one arrives with the app closed, and `WearSms.java` passes it on to the
+  watch, which reads it with a Kotlin copy of the parser (`wear/.../SmsParser.kt`; keep the two
+  in step). Check the parser with `npm run test:sms`.
 - **Sign-in.** Google blocks its sign-in page inside app WebViews, so the app opens the
   website at `?app-signin` in the browser, which signs in and returns the Google ID token
   through `monthlybudget://signin`.
