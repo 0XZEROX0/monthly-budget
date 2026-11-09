@@ -194,18 +194,6 @@ export function MonthView({ backend, user, onSignOut }: Props) {
 
   const lock = useAppLock()
 
-  // The tabs visited before this one, most recent last, each at most once: Android's
-  // back gesture walks back through them.
-  const trail = useRef<Tab[]>([])
-  const shownTab = useRef(tab)
-  const goingBack = useRef(false)
-  useEffect(() => {
-    const prev = shownTab.current
-    if (prev === tab) return
-    if (!goingBack.current) trail.current = [...trail.current.filter((t) => t !== prev && t !== tab), prev]
-    goingBack.current = false
-    shownTab.current = tab
-  }, [tab])
   // Which way the page slides in after a swipe (1: from the right, -1: from the left).
   const [slide, setSlide] = useState<0 | 1 | -1>(0)
   // A short note at the bottom, like "Swipe back again to exit".
@@ -217,7 +205,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
     return () => window.clearTimeout(t)
   }, [toast])
 
-  // Back closes the pop-up on top first, then goes to the tab before, then Summary;
+  // Back closes the pop-up on top first, otherwise goes straight to Summary;
   // on Summary it asks for a second back within 2 seconds before leaving the app.
   useBackButton(() => {
     if (!lock.locked && closeTopPopup()) return
@@ -227,12 +215,10 @@ export function MonthView({ backend, user, onSignOut }: Props) {
       setToast('Swipe back again to exit')
     }
     if (lock.locked) return leave()
-    const to = trail.current.pop() ?? (tab !== 'summary' ? 'summary' : null)
-    if (!to) return leave()
+    if (tab === 'summary') return leave()
     exitArmed.current = 0
-    goingBack.current = true
-    setSlide(TABS.findIndex((t) => t.id === to) > TABS.findIndex((t) => t.id === tab) ? 1 : -1)
-    setTab(to)
+    setSlide(-1)
+    setTab('summary')
     setFocus(null)
     scroller.current?.scrollTo(0, 0)
   })
