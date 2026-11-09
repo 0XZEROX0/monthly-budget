@@ -53,3 +53,24 @@ fun feeEntry(main: Entry, t: FeeTemplate, s: WatchSettings): Entry? {
         description = "${t.name} fee" + if (main.description.isNotEmpty()) " · ${main.description}" else "",
     )
 }
+
+/** A fee the SMS states, offered as its own choice. Named Transfer, like the phone's typed-in fee. */
+fun statedFee(amount: Double) = FeeTemplate("sms", "Transfer", 0.0, amount, amount)
+
+/**
+ * The fee to start on for a bank SMS, as smsFee in src/data/fees.ts: the one it states, else for
+ * money sent out, the account's usual fee or InstaPay's for an instant transfer. Null is no fee.
+ */
+fun smsFee(item: SmsItem, account: String, s: WatchSettings): String? = when {
+    item.kind != "expense" -> null
+    item.fee > 0 -> "sms"
+    !item.transfer && !item.instant -> null
+    else -> defaultFee(account, s.fees) ?: if (item.instant || item.wallet == "InstaPay") "instapay" else null
+}
+
+/** The fee entry for an SMS saved as it is, without picking a category. */
+fun smsFeeEntry(item: SmsItem, main: Entry, s: WatchSettings): Entry? {
+    val id = smsFee(item, main.account, s) ?: return null
+    val t = if (id == "sms") statedFee(item.fee) else feeTemplates(s).firstOrNull { it.id == id } ?: return null
+    return feeEntry(main, t, s)
+}

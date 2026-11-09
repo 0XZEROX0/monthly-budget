@@ -26,6 +26,10 @@ data class ParsedSms(
     /** YYYY-MM-DD, from when the SMS arrived. */
     val date: String,
     val body: String,
+    /** A fee the message states, like "رسوم 5 جنيه"; 0 when it names none. */
+    val fee: Double = 0.0,
+    /** An InstaPay (instant) transfer, which InstaPay charges a fee on. */
+    val instant: Boolean = false,
 )
 
 object SmsParser {
@@ -57,6 +61,13 @@ object SmsParser {
     private val SPEND = Regex("$I\\b(purchase[ds]?|charged|debited|spent|paid|payment|pos|withdrawal|withdrawn|deducted|transaction|trx|txn|transfer(?:red)?|bought|sent|used|recharged?|top[- ]?up)\\b|خصم|شراء|سحب|عملية|مشتريات|دفع|تحويل|شحن")
     // An amount right after these words is a balance or limit, not what was paid.
     private val BALANCE_BEFORE = Regex("$I(balance|bal|limit|available|avl|avail|remaining|رصيد|المتاح|متاح|الحد)[^\\d\\n]{0,20}$")
+    // Words for a fee. "charges" but not "charged", which is what was paid.
+    private const val FEE_WORD = "\\b(?:fees?|charges?|commission)\\b|رسوم|عمول[ةه]|مصاريف|مصروفات"
+    // An amount right after these words is the fee, not what was paid.
+    private val FEE_BEFORE = Regex("$I(?:$FEE_WORD)[^\\d\\n]{0,25}$")
+    private val FEE = Regex("$I(?:$FEE_WORD)[^\\d\\n]{0,25}?($NUM)")
+    // InstaPay sends: CIB calls them "تحويل لحظي" (instant transfer).
+    private val INSTANT = Regex("${I}تحويل\\s*لحظ[يى]|\\binstant\\s+(?:transfer|payment)|\\binsta\\s*pay\\b|[إا]نستا\\s*باي|\\bIPN\\b")
 
     private val CARD = listOf(
         Regex("$I(?:ending(?:\\s+(?:with|in))?|ends\\s+with|card\\s*(?:no\\.?|number|#)?|acc(?:ount)?\\s*(?:no\\.?|number|#)?)\\s*[:#]?\\s*(?:[*xX•.]+\\s*)?(\\d{4})\\b"),
@@ -129,7 +140,8 @@ object SmsParser {
     private fun findAmount(body: String): Pair<Double, String>? {
         for (m in AMOUNT.findAll(body)) {
             val start = m.range.first
-            if (BALANCE_BEFORE.containsMatchIn(body.substring(maxOf(0, start - 30), start))) continue
+            val before = body.substring(maxOf(0, start - 30), start)
+            if (BALANCE_BEFORE.containsMatchIn(before) || FEE_BEFORE.containsMatchIn(before)) continue
             val g = m.groups
             val amount = ((g[2] ?: g[3])!!.value).replace(",", "").toDoubleOrNull() ?: continue
             if (amount > 0) return amount to currencyCode((g[1] ?: g[4])!!.value)
@@ -137,6 +149,10 @@ object SmsParser {
         val amount = AMOUNT_WORD.find(body)?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull() ?: return null
         return if (amount > 0) amount to "EGP" else null
     }
+
+    /** The fee the message names, or 0. */
+    private fun findFee(body: String): Double =
+        FEE.find(body)?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()?.takeIf { it > 0 } ?: 0.0
 
     /** The receipt itself, without the ads and links some senders add after it. */
     private fun receipt(body: String): String {
@@ -182,14 +198,16 @@ object SmsParser {
         val direction = if (credit) "credit" else "spend"
         val transfer = TRANSFER.containsMatchIn(body)
         val date = isoDate(sms.date)
+        val fee = findFee(body)
+        val instant = INSTANT.containsMatchIn(body)
         // Real card and account messages name the card; offers and ads don't.
         val card = CARD.firstNotNullOfOrNull { it.find(body)?.groupValues?.get(1) }
         if (card == null) {
             val wallet = walletSender ?: WALLET_WORDS.firstOrNull { (re, _) -> re.containsMatchIn(full) }?.second
             if (wallet == null || !DONE.containsMatchIn(body) || PROMO.containsMatchIn(body)) return null
-            return ParsedSms(sms.id, sms.address, direction, transfer, amount, currency, findPerson(body).ifEmpty { findMerchant(body) }, wallet, wallet, date, sms.body)
+            return ParsedSms(sms.id, sms.address, direction, transfer, amount, currency, findPerson(body).ifEmpty { findMerchant(body) }, wallet, wallet, date, sms.body, fee, instant)
         }
-        return ParsedSms(sms.id, sms.address, direction, transfer, amount, currency, findMerchant(body), card, null, date, sms.body)
+        return ParsedSms(sms.id, sms.address, direction, transfer, amount, currency, findMerchant(body), card, null, date, sms.body, fee, instant)
     }
 
     private val OUT = setOf("expense", "repay", "transfer", "borrow")

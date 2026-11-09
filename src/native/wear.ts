@@ -26,6 +26,12 @@ export interface WatchSms {
   category: string
   description: string
   date: string
+  /** The fee the SMS states, else 0. */
+  fee: number
+  transfer: boolean
+  /** An InstaPay (instant) transfer. */
+  instant: boolean
+  wallet: string
 }
 
 const Wear = registerPlugin<WearPlugin>('Wear')

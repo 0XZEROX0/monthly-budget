@@ -2,6 +2,8 @@
 import assert from 'node:assert/strict'
 import { alreadyRecorded } from '../src/data/smsMatch.ts'
 import { parseBankSms, type ParsedSms } from '../src/data/smsParser.ts'
+import { smsFee } from '../src/data/fees.ts'
+import type { Settings } from '../src/data/types.ts'
 import type { Transaction } from '../src/data/types.ts'
 
 const at = new Date(2026, 9, 28, 21, 16).getTime()
@@ -15,7 +17,7 @@ const cases: [string, Partial<ParsedSms> | null][] = [
   ],
   [
     'يرجى العلم انه تم تنفيذ تحويل لحظي بمبلغ 1010.00 جم من حسابك المنتهي بـ ********4275 برقم مرجعي b2226ab4 بتاريخ 27-10-2026 09:45 للمزيد، برجاء الاتصال بـ 19666',
-    { direction: 'spend', transfer: true, amount: 1010, currency: 'EGP', card: '4275', merchant: '' },
+    { direction: 'spend', transfer: true, instant: true, amount: 1010, currency: 'EGP', card: '4275', merchant: '' },
   ],
   [
     'تم خصم مبلغ EGP 215.00 من بطاقة الخصم المباشر المنتهية بـ **2244 عند ELSAHEL MOBIL في 26/10/26 10:05 ، الرصيد المتاح 39004.36 EGP',
@@ -54,6 +56,17 @@ const cases: [string, Partial<ParsedSms> | null][] = [
     'Recharge of EGP 50.00 to 01012345678 was successful. Your current balance is EGP 120.00. Transaction ID 123456789\nGet 20% off with Vodafone Cash! https://vf.eg/x',
     { direction: 'spend', amount: 50, card: 'Vodafone Cash', merchant: 'Vodafone recharge' },
   ],
+  // Fees the message states: read as the fee, never as what was paid.
+  [
+    'تم تحويل 500.00 جنيه بنجاح لرقم 01001234567 المسجل باسم SARA ADEL. مصاريف الخدمة 5.00 جنيه. رصيد فودافون كاش الحالي 2000.00 جنيه.',
+    { direction: 'spend', transfer: true, amount: 500, fee: 5, card: 'Vodafone Cash', merchant: 'SARA ADEL' },
+  ],
+  [
+    'تم تحويل مبلغ 1000 جم عبر انستاباي من حسابك المنتهي بـ ****4275 إلى AHMED ALI، رسوم 1.00 جم، بتاريخ 05-11-2026',
+    { direction: 'spend', transfer: true, instant: true, amount: 1000, fee: 1, card: '4275' },
+  ],
+  ['Fees EGP 2.50 applied. You have sent EGP 250.00 to 01112223334 via InstaPay successfully', { direction: 'spend', amount: 250, fee: 2.5, instant: true }],
+  ['Your card ending 2244 was charged for EGP 300.00 at UBER on 05/11/2026', { amount: 300, fee: undefined, instant: undefined }],
   ['احصل على 50 جنيه كاش باك عند الدفع بفودافون كاش! تم تفعيل العرض', null],
   ['Your OTP for purchase of EGP 500 at NOON is 123456', null],
   ['Transaction of EGP 300 at UBER declined: insufficient funds', null],
@@ -82,6 +95,29 @@ try {
   failed++
   console.error(`FAIL wallet sender: ${(e as Error).message} ${JSON.stringify(fromWallet && { ...fromWallet, body: undefined })}`)
 }
+// The fee the add form starts on (smsFee): stated, else the account's usual one or InstaPay's for an instant transfer.
+{
+  const settings = { feeTemplates: [] } as unknown as Settings
+  const feeOf = (body: string, account: string) => smsFee(parse(body)!, account, settings)
+  const stated = cases.find(([b]) => b.includes('SARA ADEL'))![0]
+  const recharge = cases.find(([b]) => b.includes('بقيمة 270.00'))![0]
+  const checks: [ReturnType<typeof smsFee>, ReturnType<typeof smsFee>, string][] = [
+    [feeOf(cases[1][0], 'CIB'), { fee: 'instapay' }, 'CIB instant transfer out'],
+    [feeOf(cases[0][0], 'CIB'), { fee: 'none' }, 'CIB instant transfer in'],
+    [feeOf(cases[2][0], 'CIB'), { fee: 'none' }, 'card purchase'],
+    [feeOf(stated, 'Vodafone Cash'), { fee: 'custom', amount: 5 }, 'stated fee'],
+    [smsFee(fromWallet!, 'Vodafone Cash', settings), { fee: 'wallet' }, 'wallet transfer'],
+    [feeOf(recharge, 'Orange Cash'), { fee: 'none' }, 'wallet recharge'],
+  ]
+  for (const [got, want, name] of checks) {
+    try {
+      assert.deepEqual(got, want)
+    } catch {
+      failed++
+      console.error(`FAIL smsFee ${name}: got ${JSON.stringify(got)}`)
+    }
+  }
+}
 // Messages already entered (by hand or from the sheet import) aren't offered again.
 const sms = (id: string, amount: number, date: string, direction: ParsedSms['direction'] = 'spend'): ParsedSms =>
   ({ smsId: id, sender: 'CIB', direction, transfer: false, amount, currency: 'EGP', merchant: '', card: '2244', date, body: '' })
@@ -98,5 +134,5 @@ try {
   failed++
   console.error(`FAIL alreadyRecorded: ${(e as Error).message}`)
 }
-console.log(`${cases.length + 2 - failed}/${cases.length + 2} passed`)
+console.log(`${cases.length + 8 - failed}/${cases.length + 8} passed`)
 process.exit(failed ? 1 : 0)

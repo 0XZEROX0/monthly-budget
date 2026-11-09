@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core'
 import type { User } from 'firebase/auth'
 import { useEffect, useRef, useState } from 'react'
 import { describe, draftFor, smsSettings, smsTxnId, useBankSms } from '../data/bankSms'
+import { smsFee } from '../data/fees'
 import { emptyPlan } from '../data/defaults'
 import { usePlan, useRange, useSettings, useTransactions } from '../data/hooks'
 import { currentMonth, dayLabel, formatWhole, monthLabel, shiftMonth } from '../data/month'
@@ -118,6 +119,11 @@ export function MonthView({ backend, user, onSignOut }: Props) {
           category: t.category,
           description: t.description,
           date: t.date,
+          // The watch picks the fee from these, as smsFee does here.
+          fee: p.fee ?? 0,
+          transfer: p.transfer,
+          instant: !!p.instant,
+          wallet: p.wallet ?? '',
         }
       }),
       sms.newestId,
@@ -363,7 +369,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
           settings={settings}
           month={month}
           existing={null}
-          draft={{ id: smsTxnId(fromSms), txn: draftFor(fromSms, settings) }}
+          draft={draftWithFee(fromSms, settings)}
           onSaved={(t) => remember(backend, settings, fromSms, t)}
           onClose={() => setFromSms(null)}
         />
@@ -580,6 +586,12 @@ function alertOnce(month: string, s: MonthSummary, pct: number, currency: string
 }
 
 /** Saves the category picked for this merchant and the account picked for this card, for next time. */
+/** The add form's draft for a bank SMS, with the fee it should start on. */
+function draftWithFee(p: ParsedSms, settings: Settings) {
+  const txn = draftFor(p, settings)
+  return { id: smsTxnId(p), txn, fee: smsFee(p, txn.account ?? '', settings) }
+}
+
 function remember(backend: Backend, settings: Settings, p: ParsedSms, t: NewTransaction) {
   const cfg = smsSettings(settings)
   const target: SmsTarget | null =

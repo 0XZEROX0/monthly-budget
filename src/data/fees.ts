@@ -1,5 +1,6 @@
 // Transfer fees charged on top of what you send. Each fee is saved as its own expense
 // from the same account, so the account balance and the spending both include it.
+import type { ParsedSms } from './smsParser'
 import type { FeeTemplate, Settings } from './types'
 
 /** 'none', 'custom' (typed in), or the id of a fee template. */
@@ -42,3 +43,15 @@ export function defaultFee(account: string, templates: FeeTemplate[] = []): FeeK
 
 /** The expense category fees go to: one already about fees if there is one, otherwise Bank Fees. */
 export const feeCategory = (categories: string[]) => categories.find((c) => /fee|عمول|رسوم/i.test(c)) ?? 'Bank Fees'
+
+/**
+ * The fee to start the add form on: the one the message states, else for money sent out,
+ * the account's usual fee or InstaPay's for an instant transfer. Purchases get none.
+ */
+export function smsFee(p: ParsedSms, account: string, settings: Settings): { fee: FeeKind; amount?: number } {
+  if (p.direction !== 'spend') return { fee: 'none' }
+  if (p.fee) return { fee: 'custom', amount: p.fee }
+  if (!p.transfer && !p.instant) return { fee: 'none' }
+  const usual = defaultFee(account, settings.feeTemplates)
+  return { fee: usual !== 'none' ? usual : p.instant || p.wallet === 'InstaPay' ? 'instapay' : 'none' }
+}
