@@ -30,6 +30,11 @@ export function usePull<S extends HTMLElement, C extends HTMLElement>() {
     }
     const onMove = (e: TouchEvent) => {
       if (ignore) return
+      // A sideways swipe between tabs is under way; leave the page where it is.
+      if (s.dataset.swiping) {
+        if (pulling) (pulling = false), set(0, false)
+        return
+      }
       const dy = e.touches[0].clientY - startY
       if ((dy > 0 && atTop()) || (dy < 0 && atBottom())) {
         pulling = true
