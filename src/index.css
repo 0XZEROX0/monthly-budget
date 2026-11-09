@@ -646,3 +646,8 @@ button.side-add, .side-nav button { transition: width var(--panel-time) var(--ea
   background: rgba(30, 30, 34, 0.92); color: #fff; padding: 0.55rem 1rem; border-radius: 999px; font-size: 0.85rem;
   box-shadow: var(--shadow); animation: fade 0.15s ease; pointer-events: none; white-space: nowrap;
 }
+
+/* Phone: while swiping, the next tab's page sits beside the current one and both follow the finger. */
+.pager { overflow-x: clip; }
+.pager-track { position: relative; }
+.pager-peek { position: absolute; width: 100%; pointer-events: none; }

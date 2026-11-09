@@ -2,6 +2,7 @@ import { App as CapApp } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
 import type { User } from 'firebase/auth'
 import { useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { describe, draftFor, smsSettings, smsTxnId, useBankSms } from '../data/bankSms'
 import { smsFee } from '../data/fees'
 import { emptyPlan } from '../data/defaults'
@@ -236,16 +237,32 @@ export function MonthView({ backend, user, onSignOut }: Props) {
     scroller.current?.scrollTo(0, 0)
   })
 
-  // A sideways swipe across the middle of the phone screen moves to the next or previous tab.
+  // A sideways swipe across the middle of the phone screen drags the pages along with
+  // the finger: the next (or previous) tab's page is drawn beside this one while it moves.
+  const track = useRef<HTMLDivElement>(null)
+  const [peek, setPeek] = useState<{ tab: Tab; dir: 1 | -1; top: number } | null>(null)
+  const neighbour = (dir: 1 | -1) => TABS[TABS.findIndex((t) => t.id === tab) + dir]?.id
   useSwipe(
     scroller,
-    (dir) => {
-      const i = TABS.findIndex((t) => t.id === tab) + dir
-      if (i < 0 || i >= TABS.length) return
-      setSlide(dir)
-      setTab(TABS[i].id)
-      setFocus(null)
-      scroller.current?.scrollTo(0, 0)
+    track,
+    {
+      canGo: (dir) => !!neighbour(dir),
+      onPeek: (dir) => {
+        const to = dir ? neighbour(dir) : undefined
+        // Drawn level with the screen, wherever this page is scrolled to.
+        setPeek(to ? { tab: to, dir: dir as 1 | -1, top: scroller.current?.scrollTop ?? 0 } : null)
+      },
+      onCommit: (dir) => {
+        const to = neighbour(dir)
+        if (!to) return
+        flushSync(() => {
+          setSlide(0)
+          setTab(to)
+          setFocus(null)
+          setPeek(null)
+        })
+        scroller.current?.scrollTo(0, 0)
+      },
     },
     !desktop && !lock.locked,
   )
@@ -287,7 +304,8 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   const withPanel = hasPanel && rightOpen
   const view: Tab = withPanel && tab === 'reports' ? 'summary' : tab
 
-  const page =
+  // A tab's page. While swiping, the next tab's page is drawn beside the current one.
+  const pageFor = (view: Tab, focus: ListFocus | null) =>
     loading || !summary ? (
       <p className="center muted">Loading…</p>
     ) : view === 'summary' ? (
@@ -340,6 +358,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
     ) : (
       <SettingsView backend={backend} settings={settings} sms={sms} user={user} onSignOut={onSignOut} lock={lock} initialGroup={settingsGroup} />
     )
+  const page = pageFor(view, focus)
 
   // Pop-ups shared by both layouts.
   const overlays = (
@@ -486,7 +505,16 @@ export function MonthView({ backend, user, onSignOut }: Props) {
         {(tab === 'summary' || tab === 'reports') && privacyButton}
       </header>
 
-      <main key={tab} className={`content ${slide > 0 ? 'slide-next' : slide < 0 ? 'slide-prev' : ''}`}>{page}</main>
+      <div className="pager">
+        <div className="pager-track" ref={track}>
+          <main key={tab} className={`content ${slide > 0 ? 'slide-next' : slide < 0 ? 'slide-prev' : ''}`}>{page}</main>
+          {peek && (
+            <main key={peek.tab} className="content pager-peek" aria-hidden style={{ top: peek.top, left: `${peek.dir * 100}%` }}>
+              {pageFor(peek.tab, null)}
+            </main>
+          )}
+        </div>
+      </div>
       </div>
 
       {(tab === 'summary' || tab === 'transactions') && (
