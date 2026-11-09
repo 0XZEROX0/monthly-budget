@@ -1,7 +1,7 @@
 import { App as CapApp } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
 import type { User } from 'firebase/auth'
-import { useEffect, useRef, useState } from 'react'
+import { useDeferredValue, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { describe, draftFor, smsSettings, smsTxnId, useBankSms } from '../data/bankSms'
 import { smsFee } from '../data/fees'
@@ -224,29 +224,41 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   })
 
   // A sideways swipe across the middle of the phone screen drags the pages along with
-  // the finger: the next (or previous) tab's page is drawn beside this one while it moves.
+  // the finger. The tabs either side are kept drawn beside this one (just off screen), so
+  // a swipe never waits for a page to be built; a newly needed one is built in the
+  // background once a swipe lands.
   const track = useRef<HTMLDivElement>(null)
-  const [peek, setPeek] = useState<{ tab: Tab; dir: 1 | -1; top: number } | null>(null)
-  const neighbour = (dir: 1 | -1) => TABS[TABS.findIndex((t) => t.id === tab) + dir]?.id
+  const tabNow = useRef(tab)
+  tabNow.current = tab
+  const near = (t: Tab, dir: 1 | -1) => TABS[TABS.findIndex((x) => x.id === t) + dir]?.id
+  const settledTab = useDeferredValue(tab)
+  // A neighbour asked for before the background build reached it.
+  const [wanted, setWanted] = useState<Tab | null>(null)
+  const built = new Set<Tab | undefined>([settledTab, near(settledTab, -1), near(settledTab, 1), wanted ?? undefined])
+  const beside = ([-1, 1] as const).map((dir) => ({ dir, tab: near(tab, dir) })).filter((b): b is { dir: -1 | 1; tab: Tab } => !!b.tab && built.has(b.tab))
   useSwipe(
     scroller,
     track,
     {
-      canGo: (dir) => !!neighbour(dir),
+      canGo: (dir) => !!near(tabNow.current, dir),
       onPeek: (dir) => {
-        const to = dir ? neighbour(dir) : undefined
+        if (!dir) return
+        const to = near(tabNow.current, dir)
+        if (to && !track.current?.querySelector(`[data-tab="${to}"]`)) setWanted(to)
         // Drawn level with the screen, wherever this page is scrolled to.
-        setPeek(to ? { tab: to, dir: dir as 1 | -1, top: scroller.current?.scrollTop ?? 0 } : null)
+        const top = `${scroller.current?.scrollTop ?? 0}px`
+        track.current?.querySelectorAll<HTMLElement>('.pager-peek').forEach((el) => (el.style.top = top))
       },
       onCommit: (dir) => {
-        const to = neighbour(dir)
+        const to = near(tabNow.current, dir)
         if (!to) return
         flushSync(() => {
           setSlide(0)
           setTab(to)
           setFocus(null)
-          setPeek(null)
+          setWanted(null)
         })
+        tabNow.current = to
         scroller.current?.scrollTo(0, 0)
       },
     },
@@ -345,6 +357,13 @@ export function MonthView({ backend, user, onSignOut }: Props) {
       <SettingsView backend={backend} settings={settings} sms={sms} user={user} onSignOut={onSignOut} lock={lock} initialGroup={settingsGroup} />
     )
   const page = pageFor(view, focus)
+
+  // A neighbouring tab's page, waiting just off screen for a swipe.
+  const peekPage = ({ dir, tab: t }: { dir: -1 | 1; tab: Tab }) => (
+    <main key={t} data-tab={t} className="content pager-peek" aria-hidden inert style={{ left: `${dir * 100}%` }}>
+      {pageFor(t, null)}
+    </main>
+  )
 
   // Pop-ups shared by both layouts.
   const overlays = (
@@ -493,12 +512,9 @@ export function MonthView({ backend, user, onSignOut }: Props) {
 
       <div className="pager">
         <div className="pager-track" ref={track}>
-          <main key={tab} className={`content ${slide > 0 ? 'slide-next' : slide < 0 ? 'slide-prev' : ''}`}>{page}</main>
-          {peek && (
-            <main key={peek.tab} className="content pager-peek" aria-hidden style={{ top: peek.top, left: `${peek.dir * 100}%` }}>
-              {pageFor(peek.tab, null)}
-            </main>
-          )}
+          {beside[0]?.dir === -1 && peekPage(beside[0])}
+          <main key={tab} data-tab={tab} className={`content ${slide > 0 ? 'slide-next' : slide < 0 ? 'slide-prev' : ''}`}>{page}</main>
+          {beside.filter((x) => x.dir === 1).map(peekPage)}
         </div>
       </div>
       </div>
