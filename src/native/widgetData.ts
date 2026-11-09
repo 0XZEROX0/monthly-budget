@@ -60,12 +60,12 @@ export function widgetData(month: string, s: MonthSummary, settings: Settings, t
       pct: r.planned > 0 ? pct(r.actual, r.planned) : 100,
       over: r.planned > 0 ? r.actual > r.planned : r.actual > 0,
     }))
-    .slice(0, 12)
+    .slice(0, 40)
 
   const recent = txns
     .filter(countsAsSpending)
     .sort(newestFirst)
-    .slice(0, 6)
+    .slice(0, 20)
     .map((t) => ({
       icon: categoryIcon(t.category || t.debt || ''),
       title: t.description || t.category || t.debt || 'Expense',

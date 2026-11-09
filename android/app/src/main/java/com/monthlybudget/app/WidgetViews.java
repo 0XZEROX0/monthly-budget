@@ -9,7 +9,7 @@ import android.widget.RemoteViews;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-/** Shared pieces for the list widgets: the card with a header, and its rows. */
+/** Shared pieces for the list widgets: the card with a header, its scrolling list, and the rows. */
 final class WidgetViews {
     private WidgetViews() {}
 
@@ -22,23 +22,46 @@ final class WidgetViews {
         return PendingIntent.getActivity(ctx, code, i, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
-    /** The list card: title, month, an optional + button, and an empty note until there are rows. */
-    static RemoteViews card(Context ctx, String title, JSONObject data, String tapLink, int code, boolean addButton) {
+    /**
+     * The list card: title, month, an optional + button, and a list of `kind` rows
+     * ("categories", "recent" or "accounts" in the app's WidgetData) that scrolls.
+     */
+    static RemoteViews card(Context ctx, int widgetId, String kind, String title, JSONObject data, String tapLink, int code, boolean addButton) {
         RemoteViews v = new RemoteViews(ctx.getPackageName(), R.layout.widget_list);
         v.setTextViewText(R.id.widget_title, title);
         v.setTextViewText(R.id.widget_month, data == null ? "" : data.optString("month"));
-        v.removeAllViews(R.id.widget_rows);
         v.setViewVisibility(R.id.widget_footer, View.GONE);
         v.setViewVisibility(R.id.widget_add, addButton ? View.VISIBLE : View.GONE);
         if (addButton) v.setOnClickPendingIntent(R.id.widget_add, open(ctx, "monthlybudget://add/expense", code + 1));
-        v.setOnClickPendingIntent(R.id.widget_root, open(ctx, tapLink, code));
-        empty(v, data == null ? "Open the app to load your numbers" : null);
+        PendingIntent tap = open(ctx, tapLink, code);
+        v.setOnClickPendingIntent(R.id.widget_root, tap);
+
+        // Each widget gets its own adapter intent (the data URI keeps them apart).
+        Intent adapter = new Intent(ctx, WidgetListService.class)
+            .putExtra("kind", kind)
+            .setData(Uri.parse("monthlybudget-widget://" + kind + "/" + widgetId));
+        v.setRemoteAdapter(R.id.widget_list, adapter);
+        // Tapping a row opens the app like tapping the card does (rows fill in an empty intent).
+        v.setPendingIntentTemplate(R.id.widget_list, PendingIntent.getActivity(ctx, code + 2,
+            tapIntent(ctx, tapLink), PendingIntent.FLAG_MUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
+        v.setEmptyView(R.id.widget_list, R.id.widget_empty);
+        v.setTextViewText(R.id.widget_empty, data == null ? "Open the app to load your numbers" : emptyNote(kind));
         return v;
     }
 
-    static void empty(RemoteViews v, String note) {
-        v.setViewVisibility(R.id.widget_empty, note == null ? View.GONE : View.VISIBLE);
-        if (note != null) v.setTextViewText(R.id.widget_empty, note);
+    private static Intent tapIntent(Context ctx, String link) {
+        Intent i = link == null
+            ? new Intent(ctx, MainActivity.class)
+            : new Intent(Intent.ACTION_VIEW, Uri.parse(link), ctx, MainActivity.class);
+        return i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+    }
+
+    private static String emptyNote(String kind) {
+        switch (kind) {
+            case "categories": return "No spending or budget this month yet";
+            case "recent": return "No expenses this month yet";
+            default: return "No accounts yet";
+        }
     }
 
     static void footer(RemoteViews v, String text) {
@@ -72,7 +95,18 @@ final class WidgetViews {
         return r;
     }
 
-    static int count(JSONArray a) {
-        return a == null ? 0 : a.length();
+    /** The row for entry `i` of a list kind, or null when it is missing. */
+    static RemoteViews row(Context ctx, String kind, JSONArray list, int i) {
+        JSONObject o = list == null ? null : list.optJSONObject(i);
+        if (o == null) return null;
+        RemoteViews r;
+        switch (kind) {
+            case "categories": r = category(ctx, o); break;
+            case "recent": r = item(ctx, o.optString("icon"), o.optString("title"), o.optString("sub"), o.optString("amount")); break;
+            default: r = item(ctx, o.optString("icon"), o.optString("name"), null, o.optString("value"));
+        }
+        // Rows open the app through the list's PendingIntent template.
+        r.setOnClickFillInIntent(R.id.row_root, new Intent());
+        return r;
     }
 }

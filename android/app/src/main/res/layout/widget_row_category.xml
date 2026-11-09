@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- A row in the Categories widget: name, spent / budget, and a bar (red when over). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/row_root"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:minHeight="38dp"
