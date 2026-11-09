@@ -9,7 +9,7 @@ import org.json.JSONObject;
 /** The month's plan against what happened: income, spending (with bars), left to spend and saved. */
 public class PlanWidget extends BoardWidget {
     @Override
-    RemoteViews views(Context ctx, JSONObject data, Bundle size) {
+    RemoteViews views(Context ctx, int id, JSONObject data, Bundle size) {
         RemoteViews v = new RemoteViews(ctx.getPackageName(), R.layout.widget_plan);
         v.setOnClickPendingIntent(R.id.widget_root, WidgetViews.open(ctx, "monthlybudget://summary", 20));
         v.setOnClickPendingIntent(R.id.widget_add, WidgetViews.open(ctx, "monthlybudget://add/expense", 21));

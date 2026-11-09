@@ -16,17 +16,11 @@ import org.json.JSONObject;
 public abstract class BoardWidget extends AppWidgetProvider {
 
     /** The widget's layout, filled from the app's data (null until the app has run once). */
-    abstract RemoteViews views(Context ctx, JSONObject data, Bundle size);
+    abstract RemoteViews views(Context ctx, int id, JSONObject data, Bundle size);
 
     @Override
     public void onUpdate(Context ctx, AppWidgetManager mgr, int[] ids) {
-        for (int id : ids) mgr.updateAppWidget(id, views(ctx, data(ctx), mgr.getAppWidgetOptions(id)));
-    }
-
-    /** Resizing changes how many rows fit. */
-    @Override
-    public void onAppWidgetOptionsChanged(Context ctx, AppWidgetManager mgr, int id, Bundle options) {
-        mgr.updateAppWidget(id, views(ctx, data(ctx), options));
+        for (int id : ids) mgr.updateAppWidget(id, views(ctx, id, data(ctx), mgr.getAppWidgetOptions(id)));
     }
 
     static JSONObject data(Context ctx) {
@@ -52,17 +46,12 @@ public abstract class BoardWidget extends AppWidgetProvider {
             if (ids.length == 0) continue;
             try {
                 BoardWidget w = type.getDeclaredConstructor().newInstance();
-                for (int id : ids) mgr.updateAppWidget(id, w.views(ctx, data, mgr.getAppWidgetOptions(id)));
+                for (int id : ids) mgr.updateAppWidget(id, w.views(ctx, id, data, mgr.getAppWidgetOptions(id)));
+                // The scrolling lists reload their rows (WidgetListService).
+                mgr.notifyAppWidgetViewDataChanged(ids, R.id.widget_list);
             } catch (Exception ignored) {
                 // A widget that fails to draw keeps its last picture.
             }
         }
-    }
-
-    /** How many list rows of this height (dp) fit under the header, from the widget's current size. */
-    static int rowsThatFit(Bundle size, int rowDp, int fallback) {
-        int h = size == null ? 0 : size.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0);
-        if (h <= 0) return fallback;
-        return Math.max(1, (h - 56) / rowDp);
     }
 }
