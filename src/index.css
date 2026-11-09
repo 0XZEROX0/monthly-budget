@@ -632,3 +632,17 @@ button.side-add, .side-nav button { transition: width var(--panel-time) var(--ea
 .month-list.month { grid-template-columns: repeat(3, 1fr); }
 .month-list.month button, .month-list.year button { justify-content: center; text-align: center; padding: 0.6rem 0.4rem; }
 .month-list button:disabled { opacity: 0.35; }
+
+/* Phone: a page slides in from the side it was swiped from. */
+@keyframes slide-next { from { transform: translateX(36px); opacity: 0; } }
+@keyframes slide-prev { from { transform: translateX(-36px); opacity: 0; } }
+.content.slide-next { animation: slide-next 0.22s cubic-bezier(0.2, 0.9, 0.3, 1); }
+.content.slide-prev { animation: slide-prev 0.22s cubic-bezier(0.2, 0.9, 0.3, 1); }
+@media (prefers-reduced-motion: reduce) { .content.slide-next, .content.slide-prev { animation: none; } }
+
+/* A short note above the tab bar, e.g. "Swipe back again to exit". */
+.toast {
+  position: fixed; left: 50%; bottom: calc(5.6rem + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 30;
+  background: rgba(30, 30, 34, 0.92); color: #fff; padding: 0.55rem 1rem; border-radius: 999px; font-size: 0.85rem;
+  box-shadow: var(--shadow); animation: fade 0.15s ease; pointer-events: none; white-space: nowrap;
+}
