@@ -1,6 +1,6 @@
 import { App as CapApp } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
-import { useEffect, useRef, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react'
 
 /**
  * Closes the pop-up on top, if there is one. Every pop-up in the app sits on a
@@ -58,12 +58,12 @@ export interface SwipeHandlers {
 /**
  * Pages that follow the finger: a sideways drag across the middle of `el` moves `track`
  * (the current page with the next one beside it) along with the finger, then finishes
- * the move or springs back on release. Ignored on charts (they scrub sideways), inputs,
+ * the move or springs back on release. Ignored on charts (they scrub sideways), the box being typed in,
  * pop-ups, anything that scrolls sideways, the screen edges, and while dragging an item.
  */
 export function useSwipe(el: RefObject<HTMLElement | null>, track: RefObject<HTMLElement | null>, handlers: SwipeHandlers, enabled = true) {
   const latest = useRef(handlers)
-  useEffect(() => {
+  useLayoutEffect(() => {
     latest.current = handlers
   })
   useEffect(() => {
@@ -75,7 +75,8 @@ export function useSwipe(el: RefObject<HTMLElement | null>, track: RefObject<HTM
     let dx = 0
     let last = { x: 0, t: 0 }
     let speed = 0
-    let busy = false
+    // The slide still finishing after the last swipe; a new touch completes it at once.
+    let settling: (() => void) | null = null
     const move = (px: number, animate: boolean) => {
       const t = track.current
       if (!t) return
@@ -85,11 +86,14 @@ export function useSwipe(el: RefObject<HTMLElement | null>, track: RefObject<HTM
     const onStart = (e: TouchEvent) => {
       start = null
       mode = 'y'
-      if (busy || e.touches.length !== 1) return
+      settling?.()
+      if (e.touches.length !== 1) return
       const t = e.touches[0]
       if (t.clientX < EDGE || t.clientX > window.innerWidth - EDGE) return
       const target = e.target as Element
-      if (target.closest?.('svg, input, textarea, select, [contenteditable], .sheet-backdrop, [data-noswipe]')) return
+      if (target.closest?.('svg, textarea, select, [contenteditable], .sheet-backdrop, [data-noswipe]')) return
+      // The Plan page is mostly boxes; swiping across one is fine unless it's being typed in.
+      if (target.closest?.('input') && target.closest('input') === document.activeElement) return
       if (scrollsSideways(target, node)) return
       if (document.querySelector('.reorder-dragging, .sheet-backdrop')) return
       start = { x: t.clientX, y: t.clientY }
@@ -137,19 +141,19 @@ export function useSwipe(el: RefObject<HTMLElement | null>, track: RefObject<HTM
       const d = dir
       // Far enough, or a quick flick the same way.
       const commit = d !== 0 && latest.current.canGo(d) && (Math.abs(dx) > width * 0.3 || (Math.abs(dx) > 40 && Math.abs(speed) > 0.45 && Math.sign(speed) === Math.sign(dx)))
-      busy = true
       move(commit ? -d * width : 0, true)
       let done = false
       const finish = (e?: Event) => {
         // Only the track's own slide; a page's inner animations bubble up here too.
         if (done || (e && e.target !== track.current)) return
         done = true
+        settling = null
         track.current?.removeEventListener('transitionend', finish)
         if (commit) latest.current.onCommit(d as 1 | -1)
         else latest.current.onPeek(0)
         move(0, false)
-        busy = false
       }
+      settling = finish
       track.current?.addEventListener('transitionend', finish)
       window.setTimeout(finish, 340)
     }
