@@ -19,6 +19,7 @@ import type { Backend, NewTransaction, Settings, SmsTarget, Transaction } from '
 import { PendingSms } from './PendingSms'
 import { MonthPicker } from './MonthPicker'
 import { useDesktop } from './useDesktop'
+import { closeTopPopup, useBackButton, useSwipe } from './useNavigation'
 import { usePull } from './usePull'
 import { PlanEditor } from './PlanEditor'
 import { SettingsView } from './SettingsView'
@@ -185,7 +186,71 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   }, [scroller])
 
   const lock = useAppLock()
-  if (lock.locked) return <LockScreen onUnlock={lock.unlock} />
+
+  // The tabs visited before this one, most recent last, each at most once: Android's
+  // back gesture walks back through them.
+  const trail = useRef<Tab[]>([])
+  const shownTab = useRef(tab)
+  const goingBack = useRef(false)
+  useEffect(() => {
+    const prev = shownTab.current
+    if (prev === tab) return
+    if (!goingBack.current) trail.current = [...trail.current.filter((t) => t !== prev && t !== tab), prev]
+    goingBack.current = false
+    shownTab.current = tab
+  }, [tab])
+  // Which way the page slides in after a swipe (1: from the right, -1: from the left).
+  const [slide, setSlide] = useState<0 | 1 | -1>(0)
+  // A short note at the bottom, like "Swipe back again to exit".
+  const [toast, setToast] = useState('')
+  const exitArmed = useRef(0)
+  useEffect(() => {
+    if (!toast) return
+    const t = window.setTimeout(() => setToast(''), 2000)
+    return () => window.clearTimeout(t)
+  }, [toast])
+
+  // Back closes the pop-up on top first, then goes to the tab before, then Summary;
+  // on Summary it asks for a second back within 2 seconds before leaving the app.
+  useBackButton(() => {
+    if (!lock.locked && closeTopPopup()) return
+    const leave = () => {
+      if (Date.now() - exitArmed.current < 2000) return void CapApp.exitApp()
+      exitArmed.current = Date.now()
+      setToast('Swipe back again to exit')
+    }
+    if (lock.locked) return leave()
+    const to = trail.current.pop() ?? (tab !== 'summary' ? 'summary' : null)
+    if (!to) return leave()
+    exitArmed.current = 0
+    goingBack.current = true
+    setSlide(TABS.findIndex((t) => t.id === to) > TABS.findIndex((t) => t.id === tab) ? 1 : -1)
+    setTab(to)
+    setFocus(null)
+    scroller.current?.scrollTo(0, 0)
+  })
+
+  // A sideways swipe across the middle of the phone screen moves to the next or previous tab.
+  useSwipe(
+    scroller,
+    (dir) => {
+      const i = TABS.findIndex((t) => t.id === tab) + dir
+      if (i < 0 || i >= TABS.length) return
+      setSlide(dir)
+      setTab(TABS[i].id)
+      setFocus(null)
+      scroller.current?.scrollTo(0, 0)
+    },
+    !desktop && !lock.locked,
+  )
+
+  if (lock.locked)
+    return (
+      <>
+        <LockScreen onUnlock={lock.unlock} />
+        {toast && <div className="toast" role="status">{toast}</div>}
+      </>
+    )
 
   const openTab = (t: Tab) => {
     setTab(t)
@@ -415,7 +480,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
         {(tab === 'summary' || tab === 'reports') && privacyButton}
       </header>
 
-      <main className="content">{page}</main>
+      <main key={tab} className={`content ${slide > 0 ? 'slide-next' : slide < 0 ? 'slide-prev' : ''}`}>{page}</main>
       </div>
 
       {(tab === 'summary' || tab === 'transactions') && (
@@ -427,6 +492,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
       <nav className="tabbar">
         {TABS.map((t) => (
           <button key={t.id} className={t.id === tab ? 'active' : ''} onClick={() => {
+              setSlide(0)
               setTab(t.id)
               setFocus(null)
             }}>
@@ -439,6 +505,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
       </nav>
 
       {overlays}
+      {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   )
 }
