@@ -135,7 +135,6 @@ export function useSwipe(el: RefObject<HTMLElement | null>, track: RefObject<HTM
       const was = mode
       start = null
       mode = 'y'
-      delete node.dataset.swiping
       if (was !== 'x') return
       const width = track.current?.clientWidth || window.innerWidth
       const d = dir
@@ -148,6 +147,8 @@ export function useSwipe(el: RefObject<HTMLElement | null>, track: RefObject<HTM
         if (done || (e && e.target !== track.current)) return
         done = true
         settling = null
+        // Kept until the slide ends, so the neighbouring page stays fully drawn while it slides in.
+        delete node.dataset.swiping
         track.current?.removeEventListener('transitionend', finish)
         if (commit) latest.current.onCommit(d as 1 | -1)
         else latest.current.onPeek(0)
