@@ -106,14 +106,14 @@ private sealed interface Screen {
     data object Home : Screen
     /** With a bill: its amount wasn't set, so it's typed here and then confirmed. */
     data class Amount(val kind: String, val bill: Bill? = null) : Screen
-    /** With [preset]: a bank SMS (or an entry being changed) whose id, account and note are kept. */
-    data class Category(val kind: String, val amount: Double, val preset: Entry? = null) : Screen
+    /** With [preset]: a bank SMS (or an entry being changed) whose id, account and note are kept. [sms] brings its fee. */
+    data class Category(val kind: String, val amount: Double, val preset: Entry? = null, val sms: SmsItem? = null) : Screen
     data object SmsList : Screen
     data class SmsReview(val item: SmsItem) : Screen
     data class Transfer(val amount: Double) : Screen
     data class Debt(val amount: Double) : Screen
-    /** A spoken entry or a bill payment, shown before it's saved. */
-    data class Confirm(val entry: Entry, val title: String) : Screen
+    /** A spoken entry, a bill payment or a bank SMS, shown before it's saved; [fee] is saved with it. */
+    data class Confirm(val entry: Entry, val title: String, val fee: Entry? = null, val sms: SmsItem? = null) : Screen
     data class Done(val sent: Boolean, val entry: Entry) : Screen
 }
 
@@ -216,7 +216,7 @@ private fun App(start: String?, onStarted: () -> Unit, finish: () -> Unit) {
         }
         is Screen.Category -> {
             BackHandler { screen = Screen.Amount(s.kind) }
-            CategoryScreen(s.kind, s.amount, s.preset, onSave = save)
+            CategoryScreen(s.kind, s.amount, s.preset, s.sms, onSave = save)
         }
         Screen.SmsList -> {
             BackHandler { home() }
@@ -230,8 +230,8 @@ private fun App(start: String?, onStarted: () -> Unit, finish: () -> Unit) {
                     val entry = s.item.entry()
                     screen = when {
                         // No category remembered for this shop: pick one, as on the phone.
-                        (entry.kind == "expense" || entry.kind == "income") && entry.category.isEmpty() -> Screen.Category(entry.kind, entry.amount, entry)
-                        else -> Screen.Confirm(entry, s.item.title)
+                        (entry.kind == "expense" || entry.kind == "income") && entry.category.isEmpty() -> Screen.Category(entry.kind, entry.amount, entry, s.item)
+                        else -> Screen.Confirm(entry, s.item.title, smsFeeEntry(s.item, entry, Store.settings(context)), s.item)
                     }
                 },
                 onSkip = {
@@ -247,9 +247,10 @@ private fun App(start: String?, onStarted: () -> Unit, finish: () -> Unit) {
             ConfirmScreen(
                 s.title,
                 s.entry,
-                onSave = { save(s.entry, null) },
+                s.fee,
+                onSave = { save(s.entry, s.fee) },
                 onChange = if (s.entry.debt.isEmpty() && !s.entry.id.startsWith("bill-")) {
-                    { screen = Screen.Category(s.entry.kind, s.entry.amount, s.entry.takeIf { it.id.startsWith("sms-") }) }
+                    { screen = Screen.Category(s.entry.kind, s.entry.amount, s.entry.takeIf { it.id.startsWith("sms-") }, s.sms) }
                 } else null,
             )
         }
@@ -920,7 +921,7 @@ private fun GoalLine(goal: Goal, hidden: Boolean) {
 }
 
 @Composable
-private fun ConfirmScreen(title: String, entry: Entry, onSave: () -> Unit, onChange: (() -> Unit)?) {
+private fun ConfirmScreen(title: String, entry: Entry, fee: Entry?, onSave: () -> Unit, onChange: (() -> Unit)?) {
     val color = kindColor(entry.kind)
     Column(
         Modifier.fillMaxSize().padding(horizontal = 22.dp),
@@ -933,6 +934,7 @@ private fun ConfirmScreen(title: String, entry: Entry, onSave: () -> Unit, onCha
             Text(kindSign(entry.kind) + exact(entry.amount), style = MaterialTheme.typography.title2, color = color)
         }
         Text(entryLine(entry), style = MaterialTheme.typography.caption2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        fee?.let { Text("+ ${exact(it.amount)} ${it.description.substringBefore(" ·")}", style = MaterialTheme.typography.caption2, color = MaterialTheme.colors.onSurfaceVariant, maxLines = 1) }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
             onChange?.let { CompactChip(onClick = it, label = { Text("Change") }, colors = ChipDefaults.secondaryChipColors()) }
             CompactChip(onClick = onSave, label = { Text("Save") }, colors = ChipDefaults.primaryChipColors(backgroundColor = color, contentColor = Color.Black))
@@ -1029,10 +1031,14 @@ private fun typedAmount(typed: String): String {
 }
 
 /** The fee picked for money going out: none, InstaPay, E-wallet or one of the phone's own. */
-private class FeeChoice(private val settings: WatchSettings, account: String) {
-    var id by mutableStateOf(defaultFee(account, settings.fees))
-    private var touched = false
-    val template get() = feeTemplates(settings).firstOrNull { it.id == id }
+private class FeeChoice(private val settings: WatchSettings, account: String, sms: SmsItem? = null) {
+    // A bank SMS starts on its own fee (smsFee); one it states can be picked again in the cycle.
+    private val stated = sms?.fee?.takeIf { it > 0 }?.let(::statedFee)
+    private val choices get() = listOfNotNull(stated) + feeTemplates(settings)
+    var id by mutableStateOf(if (sms != null) smsFee(sms, account, settings) else defaultFee(account, settings.fees))
+    // A fee the SMS states stays when the account is changed.
+    private var touched = stated != null
+    val template get() = choices.firstOrNull { it.id == id }
 
     /** A new account brings its usual fee, unless one was picked by hand. */
     fun follow(account: String) {
@@ -1040,7 +1046,7 @@ private class FeeChoice(private val settings: WatchSettings, account: String) {
     }
 
     fun next() {
-        val ids = listOf<String?>(null) + feeTemplates(settings).map { it.id }
+        val ids = listOf<String?>(null) + choices.map { it.id }
         id = ids[(ids.indexOf(id) + 1) % ids.size]
         touched = true
     }
@@ -1069,7 +1075,7 @@ private fun CountsChip(kind: String, counts: Boolean, onToggle: () -> Unit) {
 
 /** Tap a category to save. The chips above switch the account, the fee and whether it counts. */
 @Composable
-private fun CategoryScreen(kind: String, amount: Double, preset: Entry?, onSave: (Entry, Entry?) -> Unit) {
+private fun CategoryScreen(kind: String, amount: Double, preset: Entry?, sms: SmsItem?, onSave: (Entry, Entry?) -> Unit) {
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
     val settings = remember { Store.settings(context) }
@@ -1082,7 +1088,7 @@ private fun CategoryScreen(kind: String, amount: Double, preset: Entry?, onSave:
                 ?: settings.accounts.first(),
         )
     }
-    val fee = remember { FeeChoice(settings, account) }
+    val fee = remember { FeeChoice(settings, account, sms) }
     var counts by remember { mutableStateOf(preset?.notSpending != true) }
     val listState = rememberScalingLazyListState()
     val color = kindColor(kind)

@@ -14,7 +14,7 @@ interface Props {
   month: string
   existing: Transaction | null
   /** A new entry filled in from elsewhere (a bank SMS), saved under this id so it is only added once. */
-  draft?: { id: string; txn: NewTransaction }
+  draft?: { id: string; txn: NewTransaction; fee?: { fee: FeeKind; amount?: number } }
   onSaved?: (t: NewTransaction) => void
   onClose: () => void
   /** Which tab a new entry starts on, like Income from the notification bar's button. */
@@ -101,9 +101,11 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
   const [account, setAccount] = useState(init?.account ?? liquid[0] ?? accounts[0] ?? '')
   const [toAccount, setToAccount] = useState(init?.toAccount ?? accounts.find((a) => a !== account) ?? '')
   // A transfer fee, saved as its own expense; only offered when adding money going out.
-  const [fee, setFee] = useState<FeeKind>(() => (init ? 'none' : defaultFee(account, settings.feeTemplates)))
-  const [customFee, setCustomFee] = useState('')
-  const [feeTouched, setFeeTouched] = useState(false)
+  // A bank SMS brings the fee it states, or the usual one for what it is (smsFee); an edit starts with none.
+  const [fee, setFee] = useState<FeeKind>(() => (existing ? 'none' : draft ? draft.fee?.fee ?? 'none' : defaultFee(account, settings.feeTemplates)))
+  const [customFee, setCustomFee] = useState(() => (draft?.fee?.amount ? String(draft.fee.amount) : ''))
+  // A fee the SMS states stays when the account is changed.
+  const [feeTouched, setFeeTouched] = useState(!!draft?.fee?.amount)
   const [debt, setDebt] = useState(init?.debt ?? settings.debts[0]?.name ?? '')
 
   const catKind = tab === 'income' ? 'income' : 'expense'

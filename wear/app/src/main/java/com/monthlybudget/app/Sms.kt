@@ -42,6 +42,12 @@ data class SmsItem(
     val category: String,
     val description: String,
     val date: String,
+    /** What the fee is worked out from (smsFee in Fees.kt): the fee the SMS states, else 0. */
+    val fee: Double = 0.0,
+    val transfer: Boolean = false,
+    /** An InstaPay (instant) transfer. */
+    val instant: Boolean = false,
+    val wallet: String = "",
 ) {
     val id get() = "sms-$smsId"
     val incoming get() = kind == "income" || kind == "borrow"
@@ -59,6 +65,7 @@ object Sms {
                 it.getString("smsId"), it.optString("title"), it.optString("sub"), it.optString("body"),
                 it.getString("kind"), it.getDouble("amount"), it.optString("account"), it.optString("debt"),
                 it.optString("category"), it.optString("description"), it.getString("date"),
+                it.optDouble("fee", 0.0).takeIf { f -> !f.isNaN() } ?: 0.0, it.optBoolean("transfer"), it.optBoolean("instant"), it.optString("wallet"),
             )
         }
     }
@@ -153,7 +160,7 @@ object Sms {
             else -> Triple(if (p.direction == "spend") "expense" else "income", name, "")
         }
         val sub = "${dayLabel(p.date)} · ${p.wallet ?: "${p.sender} ••${p.card}"}"
-        return SmsItem(p.smsId, title, sub, p.body, kind, p.amount, account, debt, category, title + foreign, p.date)
+        return SmsItem(p.smsId, title, sub, p.body, kind, p.amount, account, debt, category, title + foreign, p.date, p.fee, p.transfer, p.instant, p.wallet ?: "")
     }
 
     /** 150 or 150.5, the way JavaScript writes a number. */

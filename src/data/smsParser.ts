@@ -26,6 +26,10 @@ export interface ParsedSms {
   card: string
   /** Set for e-wallet messages: the wallet's name. */
   wallet?: string
+  /** A fee the message states, like "رسوم 5 جنيه" or "Fees EGP 2.50". */
+  fee?: number
+  /** An InstaPay (instant) transfer, which InstaPay charges a fee on. */
+  instant?: boolean
   /** YYYY-MM-DD, from when the SMS arrived. */
   date: string
   body: string
@@ -57,6 +61,14 @@ const TRANSFER = /\btransfer|تحويل/i
 const SPEND = /\b(purchase[ds]?|charged|debited|spent|paid|payment|pos|withdrawal|withdrawn|deducted|transaction|trx|txn|transfer(?:red)?|bought|sent|used|recharged?|top[- ]?up)\b|خصم|شراء|سحب|عملية|مشتريات|دفع|تحويل|شحن/i
 // An amount right after these words is a balance or limit, not what was paid.
 const BALANCE_BEFORE = /(balance|bal|limit|available|avl|avail|remaining|رصيد|المتاح|متاح|الحد)[^\d\n]{0,20}$/i
+// Words for a fee. "charges" but not "charged", which is what was paid.
+const FEE_WORD = String.raw`\b(?:fees?|charges?|commission)\b|رسوم|عمول[ةه]|مصاريف|مصروفات`
+// An amount right after these words is the fee, not what was paid.
+const FEE_BEFORE = new RegExp(String.raw`(?:${FEE_WORD})[^\d\n]{0,25}$`, 'i')
+// "رسوم الخدمة 5 جنيه", "مصاريف التحويل: 1.00 جم", "Fees EGP 2.50", "commission of 3 EGP"
+const FEE = new RegExp(String.raw`(?:${FEE_WORD})[^\d\n]{0,25}?(${NUM})`, 'i')
+// InstaPay sends: CIB calls them "تحويل لحظي" (instant transfer).
+const INSTANT = /تحويل\s*لحظ[يى]|\binstant\s+(?:transfer|payment)|\binsta\s*pay\b|[إا]نستا\s*باي|\bIPN\b/i
 
 const CARD = [
   /(?:ending(?:\s+(?:with|in))?|ends\s+with|card\s*(?:no\.?|number|#)?|acc(?:ount)?\s*(?:no\.?|number|#)?)\s*[:#]?\s*(?:[*xX•.]+\s*)?(\d{4})\b/i,
@@ -114,12 +126,19 @@ const currencyCode = (token: string) => CURRENCIES.find(([re]) => re.test(token)
 
 function findAmount(body: string): { amount: number; currency: string } | null {
   for (const m of body.matchAll(AMOUNT)) {
-    if (BALANCE_BEFORE.test(body.slice(Math.max(0, m.index - 30), m.index))) continue
+    const before = body.slice(Math.max(0, m.index - 30), m.index)
+    if (BALANCE_BEFORE.test(before) || FEE_BEFORE.test(before)) continue
     const amount = Number((m[2] ?? m[3]).replace(/,/g, ''))
     if (amount > 0) return { amount, currency: currencyCode(m[1] ?? m[4]) }
   }
   const amount = Number(AMOUNT_WORD.exec(body)?.[1].replace(/,/g, ''))
   return amount > 0 ? { amount, currency: 'EGP' } : null
+}
+
+/** The fee the message names, if any and above zero. */
+function findFee(body: string): number | undefined {
+  const fee = Number(FEE.exec(body)?.[1].replace(/,/g, ''))
+  return fee > 0 ? fee : undefined
 }
 
 /** The receipt itself, without the ads and links some senders add after it. */
@@ -162,6 +181,8 @@ export function parseBankSms(sms: SmsMessage, walletSender?: string | null): Par
   if (!credit && !SPEND.test(body)) return null
   const found = findAmount(body)
   if (!found) return null
+  const fee = findFee(body)
+  const extra = { ...(fee && { fee }), ...(INSTANT.test(body) && { instant: true }) }
   // Real card and account messages name the card; offers and ads don't.
   const card = CARD.map((re) => re.exec(body)?.[1]).find(Boolean)
   if (!card) {
@@ -178,6 +199,7 @@ export function parseBankSms(sms: SmsMessage, walletSender?: string | null): Par
       merchant: findPerson(body) || findMerchant(body),
       card: wallet,
       wallet,
+      ...extra,
       date: isoDate(sms.date),
       body: sms.body,
     }
@@ -190,6 +212,7 @@ export function parseBankSms(sms: SmsMessage, walletSender?: string | null): Par
     ...found,
     merchant: findMerchant(body),
     card,
+    ...extra,
     date: isoDate(sms.date),
     body: sms.body,
   }
