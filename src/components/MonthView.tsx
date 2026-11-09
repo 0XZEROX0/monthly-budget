@@ -14,6 +14,7 @@ import type { ParsedSms } from '../data/smsParser'
 import { notifyNow, scheduleBillReminders } from '../native/notify'
 import { shareSmsWithWatch, shareWithWatch, smsSkippedOnWatch } from '../native/wear'
 import { updateWidget } from '../native/widget'
+import { widgetData } from '../native/widgetData'
 import { LockScreen, useAppLock } from './AppLock'
 import { ReportsView } from './ReportsView'
 import { UpdatePrompt } from './UpdateCard'
@@ -162,8 +163,8 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   // The home screen widget and budget alerts follow the current month.
   const isNow = month === currentMonth()
   useEffect(() => {
-    if (!summary || !settings || !isNow) return
-    updateWidget(widgetLines(summary, settings.currency, hidden))
+    if (!summary || !settings || !isNow || !txns) return
+    updateWidget({ ...widgetLines(summary, settings.currency, hidden), data: JSON.stringify(widgetData(month, summary, settings, txns, hidden)) })
     if (!settings.alerts?.off) alertOnce(month, summary, settings.alerts?.pct ?? 80, settings.currency)
   })
 

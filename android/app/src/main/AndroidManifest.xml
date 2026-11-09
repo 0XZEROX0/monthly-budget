@@ -55,6 +55,52 @@
                 android:resource="@xml/budget_widget_info" />
         </receiver>
 
+        <!-- More widgets, filled from the app's WidgetData (BoardWidget). -->
+        <receiver
+            android:name=".PlanWidget"
+            android:exported="false"
+            android:label="@string/widget_plan_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/plan_widget_info" />
+        </receiver>
+        <receiver
+            android:name=".CategoriesWidget"
+            android:exported="false"
+            android:label="@string/widget_categories_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/categories_widget_info" />
+        </receiver>
+        <receiver
+            android:name=".RecentWidget"
+            android:exported="false"
+            android:label="@string/widget_recent_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/recent_widget_info" />
+        </receiver>
+        <receiver
+            android:name=".AccountsWidget"
+            android:exported="false"
+            android:label="@string/widget_accounts_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/accounts_widget_info" />
+        </receiver>
+
         <!-- Puts the quick-add notification bar back after a restart or an update. -->
         <receiver
             android:name=".QuickBarReceiver"

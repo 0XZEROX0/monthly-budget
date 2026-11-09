@@ -6,4 +6,12 @@
     <string name="custom_url_scheme">com.monthlybudget.app</string>
     <string name="widget_name">Left to spend</string>
     <string name="widget_description">This month\'s budget at a glance, with a button to add an expense.</string>
+    <string name="widget_plan_name">Month plan</string>
+    <string name="widget_plan_description">Income and spending against this month\'s plan, what\'s left and what you saved.</string>
+    <string name="widget_categories_name">Categories</string>
+    <string name="widget_categories_description">Spent against budget for each category this month. Make it taller to see more.</string>
+    <string name="widget_recent_name">Latest expenses</string>
+    <string name="widget_recent_description">Your newest expenses this month, with a button to add one.</string>
+    <string name="widget_accounts_name">Accounts</string>
+    <string name="widget_accounts_description">Balance of each account, cash + bank and debts.</string>
 </resources>
