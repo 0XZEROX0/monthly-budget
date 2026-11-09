@@ -648,6 +648,10 @@ button.side-add, .side-nav button { transition: width var(--panel-time) var(--ea
 }
 
 /* Phone: while swiping, the next tab's page sits beside the current one and both follow the finger. */
-.pager { overflow-x: clip; }
+/* At rest the neighbours are clipped away entirely: a longer page beside a short one (Reports next to
+   Settings) would otherwise stretch the scroll and leave a big empty space under the short page.
+   While swiping they show, but only a screen's worth of them. */
+.pager { overflow: clip; }
+.app[data-swiping] .pager { overflow-y: visible; }
 .pager-track { position: relative; }
-.pager-peek { position: absolute; width: 100%; pointer-events: none; }
+.pager-peek { position: absolute; width: 100%; max-height: 100dvh; overflow: hidden; pointer-events: none; }
