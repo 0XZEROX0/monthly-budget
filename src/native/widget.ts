@@ -2,8 +2,11 @@ import { Capacitor, registerPlugin } from '@capacitor/core'
 
 /** The native side is android/app/src/main/java/com/monthlybudget/app/WidgetPlugin.java. */
 interface WidgetPlugin {
-  /** Shows these lines on the home screen widget; the text is formatted here. */
-  update(opts: { label: string; value: string; sub: string; pct: number; over: boolean }): Promise<void>
+  /**
+   * Shows these lines on the "Left to spend" widget; the text is formatted here.
+   * `data` is a WidgetData as JSON, for the plan, categories, latest expenses and accounts widgets.
+   */
+  update(opts: { label: string; value: string; sub: string; pct: number; over: boolean; data?: string }): Promise<void>
 }
 
 const Widget = registerPlugin<WidgetPlugin>('Widget')

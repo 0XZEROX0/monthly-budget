@@ -7,7 +7,7 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
-/** Gives the home screen widget (BudgetWidget) the current month's numbers, formatted by the app. */
+/** Gives the home screen widgets (BudgetWidget, BoardWidget) the current month's numbers, formatted by the app. */
 @CapacitorPlugin(name = "Widget")
 public class WidgetPlugin extends Plugin {
     static SharedPreferences prefs(Context ctx) {
@@ -22,8 +22,10 @@ public class WidgetPlugin extends Plugin {
             .putString("sub", call.getString("sub", ""))
             .putInt("pct", call.getInt("pct", 0))
             .putBoolean("over", Boolean.TRUE.equals(call.getBoolean("over", false)))
+            .putString("data", call.getString("data", ""))
             .apply();
         BudgetWidget.refreshAll(getContext());
+        BoardWidget.refreshAll(getContext());
         // The quick-add bar shows the same "left to spend" line.
         QuickBar.show(getContext());
         call.resolve();
