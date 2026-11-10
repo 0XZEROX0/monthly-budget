@@ -1,4 +1,4 @@
-// Syncing, against Firebase's local emulator rather than the real project: two devices on one
+// Run with feedback.test.ts. Syncing, against Firebase's local emulator rather than the real project: two devices on one
 // account saving settings, entries and deletes, the clean-up of old delete markers, and a
 // device that comes back after months away. Not part of `npm test`, since it needs the emulator:
 //

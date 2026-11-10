@@ -5,5 +5,25 @@ service cloud.firestore {
     match /users/{uid}/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
+
+    // Feedback from Settings › Feedback (src/data/feedback.ts). Signed-in users can only
+    // add one; nobody can read, change or delete it from the app. The developer reads it
+    // in the Firebase console, and scripts/feedback-mailer emails it to them.
+    match /feedback/{id} {
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['uid', 'kind', 'message', 'replyTo', 'platform', 'build', 'emailed', 'createdAt'])
+        && request.resource.data.keys().hasAll(['uid', 'kind', 'message', 'platform', 'build', 'emailed', 'createdAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.kind in ['idea', 'bug']
+        && request.resource.data.message is string
+        && request.resource.data.message.size() > 0
+        && request.resource.data.message.size() <= 2000
+        && (!('replyTo' in request.resource.data) || request.resource.data.replyTo == request.auth.token.email)
+        && request.resource.data.platform is string
+        && request.resource.data.platform.size() <= 20
+        && request.resource.data.build is int
+        && request.resource.data.emailed == false
+        && request.resource.data.createdAt == request.time;
+    }
   }
 }
