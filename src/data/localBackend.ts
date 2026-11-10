@@ -24,10 +24,20 @@ function load(): Db {
   return { settings: DEFAULT_SETTINGS, plans: {}, transactions: [] }
 }
 
+function hasSaved(): boolean {
+  try {
+    return localStorage.getItem(KEY) !== null
+  } catch {
+    return false
+  }
+}
+
 export const toTxn = (id: string, t: NewTransaction): Transaction => ({ ...t, id, month: t.month ?? t.date.slice(0, 7) })
 
 export function createLocalBackend(): Backend {
   let db = load()
+  // Whether anything was ever saved in this browser; nothing means a first start.
+  let saved = hasSaved()
   const listeners = new Set<() => void>()
   const commit = async () => {
     try {
@@ -46,8 +56,9 @@ export function createLocalBackend(): Backend {
 
   return {
     mode: 'local',
-    watchSettings: (cb) => watch(() => cb(db.settings)),
+    watchSettings: (cb) => watch(() => cb(db.settings, !saved)),
     saveSettings: (s) => {
+      saved = true
       db = { ...db, settings: s }
       return commit()
     },
@@ -72,6 +83,7 @@ export function createLocalBackend(): Backend {
       return commit()
     },
     importAll: (data) => {
+      saved = true
       const ids = new Set(data.transactions.map((t) => t.id))
       db = {
         settings: data.settings,
@@ -82,6 +94,7 @@ export function createLocalBackend(): Backend {
     },
     exportAll: async () => db,
     clearAll: () => {
+      saved = false
       db = { settings: DEFAULT_SETTINGS, plans: {}, transactions: [] }
       return commit()
     },

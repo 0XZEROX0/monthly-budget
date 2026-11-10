@@ -32,12 +32,14 @@ interface Props {
   lock: { enabled: boolean; setEnabled: (on: boolean) => void }
   /** A group to open, like 'planning' when coming from the goals card. */
   initialGroup?: string
+  /** Opens the tour of the app again. */
+  onShowGuide?: () => void
 }
 
 const CURRENCIES = ['EGP', 'USD', 'EUR', 'GBP', 'SAR', 'AED', 'KWD', 'QAR', 'TRY']
 const fail = (e: Error) => showAlert(t('Could not save: {error}', { error: e.message }))
 
-export function SettingsView({ backend, settings, sms, user, onSignOut, lock, initialGroup }: Props) {
+export function SettingsView({ backend, settings, sms, user, onSignOut, lock, initialGroup, onShowGuide }: Props) {
   const save = (s: Settings) => backend.saveSettings(s).catch(fail)
   // Name and icon in one popup, as on the add screen.
   const newCategory = (kind: 'expense' | 'income') => askNewCategory(settings, kind).then((r) => r && save(r.settings))
@@ -77,6 +79,18 @@ export function SettingsView({ backend, settings, sms, user, onSignOut, lock, in
       </section>
 
       <LanguageCard settings={settings} onSave={save} />
+
+      {onShowGuide && (
+        <button className="card hint guide-again" onClick={onShowGuide}>
+          <span className="setup-icon" aria-hidden>
+            🧭
+          </span>
+          <span>
+            <strong>{t('How to use the app')}</strong>
+            <span className="muted small">{t('Take the short tour again: what each page does and how to add entries.')}</span>
+          </span>
+        </button>
+      )}
 
       {group(
         'money',

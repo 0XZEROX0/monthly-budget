@@ -29,6 +29,8 @@ import { SettingsView } from './SettingsView'
 import { SummaryView } from './SummaryView'
 import { TransactionForm } from './TransactionForm'
 import { TransactionList, type ListFocus } from './TransactionList'
+import { FirstRunSetup } from './FirstRunSetup'
+import { Guide, type GuideSpot, type GuideTab } from './Guide'
 import { ask, showAlert } from './dialog'
 import { isRtl, msg, t } from '../i18n'
 
@@ -132,7 +134,33 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   // A bank SMS being reviewed in the add form.
   const [fromSms, setFromSms] = useState<ParsedSms | null>(null)
 
-  const settings = useSettings(backend)
+  const [settings, fresh] = useSettings(backend)
+  // Someone new adds their accounts first (FirstRunSetup), then gets a short tour (Guide),
+  // which Settings can also open again. People who were using the app before never get the setup.
+  const needsSetup = !!settings && (settings.onboarding === 'accounts' || (fresh && !settings.onboarding))
+  // Which way the page slides in after a swipe (1: from the right, -1: from the left).
+  const [slide, setSlide] = useState<0 | 1 | -1>(0)
+  const [touring, setTouring] = useState(false)
+  const guideOpen = !needsSetup && (touring || settings?.onboarding === 'guide')
+  const [spot, setSpot] = useState<GuideSpot>()
+  const showGuideStep = useCallback(
+    (to: GuideTab, at: GuideSpot | undefined) => {
+      setSlide(0)
+      setTab(to)
+      setFocus(null)
+      setSpot(at)
+      scroller.current?.scrollTo(0, 0)
+    },
+    [scroller],
+  )
+  const endGuide = () => {
+    setTouring(false)
+    setSpot(undefined)
+    setTab('summary')
+    if (settings?.onboarding === 'guide') backend.saveSettings({ ...settings, onboarding: 'done' }).catch(() => {})
+  }
+  const startGuide = useCallback(() => setTouring(true), [])
+  const lit = (what: GuideSpot) => (guideOpen && spot === what ? 'guide-spot' : '')
   // Apply the synced theme once settings arrive (main.tsx already applied this device's last one).
   const theme = settings?.theme
   useEffect(() => {
@@ -236,8 +264,6 @@ export function MonthView({ backend, user, onSignOut }: Props) {
 
   const lock = useAppLock()
 
-  // Which way the page slides in after a swipe (1: from the right, -1: from the left).
-  const [slide, setSlide] = useState<0 | 1 | -1>(0)
   // A short note at the bottom, like "Swipe back again to exit".
   const [toast, setToast] = useState('')
   const exitArmed = useRef(0)
@@ -306,7 +332,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
         scroller.current?.scrollTo(0, 0)
       },
     },
-    !desktop && !lock.locked,
+    !desktop && !lock.locked && !guideOpen,
   )
 
   if (lock.locked)
@@ -316,6 +342,8 @@ export function MonthView({ backend, user, onSignOut }: Props) {
         {toast && <div className="toast" role="status">{toast}</div>}
       </>
     )
+
+  if (settings && needsSetup) return <FirstRunSetup backend={backend} settings={settings} />
 
   const openTab = (t: Tab) => {
     setTab(t)
@@ -386,7 +414,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
     ) : view === 'reports' ? (
       <ReportsView backend={backend} settings={settings} month={nowMonth} hidden={hidden} onSelectMonth={openMonthSummary} />
     ) : (
-      <SettingsView backend={backend} settings={settings} sms={sms} user={user} onSignOut={onSignOut} lock={lock} initialGroup={settingsGroup} />
+      <SettingsView backend={backend} settings={settings} sms={sms} user={user} onSignOut={onSignOut} lock={lock} initialGroup={settingsGroup} onShowGuide={startGuide} />
     )
   const page = pageFor(view, focus)
 
@@ -420,6 +448,8 @@ export function MonthView({ backend, user, onSignOut }: Props) {
 
       <UpdatePrompt />
 
+      {guideOpen && <Guide onStep={showGuideStep} onDone={endGuide} />}
+
       {fromSms && settings && (
         <TransactionForm
           backend={backend}
@@ -439,18 +469,18 @@ export function MonthView({ backend, user, onSignOut }: Props) {
     const current = TABS.find((t) => t.id === view)!
     return (
       <div className={`desk ${hasPanel ? 'has-panel' : ''} ${hasPanel && !rightOpen ? 'right-closed' : ''} ${leftOpen ? '' : 'left-closed'}`}>
-        <aside className="sidebar">
+        <aside className={`sidebar ${guideOpen && spot ? 'guide-on' : ''}`}>
           <div className="brand">
             <img src="./favicon.svg" alt="" width={34} height={34} />
             <span className="side-label">{t('Monthly Budget')}</span>
           </div>
-          <button className="primary side-add" onClick={() => setEditing('new')} aria-label={t('Add transaction')} title={leftOpen ? undefined : t('Add transaction')}>
+          <button className={`primary side-add ${lit('add')}`} onClick={() => setEditing('new')} aria-label={t('Add transaction')} title={leftOpen ? undefined : t('Add transaction')}>
             <span aria-hidden>+</span>
             <span className="side-label">{t('Add transaction')}</span>
           </button>
           <nav className="side-nav" aria-label={t('Pages')}>
             {TABS.filter((x) => !(withPanel && x.id === 'reports')).map((tab) => (
-              <button key={tab.id} className={tab.id === view ? 'active' : ''} aria-current={tab.id === view ? 'page' : undefined} onClick={() => openTab(tab.id)} aria-label={t(tab.label)} title={leftOpen ? undefined : t(tab.label)}>
+              <button key={tab.id} className={`${tab.id === view ? 'active' : ''} ${lit(tab.id)}`} aria-current={tab.id === view ? 'page' : undefined} onClick={() => openTab(tab.id)} aria-label={t(tab.label)} title={leftOpen ? undefined : t(tab.label)}>
                 <svg viewBox="0 0 24 24" aria-hidden>
                   <path d={tab.icon} />
                 </svg>
@@ -553,14 +583,14 @@ export function MonthView({ backend, user, onSignOut }: Props) {
       </div>
 
       {(tab === 'summary' || tab === 'transactions') && (
-        <button className="fab" aria-label={t('Add transaction')} onClick={() => setEditing('new')}>
+        <button className={`fab ${lit('add')}`} aria-label={t('Add transaction')} onClick={() => setEditing('new')}>
           +
         </button>
       )}
 
-      <nav className="tabbar">
+      <nav className={`tabbar ${guideOpen && spot && spot !== 'add' ? 'guide-on' : ''}`}>
         {TABS.map((x) => (
-          <button key={x.id} className={x.id === tab ? 'active' : ''} onClick={() => {
+          <button key={x.id} className={`${x.id === tab ? 'active' : ''} ${lit(x.id)}`} onClick={() => {
               setSlide(0)
               setTab(x.id)
               setFocus(null)

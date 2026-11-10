@@ -4,11 +4,14 @@ import { setCustomIcons } from './icons'
 import { setShowDecimals, today } from './month'
 import type { Backend, MonthPlan, Settings, Transaction } from './types'
 
+/** The settings, and whether this is a brand-new user with nothing saved yet. */
 export function useSettings(backend: Backend) {
   const [settings, setSettings] = useState<Settings | null>(null)
+  const [fresh, setFresh] = useState(false)
   useEffect(
     () =>
-      backend.watchSettings((s) => {
+      backend.watchSettings((s, isFresh) => {
+        setFresh(isFresh)
         // Display choices that every amount and icon reads, set before the next render.
         setShowDecimals(!!s.decimals)
         applyLang(s.lang)
@@ -17,7 +20,7 @@ export function useSettings(backend: Backend) {
       }),
     [backend],
   )
-  return settings
+  return [settings, fresh] as const
 }
 
 /** undefined while loading, null when the month has no saved plan yet. */

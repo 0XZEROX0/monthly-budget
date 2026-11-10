@@ -92,6 +92,11 @@ export interface Settings {
   feeTemplates?: FeeTemplate[]
   /** Budget alerts; on at 80% unless turned off. */
   alerts?: { off?: boolean; pct?: number }
+  /**
+   * First-start setup: 'accounts' while adding accounts and balances, 'guide' while the
+   * tour is still to be seen, 'done' after. Missing for people who started before it existed.
+   */
+  onboarding?: 'accounts' | 'guide' | 'done'
 }
 
 /**
@@ -162,7 +167,8 @@ export interface ImportData {
 export interface Backend {
   /** 'local' keeps data in this browser only; 'cloud' syncs through Firestore. */
   mode: 'local' | 'cloud'
-  watchSettings(cb: (s: Settings) => void): Unsubscribe
+  /** `fresh`: nothing has ever been saved for this user (the server confirmed it), so it's a first start. */
+  watchSettings(cb: (s: Settings, fresh: boolean) => void): Unsubscribe
   saveSettings(s: Settings): Promise<void>
   watchPlan(month: string, cb: (p: MonthPlan | null) => void): Unsubscribe
   savePlan(month: string, p: MonthPlan): Promise<void>
