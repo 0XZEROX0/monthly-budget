@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { useRange } from '../data/hooks'
 import { categoryIcon } from '../data/icons'
 import { currentMonth, dayLabel, daysInMonth, formatCompact, formatWhole, monthLabel, shiftDay, shiftMonth, shortDay, shortMonth, today } from '../data/month'
-import { balancesBefore, balancesThrough, countsAsIncome, savedIn, spentIn } from '../data/summary'
+import { countsAsIncome, effects, savedIn, spentIn } from '../data/summary'
 import type { Backend, Settings, Transaction } from '../data/types'
 import { Legend, LineChart, MonthsChart, SavedChart } from './charts'
 import { askChoice, askForm, askMonth, showAlert } from './dialog'
@@ -120,6 +120,31 @@ function rangeFor(choice: Choice, month: string) {
   }
 }
 
+/**
+ * All accounts added together at the end of each of `ends` (dates, or months when `byDate`
+ * is off; in rising order): the opening balances plus every entry up to then. Entries are
+ * put in order once and added as the ends go by, rather than adding up the whole history
+ * again for each one.
+ */
+function capitalAt(ends: string[], byDate: boolean, settings: Settings, history: Transaction[]): number[] {
+  const names = new Set(settings.accounts.map((a) => a.name))
+  const moves = history
+    .filter((t) => t.month >= settings.opening.month)
+    .map((t) => {
+      let change = 0
+      for (const [name, v] of Object.entries(effects(t, settings).accounts)) if (names.has(name)) change += v
+      return { at: byDate ? t.date : t.month, change }
+    })
+    .sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0))
+  let total = 0
+  for (const name of names) total += settings.opening.accounts[name] ?? 0
+  let next = 0
+  return ends.map((end) => {
+    while (next < moves.length && moves[next].at <= end) total += moves[next++].change
+    return total
+  })
+}
+
 /** Asks for a range: a preset, then for "Month" which month, or for "Custom range" the dates. */
 async function askRange(current: Choice, settings: Settings): Promise<Choice | null> {
   const id = await askChoice(
@@ -155,7 +180,7 @@ async function askRange(current: Choice, settings: Settings): Promise<Choice | n
 }
 
 /** Trends over a few days, a month, a custom range or several months: income vs spending, saved, capital, and where the money went. */
-export function ReportsView({ backend, settings, month, hidden, onSelectMonth }: { backend: Backend; settings: Settings; month: string; hidden: boolean; onSelectMonth: (m: string) => void }) {
+export const ReportsView = memo(function ReportsView({ backend, settings, month, hidden, onSelectMonth }: { backend: Backend; settings: Settings; month: string; hidden: boolean; onSelectMonth: (m: string) => void }) {
   const [choice, setChoice] = useState(savedRange)
   const pick = async () => {
     const next = await askRange(choice, settings)
@@ -180,17 +205,25 @@ export function ReportsView({ backend, settings, month, hidden, onSelectMonth }:
     const inRange = history.filter(range.inRange)
     // Long day ranges label every few bars so the numbers don't run together.
     const step = Math.ceil(count / 8)
+    const byKey = new Map<string, Transaction[]>()
+    for (const t of inRange) {
+      const k = range.keyOf(t)
+      const list = byKey.get(k)
+      if (list) list.push(t)
+      else byKey.set(k, [t])
+    }
+    // Day bars count entries by date, month bars by their month.
+    const byDate = byDay || choice.id === 'custom'
+    const capital = capitalAt(keys.map((k) => (!byDate ? k : byDay ? k : lastDayOf(k) < range.to ? lastDayOf(k) : range.to)), byDate, settings, history)
     const bars = keys.map((k, i) => {
-      const list = inRange.filter((t) => range.keyOf(t) === k)
-      const endOfBar = byDay ? k : lastDayOf(k) < range.to ? lastDayOf(k) : range.to
-      const capitalAt = byDay || choice.id === 'custom' ? balancesThrough(endOfBar, settings, history) : balancesBefore(shiftMonth(k, 1), settings, history)
+      const list = byKey.get(k) ?? []
       return {
         month: k,
         label: !byDay ? shortMonth(k) : count <= 7 ? shortDay(k, count < 7) : i % step === 0 ? String(Number(k.slice(8))) : '',
         income: list.filter(countsAsIncome).reduce((a, t) => a + t.amount, 0),
         expense: spentIn(list),
         saved: savedIn(list, settings),
-        value: settings.accounts.reduce((a, acc) => a + (capitalAt.accounts[acc.name] ?? 0), 0),
+        value: capital[i],
       }
     })
     const before = history.filter(range.inBefore)
@@ -320,4 +353,4 @@ export function ReportsView({ backend, settings, month, hidden, onSelectMonth }:
       </section>
     </div>
   )
-}
+})

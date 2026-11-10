@@ -28,10 +28,13 @@ export function PlanEditor({ backend, month, plan, settings }: Props) {
   }
   useEffect(() => flush, [month]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Take in changes synced from another device unless the user is mid-edit.
+  // Take in a plan that arrives (a save coming back, or a change from another device) unless
+  // an edit is still waiting to be saved. Only when the plan itself changes: right after a
+  // save `plan` is still the old one for a moment, and taking it then would flash the old
+  // numbers back into the boxes.
   useEffect(() => {
-    if (!dirty) setDraft(plan ?? emptyPlan())
-  }, [plan, dirty])
+    if (!pending.current) setDraft(plan ?? emptyPlan())
+  }, [plan])
 
   const update = (next: MonthPlan) => {
     setDraft(next)

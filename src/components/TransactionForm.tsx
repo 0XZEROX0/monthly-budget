@@ -3,7 +3,7 @@ import { useReorder } from './useReorder'
 import { guessType } from '../data/accounts'
 import { defaultFee, feeCategory, feeFor, feeHint, feeTemplates, type FeeKind } from '../data/fees'
 import { categoryIcon } from '../data/icons'
-import { today } from '../data/month'
+import { parseAmount, today } from '../data/month'
 import type { Backend, NewTransaction, Settings, Transaction, TxnKind } from '../data/types'
 import { ask, askForm, askText, showAlert } from './dialog'
 import { askEditCategory, askNewCategory } from './categoryRename'
@@ -142,10 +142,10 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
 
   const sendsMoney = tab === 'expense' || tab === 'transfer' || (tab === 'debt' && debtMode === 'repay')
   const showFee = !existing && sendsMoney
-  const amountValue = Number(amount.replace(',', '.'))
+  const amountValue = parseAmount(amount)
   const templates = feeTemplates(settings)
   const feeTemplate = templates.find((t) => t.id === fee)
-  const feeValue = !showFee ? 0 : fee === 'custom' ? Number(customFee.replace(',', '.')) || 0 : feeFor(feeTemplate, amountValue)
+  const feeValue = !showFee ? 0 : fee === 'custom' ? parseAmount(customFee) || 0 : feeFor(feeTemplate, amountValue)
   // Shown before any amount is typed too: InstaPay's minimum of 0.5 straight away.
   const feeShown = feeValue || (showFee && feeTemplate && !(amountValue > 0) ? feeTemplate.min ?? 0 : 0)
   const money2 = (n: number) => `${settings.currency} ${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
@@ -167,7 +167,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
       { title: 'New fee' },
     )
     if (!v) return
-    const n = (k: string) => (v[k]?.trim() ? Number(v[k].replace(',', '.').replace('%', '')) : undefined)
+    const n = (k: string) => (v[k]?.trim() ? parseAmount(v[k].replace('%', '')) : undefined)
     const name = v.name?.trim()
     const [pct, min, max] = [n('pct'), n('min'), n('max')]
     if (!name || pct == null || !(pct >= 0) || [min, max].some((x) => x != null && !(x >= 0)))
@@ -186,8 +186,8 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    const value = Number(amount.replace(',', '.'))
-    if (!Number.isFinite(value) || value <= 0) return
+    const value = parseAmount(amount)
+    if (!Number.isFinite(value) || value <= 0) return void showAlert('Type the amount as a number above zero, like 250 or 99.50.')
     if ((tab === 'expense' || tab === 'income') && !category) return void showAlert('Pick a category.')
     // The time orders entries within a day, newest first.
     if (time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return void showAlert(clock12 ? 'Type the time like 09:30 and pick AM or PM.' : 'Type the time like 09:30 or 21:15.')

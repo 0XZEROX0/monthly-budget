@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { formatWhole, today } from '../data/month'
+import { formatWhole, parseAmount, today } from '../data/month'
 import type { Account, Backend, Settings } from '../data/types'
 import { showAlert } from './dialog'
 
@@ -15,9 +15,9 @@ interface Props {
 /** Sets an account to its real value (e.g. Thndr's portfolio value); records the difference. */
 export function BalanceForm({ backend, account, month, current, settings, onClose }: Props) {
   const { currency } = settings
-  const [value, setValue] = useState(String(Math.round(current)))
+  const [value, setValue] = useState(String(Math.round(current * 100) / 100))
   const [rate, setRate] = useState(String(account.interestPct ?? ''))
-  const target = Number(value.replace(',', '.'))
+  const target = parseAmount(value)
   const diff = Number.isFinite(target) ? target - current : 0
 
   const submit = (e: FormEvent) => {
@@ -29,7 +29,7 @@ export function BalanceForm({ backend, account, month, current, settings, onClos
         .addTransaction({ kind: 'adjust', account: account.name, amount: diff, date, month, description: 'Value change', category: '' })
         .catch((err: Error) => showAlert(`Could not save: ${err.message}`))
     }
-    const pct = Number(rate.replace(',', '.'))
+    const pct = parseAmount(rate)
     if (account.type === 'investment' && rate.trim() && Number.isFinite(pct) && pct !== account.interestPct)
       backend
         .saveSettings({ ...settings, accounts: settings.accounts.map((a) => (a.name === account.name ? { ...a, interestPct: pct } : a)) })
