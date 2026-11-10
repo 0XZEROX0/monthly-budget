@@ -154,6 +154,9 @@ export function TransactionForm({ backend, settings: saved, month, existing, exi
     if ((t === 'expense' || t === 'income') && !settings.categories[kind].includes(category)) setCategory(settings.categories[kind][0] ?? '')
   }
 
+  // Marks a field for the tour to point at.
+  const g = (name: string) => (guided ? { 'data-guide': `f-${name}` } : {})
+
   const sendsMoney = tab === 'expense' || tab === 'transfer' || (tab === 'debt' && debtMode === 'repay')
   const showFee = !existing && sendsMoney
   const amountValue = parseAmount(amount)
@@ -271,7 +274,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, exi
             </button>
           ))}
         </div>
-        <label className="amount">
+        <label className="amount" {...g('amount')}>
           <span className="sr-only">{tr('Amount in {currency}', { currency: settings.currency })}</span>
           <span className="amount-currency">{settings.currency}</span>
           <input inputMode="decimal" autoFocus={!guided} required value={amount} style={{ width: `${Math.max(1, amount.length) + 0.6}ch` }} onChange={(e) => setAmount(e.target.value)} placeholder="0" />
@@ -290,7 +293,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, exi
         )}
 
         {tab === 'debt' && (
-          <div className="segmented">
+          <div className="segmented" {...g('debtmode')}>
             <button type="button" className={debtMode === 'repay' ? 'active' : ''} onClick={() => setDebtMode('repay')}>
               {tr('I paid back')}
             </button>
@@ -300,7 +303,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, exi
           </div>
         )}
 
-        {tab === 'debt' && <Chips label={tr('Debt')} options={settings.debts.map((d) => d.name)} value={debt} onChange={setDebt} />}
+        {tab === 'debt' && <Chips label={tr('Debt')} options={settings.debts.map((d) => d.name)} value={debt} onChange={setDebt} guide={g('debt')} />}
 
         <Chips
           label={tab === 'income' ? tr('Into') : tab === 'transfer' ? tr('From') : tab === 'debt' ? (debtMode === 'repay' ? tr('Paid from') : tr('Into (optional)')) : tr('Paid from')}
@@ -315,11 +318,12 @@ export function TransactionForm({ backend, settings: saved, month, existing, exi
           }}
           onAdd={addAccount}
           addLabel={tr('New account')}
+          guide={g('account')}
         />
-        {tab === 'transfer' && <Chips label={tr('To')} options={accounts.filter((a) => a !== account)} value={toAccount} onChange={setToAccount} />}
+        {tab === 'transfer' && <Chips label={tr('To')} options={accounts.filter((a) => a !== account)} value={toAccount} onChange={setToAccount} guide={g('to')} />}
 
         {(tab === 'expense' || tab === 'income') && (
-          <div className="field">
+          <div className="field" {...g('category')}>
             <span className="field-label">
               {tr('Category')} <span className="muted small">· {tr('tap again to edit, hold to reorder')}</span>
             </span>
@@ -345,7 +349,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, exi
         )}
 
         {showFee && (
-          <div className="field">
+          <div className="field" {...g('fee')}>
             <span className="field-label">
               {tr('Fee')}{feeShown > 0 && <span className="muted small"> · {tr('{amount} from {account}', { amount: money2(feeShown), account })}</span>}
             </span>
@@ -379,7 +383,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, exi
           </div>
         )}
 
-        <div className="field">
+        <div className="field" {...g('date')}>
           <span className="field-label">{tr('Date and time')}</span>
           <div className="row wrap">
             <button type="button" className={`chip ${date === today() ? 'active' : ''}`} onClick={() => setDate(today())}>
@@ -401,12 +405,12 @@ export function TransactionForm({ backend, settings: saved, month, existing, exi
             )}
           </div>
         </div>
-        <label className="field">
+        <label className="field" {...g('note')}>
           <span className="field-label">{tr('Note')}</span>
           <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={tr('What was it for? (optional)')} />
         </label>
         {(tab === 'expense' || tab === 'income') && (
-          <label className="edit-row toggle-row">
+          <label className="edit-row toggle-row" {...g('count')}>
             <span className="grow">
               {tab === 'expense' ? tr("Don't count as an expense") : tr("Don't count as income")}
               <span className="muted small block">
@@ -431,9 +435,9 @@ export function TransactionForm({ backend, settings: saved, month, existing, exi
   )
 }
 
-function Chips({ label, options, value, onChange, onAdd, addLabel }: { label: string; options: string[]; value: string; onChange: (v: string) => void; onAdd?: () => void; addLabel?: string }) {
+function Chips({ label, options, value, onChange, onAdd, addLabel, guide }: { label: string; options: string[]; value: string; onChange: (v: string) => void; onAdd?: () => void; addLabel?: string; guide?: object }) {
   return (
-    <div className="field">
+    <div className="field" {...guide}>
       <span className="field-label">{label}</span>
       <div className="row wrap" role="radiogroup" aria-label={label}>
         {options.map((o) => (

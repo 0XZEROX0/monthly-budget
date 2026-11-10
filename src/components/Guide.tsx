@@ -25,14 +25,42 @@ export interface GuideStep {
 
 const group = (id: string, title: string, text: string): GuideStep => ({ title, text, tab: 'settings', group: id, target: `group-${id}` })
 
+/** A step on one field of the add form, opened on `form`. */
+const field = (form: GuideForm, name: string, title: string, text: string): GuideStep => ({ title, text, tab: 'summary', form, target: `f-${name}` })
+
 const STEPS: GuideStep[] = [
   { title: msg('Welcome!'), text: msg('A quick tour of the app. Tap Next to go on.'), tab: 'summary' },
   { title: msg('Summary'), text: msg("Your month at a glance: what's left to spend, your balances and your debts. Tap any row for details."), tab: 'summary', target: 'summary' },
   { title: msg('Add'), text: msg('Tap + to add money going out or coming in.'), tab: 'summary', target: 'add' },
-  { title: msg('Expense'), text: msg('Money you spend. Type the amount, pick a category and the account you paid from.'), tab: 'summary', form: 'expense', target: 'form-expense' },
-  { title: msg('Income'), text: msg('Money you receive, like your salary. Pick the account it went into.'), tab: 'summary', form: 'income', target: 'form-income' },
-  { title: msg('Transfer'), text: msg("Moving money between your accounts, like Bank to Cash. It isn't spending."), tab: 'summary', form: 'transfer', target: 'form-transfer' },
-  { title: msg('Debt'), text: msg('Instalments and loans, one debt per lender. I borrowed adds to it, I paid back lowers it.'), tab: 'summary', form: 'debt', target: 'form-debt' },
+  // Expense, field by field
+  { title: msg('Expense'), text: msg('Money you spend: shopping, food, bills.'), tab: 'summary', form: 'expense', target: 'form-expense' },
+  field('expense', 'amount', msg('Amount'), msg('Type the amount you paid.')),
+  field('expense', 'account', msg('Paid from'), msg('The account the money came out of: cash, a bank or a wallet.')),
+  field('expense', 'category', msg('Category'), msg('What it was for. Tap + New to make your own.')),
+  field('expense', 'date', msg('Date and time'), msg('Set for now. Change it if it happened earlier.')),
+  field('expense', 'note', msg('Note'), msg('Optional: a few words, like what you bought.')),
+  field('expense', 'count', msg("Don't count as an expense"), msg("Turn on for money that leaves the account but isn't your spending, like paying for a friend who pays you back. It stays out of your budget.")),
+  // Income
+  { title: msg('Income'), text: msg('Money you receive, like your salary.'), tab: 'summary', form: 'income', target: 'form-income' },
+  field('income', 'amount', msg('Amount'), msg('Type the amount you received.')),
+  field('income', 'account', msg('Into'), msg('The account the money went into.')),
+  field('income', 'category', msg('Category'), msg('Where it came from, like Salary. Tap + New to make your own.')),
+  field('income', 'note', msg('Note'), msg('Optional: a few words about it.')),
+  field('income', 'count', msg("Don't count as income"), msg("Turn on for money that isn't really income, like a friend paying you back. It still goes into the account.")),
+  // Transfer
+  { title: msg('Transfer'), text: msg("Moving your own money between accounts. It isn't spending."), tab: 'summary', form: 'transfer', target: 'form-transfer' },
+  field('transfer', 'amount', msg('Amount'), msg('How much you moved.')),
+  field('transfer', 'account', msg('From'), msg('The account the money left, like Bank.')),
+  field('transfer', 'to', msg('To'), msg('The account it went to, like Cash after an ATM.')),
+  field('transfer', 'fee', msg('Fee'), msg('If the bank or wallet charged a fee, pick it. It is saved as its own expense.')),
+  field('transfer', 'note', msg('Note'), msg('Optional: a few words about it.')),
+  // Debt
+  { title: msg('Debt'), text: msg('Instalments and loans, one debt per lender.'), tab: 'summary', form: 'debt', target: 'form-debt' },
+  field('debt', 'amount', msg('Amount'), msg('The amount you paid or borrowed.')),
+  field('debt', 'debtmode', msg('Paid back or borrowed'), msg('I paid back: you paid an instalment, the debt goes down. I borrowed: you bought on instalments or took a loan, the debt goes up.')),
+  field('debt', 'debt', msg('Which debt'), msg('Pick the lender, like valU or TRU. Add more in Settings › Money › Debts.')),
+  field('debt', 'account', msg('Paid from'), msg('The account you paid the instalment from.')),
+  field('debt', 'note', msg('Note'), msg('Optional: a few words, like what you bought.')),
   { title: msg('Transactions'), text: msg('Every entry this month. Tap one to change or delete it.'), tab: 'transactions', target: 'transactions' },
   { title: msg('Plan'), text: msg("Set a budget for each category. Summary shows what's left."), tab: 'plan', target: 'plan' },
   { title: msg('Reports'), text: msg('Charts of your spending and income over the months.'), tab: 'reports', target: 'reports' },
@@ -81,8 +109,15 @@ export function Guide({ onStep, onDone }: Props) {
   useEffect(() => {
     let frame = 0
     let seen: Box | null = null
+    let shown = false
     const follow = () => {
       const el = step.target ? findTarget(step.target) : null
+      // A field lower down the add form: scrolled into view once, when it first appears.
+      if (el && !shown) {
+        shown = true
+        const r = el.getBoundingClientRect()
+        if (r.top < 60 || r.bottom > window.innerHeight - 60) el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      }
       const r = el?.getBoundingClientRect()
       const next = r ? { top: r.top, left: r.left, width: r.width, height: r.height } : null
       if (!same(seen, next)) setBox((seen = next))
