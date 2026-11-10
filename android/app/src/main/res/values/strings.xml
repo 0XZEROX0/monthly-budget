@@ -14,4 +14,6 @@
     <string name="widget_recent_description">Your newest expenses this month, with a button to add one.</string>
     <string name="widget_accounts_name">Accounts</string>
     <string name="widget_accounts_description">Balance of each account, cash + bank and debts.</string>
+    <string name="widget_goals_name">Savings goals</string>
+    <string name="widget_goals_description">Progress on each savings goal, and what it takes to reach it.</string>
 </resources>
