@@ -29,7 +29,9 @@ public class WidgetListService extends RemoteViewsService {
         @Override public void onDestroy() {}
 
         private void load() {
-            JSONObject data = BoardWidget.data(ctx);
+            // Balances and goals stand from month to month; spending lists are for one month only.
+            boolean standing = "accounts".equals(kind) || "goals".equals(kind);
+            JSONObject data = standing ? BoardWidget.data(ctx) : BoardWidget.monthData(ctx);
             list = data == null ? null : data.optJSONArray(kind);
         }
 

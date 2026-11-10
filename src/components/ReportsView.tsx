@@ -2,7 +2,7 @@ import { memo, useMemo, useState } from 'react'
 import { useRange } from '../data/hooks'
 import { categoryIcon } from '../data/icons'
 import { currentMonth, dayLabel, daysInMonth, formatCompact, formatWhole, monthLabel, shiftDay, shiftMonth, shortDay, shortMonth, today } from '../data/month'
-import { countsAsIncome, effects, savedIn, spentIn } from '../data/summary'
+import { capitalAt, countsAsIncome, savedIn, spentIn } from '../data/summary'
 import type { Backend, Settings, Transaction } from '../data/types'
 import { Legend, LineChart, MonthsChart, SavedChart } from './charts'
 import { askChoice, askForm, askMonth, showAlert } from './dialog'
@@ -118,31 +118,6 @@ function rangeFor(choice: Choice, month: string) {
     label: `${monthLabel(fromMonth)} to ${monthLabel(month)}`,
     before: period.before,
   }
-}
-
-/**
- * All accounts added together at the end of each of `ends` (dates, or months when `byDate`
- * is off; in rising order): the opening balances plus every entry up to then. Entries are
- * put in order once and added as the ends go by, rather than adding up the whole history
- * again for each one.
- */
-function capitalAt(ends: string[], byDate: boolean, settings: Settings, history: Transaction[]): number[] {
-  const names = new Set(settings.accounts.map((a) => a.name))
-  const moves = history
-    .filter((t) => t.month >= settings.opening.month)
-    .map((t) => {
-      let change = 0
-      for (const [name, v] of Object.entries(effects(t, settings).accounts)) if (names.has(name)) change += v
-      return { at: byDate ? t.date : t.month, change }
-    })
-    .sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0))
-  let total = 0
-  for (const name of names) total += settings.opening.accounts[name] ?? 0
-  let next = 0
-  return ends.map((end) => {
-    while (next < moves.length && moves[next].at <= end) total += moves[next++].change
-    return total
-  })
 }
 
 /** Asks for a range: a preset, then for "Month" which month, or for "Custom range" the dates. */

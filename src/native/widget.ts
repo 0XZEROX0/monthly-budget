@@ -6,7 +6,7 @@ interface WidgetPlugin {
    * Shows these lines on the "Left to spend" widget; the text is formatted here.
    * `data` is a WidgetData as JSON, for the plan, categories, latest expenses and accounts widgets.
    */
-  update(opts: { label: string; value: string; sub: string; pct: number; over: boolean; data?: string }): Promise<void>
+  update(opts: { label: string; value: string; sub: string; pct: number; over: boolean; data?: string; month?: string }): Promise<void>
 }
 
 const Widget = registerPlugin<WidgetPlugin>('Widget')

@@ -19,6 +19,11 @@ object Ledger {
     private const val OVERLAP_SECONDS = 30L
     /** Once a day this month is read in full anyway, to repair anything a change query missed. */
     private const val MONTH_CHECK_MS = 20 * 60 * 60_000L
+    /**
+     * The phone removes a delete's marker after 90 days (MARKER_KEEP_MS in src/data/firestoreBackend.ts).
+     * A watch that hasn't synced for 75 days reads everything again, as the phone does (STALE_MS there).
+     */
+    private const val STALE_MS = 75L * 24 * 60 * 60_000
 
     private val lock = Any()
 
@@ -34,7 +39,9 @@ object Ledger {
         val readTime: String?
         var monthAt = saved?.monthAt ?: 0L
         var monthOf = saved?.month ?: ""
-        if (saved == null || saved.lastSeen == null || saved.since > since) {
+        // Away for longer than STALE_MS: markers for entries deleted meanwhile may be gone, so start over.
+        val stale = saved != null && saved.monthAt > 0 && System.currentTimeMillis() - saved.monthAt > STALE_MS
+        if (saved == null || saved.lastSeen == null || saved.since > since || stale) {
             val all = db.query("transactions", "month", since, "GREATER_THAN_OR_EQUAL")
             all.rows.forEach { rows[it["__id"] as String] = it }
             readTime = all.readTime
@@ -54,7 +61,7 @@ object Ledger {
             }
         }
         rows.values.removeAll { it["deleted"] == true }
-        val start = if (saved == null || saved.since > since) since else saved.since
+        val start = if (saved == null || saved.since > since || stale) since else saved.since
         synchronized(lock) { write(context, Saved(start, readTime, monthAt, monthOf, rows)) }
         return rows.values.filter { (it["month"] as? String ?: "") >= since }
     }

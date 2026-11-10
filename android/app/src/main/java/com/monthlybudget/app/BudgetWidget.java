@@ -31,11 +31,13 @@ public class BudgetWidget extends AppWidgetProvider {
     private static RemoteViews views(Context ctx) {
         SharedPreferences p = WidgetPlugin.prefs(ctx);
         RemoteViews v = new RemoteViews(ctx.getPackageName(), R.layout.widget_budget);
-        String value = p.getString("value", "");
-        boolean over = p.getBoolean("over", false);
+        // Last month's numbers aren't shown as this month's.
+        boolean stale = WidgetPlugin.stale(ctx);
+        String value = stale ? "" : p.getString("value", "");
+        boolean over = !stale && p.getBoolean("over", false);
         v.setTextViewText(R.id.widget_label, value.isEmpty() ? "Monthly Budget" : p.getString("label", ""));
         v.setTextViewText(R.id.widget_value, value.isEmpty() ? "Open the app" : value);
-        v.setTextViewText(R.id.widget_sub, p.getString("sub", ""));
+        v.setTextViewText(R.id.widget_sub, stale ? "A new month has started" : p.getString("sub", ""));
         v.setTextColor(R.id.widget_value, ctx.getColor(over ? R.color.widget_over : R.color.widget_text));
         v.setProgressBar(R.id.widget_progress, 100, p.getInt("pct", 0), false);
         v.setViewVisibility(R.id.widget_progress, value.isEmpty() ? View.GONE : View.VISIBLE);

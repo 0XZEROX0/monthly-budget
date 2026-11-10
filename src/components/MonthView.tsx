@@ -4,7 +4,7 @@ import type { User } from 'firebase/auth'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { describe, draftFor, smsSettings, smsTxnId, useBankSms } from '../data/bankSms'
-import { smsFee } from '../data/fees'
+import { feeIdFor, smsFee } from '../data/fees'
 import { emptyPlan } from '../data/defaults'
 import { usePlan, useRange, useSettings, useToday, useTransactions } from '../data/hooks'
 import { currentMonth, dayLabel, formatWhole, monthLabel, shiftMonth } from '../data/month'
@@ -204,7 +204,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   const isNow = month === nowMonth
   useEffect(() => {
     if (!summary || !settings || !isNow || !txns) return
-    updateWidget({ ...widgetLines(summary, settings.currency, hidden), data: JSON.stringify(widgetData(month, summary, settings, txns, hidden)) })
+    updateWidget({ ...widgetLines(summary, settings.currency, hidden), month, data: JSON.stringify(widgetData(month, summary, settings, txns, hidden)) })
     if (!settings.alerts?.off) alertOnce(month, summary, settings.alerts?.pct ?? 80, settings.currency)
   }, [summary, settings, isNow, txns, month, hidden, day])
 
@@ -406,6 +406,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
           settings={settings}
           month={month}
           existing={editing === 'new' ? null : editing}
+          existingFee={editing === 'new' ? undefined : history?.find((t) => t.id === feeIdFor(editing.id))}
           startOn={editing === 'new' ? startOn : undefined}
           onClose={() => {
             setEditing(null)

@@ -30,6 +30,8 @@ jobs:
           java-version: 21
           cache: gradle
       - run: npm ci
+      # The money maths and the bank SMS parser; a failure stops the build.
+      - run: npm test
 
       # Identifies the Android side: tracked files under android/ plus the Capacitor
       # plugins. The app installs web-only updates (web.zip) when this matches its own.

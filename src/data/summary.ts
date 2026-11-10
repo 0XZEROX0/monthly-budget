@@ -181,6 +181,31 @@ export function summarize(plan: MonthPlan, settings: Settings, txns: Transaction
   }
 }
 
+/**
+ * All accounts added together at the end of each of `ends` (dates, or months when `byDate`
+ * is off; in rising order): the opening balances plus every entry up to then. Entries are
+ * put in order once and added as the ends go by, rather than adding up the whole history
+ * again for each one.
+ */
+export function capitalAt(ends: string[], byDate: boolean, settings: Settings, history: Transaction[]): number[] {
+  const names = new Set(settings.accounts.map((a) => a.name))
+  const moves = history
+    .filter((t) => t.month >= settings.opening.month)
+    .map((t) => {
+      let change = 0
+      for (const [name, v] of Object.entries(effects(t, settings).accounts)) if (names.has(name)) change += v
+      return { at: byDate ? t.date : t.month, change }
+    })
+    .sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0))
+  let total = 0
+  for (const name of names) total += settings.opening.accounts[name] ?? 0
+  let next = 0
+  return ends.map((end) => {
+    while (next < moves.length && moves[next].at <= end) total += moves[next++].change
+    return total
+  })
+}
+
 export interface BudgetAlert {
   /** A category, or null for the whole budget. */
   category: string | null

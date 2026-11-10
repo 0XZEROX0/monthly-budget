@@ -18,9 +18,21 @@ public abstract class BoardWidget extends AppWidgetProvider {
     /** The widget's layout, filled from the app's data (null until the app has run once). */
     abstract RemoteViews views(Context ctx, int id, JSONObject data, Bundle size);
 
+    /** Whether this widget's numbers belong to one month (the plan, spending) rather than standing (balances, goals). */
+    boolean monthly() {
+        return true;
+    }
+
     @Override
     public void onUpdate(Context ctx, AppWidgetManager mgr, int[] ids) {
-        for (int id : ids) mgr.updateAppWidget(id, views(ctx, id, data(ctx), mgr.getAppWidgetOptions(id)));
+        // Also runs every hour or so (updatePeriodMillis), so days and months turn over with the app closed.
+        for (int id : ids) mgr.updateAppWidget(id, views(ctx, id, monthly() ? monthData(ctx) : data(ctx), mgr.getAppWidgetOptions(id)));
+        mgr.notifyAppWidgetViewDataChanged(ids, R.id.widget_list);
+    }
+
+    /** The app's data, or null when it is for an earlier month than now (WidgetPlugin.stale). */
+    static JSONObject monthData(Context ctx) {
+        return WidgetPlugin.stale(ctx) ? null : data(ctx);
     }
 
     static JSONObject data(Context ctx) {
@@ -40,13 +52,14 @@ public abstract class BoardWidget extends AppWidgetProvider {
 
     static void refreshAll(Context ctx) {
         AppWidgetManager mgr = AppWidgetManager.getInstance(ctx);
-        JSONObject data = data(ctx);
+        JSONObject all = data(ctx);
+        JSONObject data = monthData(ctx);
         for (Class<? extends BoardWidget> type : ALL) {
             int[] ids = mgr.getAppWidgetIds(new ComponentName(ctx, type));
             if (ids.length == 0) continue;
             try {
                 BoardWidget w = type.getDeclaredConstructor().newInstance();
-                for (int id : ids) mgr.updateAppWidget(id, w.views(ctx, id, data, mgr.getAppWidgetOptions(id)));
+                for (int id : ids) mgr.updateAppWidget(id, w.views(ctx, id, w.monthly() ? data : all, mgr.getAppWidgetOptions(id)));
                 // The scrolling lists reload their rows (WidgetListService).
                 mgr.notifyAppWidgetViewDataChanged(ids, R.id.widget_list);
             } catch (Exception ignored) {

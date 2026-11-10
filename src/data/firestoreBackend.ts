@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -10,6 +11,7 @@ import {
   serverTimestamp,
   setDoc,
   Timestamp,
+  updateDoc,
   where,
   writeBatch,
   type CollectionReference,
@@ -18,6 +20,7 @@ import {
   type QuerySnapshot,
 } from 'firebase/firestore'
 import { withDefaults } from './defaults'
+import { settingsChanges } from './settingsDiff'
 import { currentMonth } from './month'
 import type { Backend, MonthPlan, NewTransaction, Settings, Transaction } from './types'
 import { newestFirst } from './summary'
@@ -35,6 +38,20 @@ export const DELETED = 'deleted'
 const OVERLAP_MS = 30_000
 /** Once a day the current month is read in full anyway, to repair anything a delta missed. */
 const MONTH_CHECK_MS = 20 * 60 * 60_000
+const DAY_MS = 24 * 60 * 60_000
+/** A delete's marker is removed for good once every device has had this long to see it. */
+export const MARKER_KEEP_MS = 90 * DAY_MS
+/**
+ * A device that hasn't synced for this long reads everything again instead of only the
+ * changes: markers for entries deleted meanwhile may be gone, and it would keep those entries.
+ * Shorter than MARKER_KEEP_MS, so it always happens before a marker it needs is removed.
+ */
+export const STALE_MS = 75 * DAY_MS
+/** How often a device looks for old markers to remove. */
+const CLEAN_EVERY_MS = 30 * DAY_MS
+
+/** Whether a device last in sync at `syncedAt` must read everything again (see STALE_MS). */
+export const mustReadAll = (syncedAt: number | undefined, now: number) => syncedAt !== undefined && now - syncedAt > STALE_MS
 
 interface SyncMark {
   /** Newest updatedAt seen from the server, in ms. */
@@ -42,6 +59,12 @@ interface SyncMark {
   /** When the current month was last read in full. */
   monthAt: number
   month: string
+  /** When the server last confirmed this device was up to date. */
+  syncedAt?: number
+  /** When old delete markers were last looked for. */
+  cleanedAt?: number
+  /** Entries this device's cache still holds but the server no longer has at all; left out when reading the cache. */
+  gone?: string[]
 }
 
 /**
@@ -58,6 +81,8 @@ function createTxnStore(uid: string, txns: CollectionReference) {
   let ready = false
   let stopDelta: (() => void) | null = null
   let idleTimer: ReturnType<typeof setTimeout> | undefined
+  /** Away too long, and the full read it needs hasn't worked yet. */
+  let overdue = false
 
   const readMark = (): SyncMark | null => {
     try {
@@ -77,6 +102,8 @@ function createTxnStore(uid: string, txns: CollectionReference) {
 
   /** Applies a document as the server (or this device) has it. */
   function apply(id: string, data: Record<string, unknown> | undefined) {
+    // Seen again (written here, or back on the server): no longer one to leave out.
+    if (mark?.gone?.includes(id)) mark.gone = mark.gone.filter((x) => x !== id)
     const stamp = data?.updatedAt
     if (stamp instanceof Timestamp && mark) mark.lastSeen = Math.max(mark.lastSeen, stamp.toMillis())
     if (!data || data[DELETED]) docs.delete(id)
@@ -89,9 +116,31 @@ function createTxnStore(uid: string, txns: CollectionReference) {
     const month = currentMonth()
     let cached: QuerySnapshot | null = null
     if (saved) cached = await getDocsFromCache(txns).catch(() => null)
-    if (saved && cached && !cached.empty) {
+    // Away too long to trust the cache: take the server's copy alone, when it can be reached.
+    const away = !!saved && mustReadAll(saved.syncedAt, Date.now())
+    const all = away ? await getDocsFromServer(txns).catch(() => null) : null
+    // Couldn't reach the server: carry on from the cache and read everything on a later start.
+    overdue = away && !all
+    if (saved && all) {
+      // What the cache holds that the server doesn't was deleted while this device was away,
+      // marker and all. (An entry made here and still waiting to upload is kept.)
+      const onServer = new Set(all.docs.map((d) => d.id))
+      const gone = (cached?.docs ?? []).filter((d) => !onServer.has(d.id) && !d.metadata.hasPendingWrites).map((d) => d.id)
+      mark = { ...saved, lastSeen: 0, month, monthAt: Date.now(), syncedAt: Date.now(), gone: [...(saved.gone ?? []), ...gone] }
+      // Changes made here that are still waiting to upload win over the server's older copy.
+      const waiting = new Set<string>()
+      for (const d of cached?.docs ?? []) {
+        if (!d.metadata.hasPendingWrites) continue
+        waiting.add(d.id)
+        apply(d.id, d.data())
+      }
+      for (const d of all.docs) if (!waiting.has(d.id)) apply(d.id, d.data())
+    } else if (saved && cached && !cached.empty) {
       mark = saved
-      applySnap(cached)
+      const gone = new Set(saved.gone)
+      for (const d of cached.docs) {
+        if (!gone.has(d.id) || d.metadata.hasPendingWrites) apply(d.id, d.data())
+      }
       // A daily full read of this month: cheap insurance, and it picks up entries from
       // watch builds older than this change, which don't stamp updatedAt.
       if (saved.month !== month || Date.now() - saved.monthAt > MONTH_CHECK_MS) {
@@ -103,18 +152,58 @@ function createTxnStore(uid: string, txns: CollectionReference) {
       }
     } else {
       // First start on this device (or its cache was cleared): read everything, once.
-      mark = { lastSeen: 0, month, monthAt: Date.now() }
-      applySnap(await getDocs(txns))
+      mark = { lastSeen: 0, month, monthAt: Date.now(), cleanedAt: saved?.cleanedAt }
+      const first = await getDocs(txns)
+      applySnap(first)
+      if (!first.metadata.fromCache) mark.syncedAt = Date.now()
     }
+    // Marks from before syncedAt existed count from now.
+    mark.syncedAt ??= Date.now()
     saveMark()
     ready = true
     emit()
+    if (!overdue) void removeOldMarkers()
+  }
+
+  /**
+   * Once a month, removes the markers of entries deleted more than MARKER_KEEP_MS ago, so
+   * they stop piling up. Costs one read per marker; skipped offline and tried again next start.
+   */
+  async function removeOldMarkers() {
+    if (!mark || Date.now() - (mark.cleanedAt ?? 0) < CLEAN_EVERY_MS) return
+    if (mark.cleanedAt === undefined) {
+      // First run on this device: start the clock, so the read isn't spent on a fresh install.
+      mark.cleanedAt = Date.now() - CLEAN_EVERY_MS + DAY_MS
+      return saveMark()
+    }
+    try {
+      const marked = await getDocsFromServer(query(txns, where(DELETED, '==', true)))
+      const cutoff = Date.now() - MARKER_KEEP_MS
+      const old = marked.docs.filter((d) => {
+        const at = d.data().updatedAt
+        return at instanceof Timestamp && at.toMillis() < cutoff
+      })
+      for (let i = 0; i < old.length; i += 450) {
+        const batch = writeBatch(txns.firestore)
+        for (const d of old.slice(i, i + 450)) batch.delete(d.ref)
+        await batch.commit()
+      }
+      mark.cleanedAt = Date.now()
+      saveMark()
+    } catch {
+      // Offline or refused: nothing is lost by leaving them for next time.
+    }
   }
 
   function startDelta() {
     if (stopDelta || !mark || document.visibilityState === 'hidden') return
     const since = Timestamp.fromMillis(Math.max(0, mark.lastSeen - OVERLAP_MS))
     stopDelta = onSnapshot(query(txns, where('updatedAt', '>', since)), (snap) => {
+      // The server has answered: this device is up to date as of now.
+      if (!snap.metadata.fromCache && !overdue && mark && Date.now() - (mark.syncedAt ?? 0) > 60_000) {
+        mark.syncedAt = Date.now()
+        saveMark()
+      }
       const changes = snap.docChanges().filter((c) => c.type !== 'removed')
       if (!changes.length) return
       changes.forEach((c) => apply(c.doc.id, c.doc.data()))
@@ -183,6 +272,8 @@ export function createFirestoreBackend(db: Firestore, uid: string): Backend {
     return clean({ ...rest, month: t.month ?? t.date.slice(0, 7) })
   }
   const stamped = (o: object) => ({ ...o, updatedAt: serverTimestamp() })
+  // The settings as the last snapshot gave them, to tell what a save changes.
+  let known: { exists: boolean; settings: Settings } | null = null
   const tombstone = () => ({ [DELETED]: true, updatedAt: serverTimestamp() })
 
   // A batch holds at most 500 writes.
@@ -213,10 +304,19 @@ export function createFirestoreBackend(db: Firestore, uid: string): Backend {
   return {
     mode: 'cloud',
     watchSettings: (cb) =>
-      onSnapshot(userDoc('settings', 'main'), (snap) => cb(withDefaults(snap.data() as Partial<Settings> | undefined))),
+      onSnapshot(userDoc('settings', 'main'), (snap) => {
+        const settings = withDefaults(snap.data() as Partial<Settings> | undefined)
+        known = { exists: snap.exists(), settings }
+        cb(settings)
+      }),
     saveSettings: async (s) => {
       notifyWatch()
-      await setDoc(userDoc('settings', 'main'), s)
+      // Nothing saved yet (or not seen yet): write it whole.
+      if (!known?.exists) return setDoc(userDoc('settings', 'main'), s)
+      // Otherwise only the fields that changed, so two devices saving different things both keep theirs.
+      const { set, remove } = settingsChanges(known.settings, s)
+      if (!Object.keys(set).length && !remove.length) return
+      await updateDoc(userDoc('settings', 'main'), { ...set, ...Object.fromEntries(remove.map((k) => [k, deleteField()])) })
     },
     watchPlan: (month, cb) =>
       onSnapshot(userDoc('plans', month), (snap) => cb((snap.data() as MonthPlan | undefined) ?? null)),

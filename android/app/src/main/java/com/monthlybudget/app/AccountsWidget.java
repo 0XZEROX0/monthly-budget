@@ -7,6 +7,12 @@ import org.json.JSONObject;
 
 /** Each account's balance (Cash, Bank, Thndr...), with cash + bank and debts underneath. Scrolls. */
 public class AccountsWidget extends BoardWidget {
+    /** Balances and goals carry over from month to month. */
+    @Override
+    boolean monthly() {
+        return false;
+    }
+
     @Override
     RemoteViews views(Context ctx, int id, JSONObject data, Bundle size) {
         RemoteViews v = WidgetViews.card(ctx, id, "accounts", "Accounts", data, "monthlybudget://summary", 50, false);
