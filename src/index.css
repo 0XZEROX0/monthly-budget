@@ -667,3 +667,57 @@ button.side-add, .side-nav button { transition: width var(--panel-time) var(--ea
 [dir='rtl'] svg { direction: ltr; }
 [dir='rtl'] .panel-toggle svg { scale: -1 1; }
 [dir='rtl'] input[type='date'], [dir='rtl'] input[type='month'], [dir='rtl'] .time-input { direction: ltr; }
+
+/* ---------- First start: accounts and debts (FirstRunSetup), then the tour (Guide) ---------- */
+.setup { max-width: 560px; margin: 0 auto; height: 100dvh; overflow-y: auto; display: grid; align-content: start; gap: 0.9rem; padding: calc(env(safe-area-inset-top) + 1.2rem) 1rem 0; }
+.setup-welcome { align-content: center; justify-items: center; text-align: center; gap: 1rem; padding-bottom: 2rem; }
+.setup-welcome img { border-radius: 22px; box-shadow: 0 10px 30px rgba(75, 63, 209, 0.25); }
+.setup-welcome h1 { font-size: 1.6rem; }
+.setup-welcome p { max-width: 26rem; }
+.setup-welcome .setup-lang { width: 100%; max-width: 18rem; }
+.setup-welcome button.primary { width: 100%; max-width: 18rem; }
+.setup-head { display: grid; gap: 0.35rem; }
+.setup-head h1 { font-size: 1.5rem; }
+.setup-progress { display: flex; gap: 0.4rem; }
+.setup-progress span { flex: 1; height: 4px; border-radius: 2px; background: var(--grid); }
+.setup-progress span.on { background: var(--accent); }
+.setup-group { gap: 0.7rem; }
+.setup-group-head { display: flex; gap: 0.75rem; align-items: center; }
+.setup-group-head > span:last-child { display: grid; gap: 0.1rem; }
+.setup-group-head h2 { font-size: 1.05rem; }
+.setup-icon { flex: none; width: 2.5rem; height: 2.5rem; border-radius: 12px; display: grid; place-items: center; font-size: 1.3rem; background: var(--accent-soft); }
+.setup-row { display: flex; gap: 0.5rem; align-items: center; }
+.setup-row input { min-width: 0; }
+.setup-money { flex: none; width: 7.5rem; display: flex; }
+.setup-money input { text-align: end; font-variant-numeric: tabular-nums; }
+.setup-debt { display: grid; gap: 0.5rem; padding-bottom: 0.7rem; border-bottom: 1px solid var(--border); }
+.setup-debt .field { min-width: 0; }
+.setup-foot {
+  position: sticky; bottom: 0; display: grid; gap: 0.6rem; margin: 0 -1rem; padding: 0.8rem 1rem calc(0.9rem + env(safe-area-inset-bottom));
+  background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(14px); border-top: 1px solid var(--border);
+}
+.setup-total { display: flex; justify-content: space-between; margin: 0; color: var(--text-2); }
+.setup-total strong { color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* The tour: a card at the top, with the button or tab it talks about lit up above the dimmed page. */
+.sheet-backdrop.guide-backdrop { z-index: 5; align-items: flex-start; padding: calc(env(safe-area-inset-top) + 0.8rem) 0.9rem 0; }
+.guide-card {
+  width: 100%; max-width: 440px; background: var(--surface); border-radius: 22px; padding: 1.1rem;
+  display: grid; gap: 0.75rem; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.3); animation: fade 0.18s ease;
+}
+.guide-top { display: flex; align-items: center; gap: 0.6rem; }
+.guide-top .muted { flex: 1; }
+.guide-icon { width: 2.6rem; height: 2.6rem; border-radius: 14px; display: grid; place-items: center; font-size: 1.4rem; background: var(--accent-soft); }
+.guide-card h2 { font-size: 1.25rem; }
+.guide-lines { margin: 0; padding-inline-start: 1.15rem; display: grid; gap: 0.45rem; color: var(--text-2); line-height: 1.45; }
+.guide-dots { display: flex; justify-content: center; gap: 0.3rem; }
+.guide-dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--grid); }
+.guide-dots span.on { width: 18px; border-radius: 3px; background: var(--accent); }
+.tabbar.guide-on { z-index: 6; }
+.fab.guide-spot { z-index: 6; }
+.guide-spot { box-shadow: 0 0 0 3px var(--surface), 0 0 0 6px var(--accent) !important; animation: guide-pulse 1.4s ease-in-out infinite; }
+@keyframes guide-pulse { 50% { box-shadow: 0 0 0 3px var(--surface), 0 0 0 10px color-mix(in srgb, var(--accent) 35%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .guide-spot { animation: none; } }
+.sidebar.guide-on { position: relative; z-index: 6; }
+.desk .guide-backdrop { align-items: center; }
+button.card.guide-again { width: 100%; text-align: start; }

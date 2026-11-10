@@ -3,6 +3,7 @@ import {
   deleteField,
   doc,
   getDoc,
+  getDocFromServer,
   getDocs,
   getDocsFromCache,
   getDocsFromServer,
@@ -307,7 +308,13 @@ export function createFirestoreBackend(db: Firestore, uid: string): Backend {
       onSnapshot(userDoc('settings', 'main'), (snap) => {
         const settings = withDefaults(snap.data() as Partial<Settings> | undefined)
         known = { exists: snap.exists(), settings }
-        cb(settings)
+        cb(settings, !snap.exists() && !snap.metadata.fromCache)
+        // Nothing in this device's cache isn't the same as nothing saved: ask the server
+        // before treating it as a first start (a returning user on a new phone has settings).
+        if (!snap.exists() && snap.metadata.fromCache)
+          getDocFromServer(userDoc('settings', 'main'))
+            .then((s) => !s.exists() && !known?.exists && cb(settings, true))
+            .catch(() => {})
       }),
     saveSettings: async (s) => {
       notifyWatch()
