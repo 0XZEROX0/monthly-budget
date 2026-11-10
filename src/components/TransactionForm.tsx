@@ -21,7 +21,9 @@ interface Props {
   onSaved?: (t: NewTransaction) => void
   onClose: () => void
   /** Which tab a new entry starts on, like Income from the notification bar's button. */
-  startOn?: 'expense' | 'income' | 'transfer'
+  startOn?: 'expense' | 'income' | 'transfer' | 'debt'
+  /** The tour (Guide.tsx) is showing this kind: its button is lit up. */
+  guided?: boolean
 }
 
 type Tab = 'expense' | 'income' | 'transfer' | 'debt'
@@ -78,7 +80,7 @@ const shiftDay = (iso: string, days: number) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-export function TransactionForm({ backend, settings: saved, month, existing, existingFee, draft, onSaved, onClose, startOn }: Props) {
+export function TransactionForm({ backend, settings: saved, month, existing, existingFee, draft, onSaved, onClose, startOn, guided }: Props) {
   // Accounts and categories added here show at once, before the saved settings come back.
   const [settings, setSettings] = useState(saved)
   if (saved !== settings && saved.accounts.length >= settings.accounts.length && saved.categories.expense.length >= settings.categories.expense.length && saved.categories.income.length >= settings.categories.income.length) setSettings(saved)
@@ -264,7 +266,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, exi
         </div>
         <div className="segmented four">
           {TABS.map((t) => (
-            <button type="button" key={t.id} className={tab === t.id ? 'active' : ''} onClick={() => switchTab(t.id)}>
+            <button type="button" key={t.id} className={`${tab === t.id ? 'active' : ''} ${guided && tab === t.id ? 'guide-spot' : ''}`} onClick={() => switchTab(t.id)}>
               {tr(t.label)}
             </button>
           ))}

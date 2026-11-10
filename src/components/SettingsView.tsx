@@ -47,6 +47,12 @@ export function SettingsView({ backend, settings, sms, user, onSignOut, lock, in
   const setCategories = (kind: Kind, list: string[]) => save({ ...settings, categories: { ...settings.categories, [kind]: list } })
   // One group open at a time keeps the page short; the last one opened is remembered.
   const [open, setOpen] = useState<string | null>(() => initialGroup ?? readGroup())
+  // Sent to a section while already here (the tour moves from one section to the next).
+  const [askedFor, setAskedFor] = useState(initialGroup)
+  if (initialGroup !== askedFor) {
+    setAskedFor(initialGroup)
+    if (initialGroup) setOpen(initialGroup)
+  }
   const toggle = (id: string) => {
     const next = open === id ? null : id
     setOpen(next)

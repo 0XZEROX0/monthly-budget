@@ -30,7 +30,7 @@ import { SummaryView } from './SummaryView'
 import { TransactionForm } from './TransactionForm'
 import { TransactionList, type ListFocus } from './TransactionList'
 import { FirstRunSetup } from './FirstRunSetup'
-import { Guide, type GuideSpot, type GuideTab } from './Guide'
+import { Guide, type GuideForm, type GuideSpot, type GuideStep } from './Guide'
 import { ask, showAlert } from './dialog'
 import { isRtl, msg, t } from '../i18n'
 
@@ -143,19 +143,43 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   const [touring, setTouring] = useState(false)
   const guideOpen = !needsSetup && (touring || settings?.onboarding === 'guide')
   const [spot, setSpot] = useState<GuideSpot>()
+  // The add form kind or Settings section the tour is showing.
+  const [guideForm, setGuideForm] = useState<GuideForm>()
+  const [guideGroup, setGuideGroup] = useState<string>()
   const showGuideStep = useCallback(
-    (to: GuideTab, at: GuideSpot | undefined) => {
+    (step: GuideStep) => {
       setSlide(0)
-      setTab(to)
+      setTab(step.tab)
       setFocus(null)
-      setSpot(at)
-      scroller.current?.scrollTo(0, 0)
+      setSpot(step.spot)
+      setGuideForm(step.form)
+      setGuideGroup(step.group)
+      if (step.group) setSettingsGroup(step.group)
+      if (!step.group) scroller.current?.scrollTo(0, 0)
     },
     [scroller],
   )
+  // A Settings section the tour points at: lit up and scrolled into view once it's drawn.
+  useEffect(() => {
+    if (!guideGroup) return
+    const timer = window.setTimeout(() => {
+      const head = [...document.querySelectorAll<HTMLElement>(`#settings-${guideGroup} .settings-group-head`)].find((el) => !el.closest('.pager-peek'))
+      if (!head) return
+      head.classList.add('guide-spot')
+      // Below the tour's card, which sits at the top of the screen.
+      const page = head.closest<HTMLElement>('.app, .desk-main')
+      if (page) page.scrollTo({ top: head.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop - page.clientHeight * 0.6, behavior: 'smooth' })
+    }, 80)
+    return () => {
+      window.clearTimeout(timer)
+      document.querySelectorAll('.settings-group-head.guide-spot').forEach((el) => el.classList.remove('guide-spot'))
+    }
+  }, [guideGroup, tab])
   const endGuide = () => {
     setTouring(false)
     setSpot(undefined)
+    setGuideForm(undefined)
+    setGuideGroup(undefined)
     setTab('summary')
     if (settings?.onboarding === 'guide') backend.saveSettings({ ...settings, onboarding: 'done' }).catch(() => {})
   }
@@ -448,6 +472,9 @@ export function MonthView({ backend, user, onSignOut }: Props) {
 
       <UpdatePrompt />
 
+      {guideOpen && guideForm && settings && (
+        <TransactionForm key={`guide-${guideForm}`} backend={backend} settings={settings} month={month} existing={null} startOn={guideForm} guided onClose={() => setGuideForm(undefined)} />
+      )}
       {guideOpen && <Guide onStep={showGuideStep} onDone={endGuide} />}
 
       {fromSms && settings && (

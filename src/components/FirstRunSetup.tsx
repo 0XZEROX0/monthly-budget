@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { applyLang, currentLang, LANGS, msg, t, type Lang } from '../i18n'
+import { ARABIC_CATEGORIES, DEFAULT_SETTINGS } from '../data/defaults'
 import { currentMonth, formatWhole, parseAmount } from '../data/month'
 import type { Account, AccountType, Backend, Debt, Settings } from '../data/types'
 import { showAlert } from './dialog'
@@ -138,9 +139,12 @@ export function FirstRunSetup({ backend, settings }: Props) {
       accounts: Object.fromEntries(accounts.filter((a) => a.name.trim()).map((a) => [a.name.trim(), amount(a.balance)])),
       debts: Object.fromEntries(debtRows.map((d) => [d.name.trim(), amount(d.owed)])),
     }
+    // Set up in Arabic, the starting categories are Arabic too (they're the user's own names after that).
+    const untouched = JSON.stringify(settings.categories) === JSON.stringify(DEFAULT_SETTINGS.categories)
+    const arabic = lang === 'ar' && untouched ? { categories: ARABIC_CATEGORIES, debtCategory: 'أقساط' } : {}
     setSaving(true)
     backend
-      .saveSettings({ ...settings, lang, accounts: acc, debts: debtList, opening, onboarding: 'guide' })
+      .saveSettings({ ...settings, lang, accounts: acc, debts: debtList, opening, onboarding: 'guide', ...arabic })
       .catch((e: Error) => {
         setSaving(false)
         showAlert(t('Could not save: {error}', { error: e.message }))

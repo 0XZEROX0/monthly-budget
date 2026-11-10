@@ -7,17 +7,26 @@ import { msg, t } from '../i18n'
 export type GuideTab = 'summary' | 'transactions' | 'plan' | 'reports' | 'settings'
 /** What a step points at: a page's tab, or the + button. */
 export type GuideSpot = GuideTab | 'add'
+/** The add form's four kinds. */
+export type GuideForm = 'expense' | 'income' | 'transfer' | 'debt'
 
-interface Step {
+/** A bullet, or a bold heading followed by its text. */
+type Line = string | [string, string]
+
+export interface GuideStep {
   icon: string
   title: string
-  lines: string[]
+  lines: Line[]
   /** The page shown behind the card. */
   tab: GuideTab
   spot?: GuideSpot
+  /** Opens the add form on this kind and points at its button. */
+  form?: GuideForm
+  /** Opens this Settings section and points at it. */
+  group?: string
 }
 
-const STEPS: Step[] = [
+const STEPS: GuideStep[] = [
   {
     icon: '👋',
     title: msg('A quick tour'),
@@ -35,49 +44,64 @@ const STEPS: Step[] = [
     spot: 'summary',
   },
   {
-    icon: '💸',
-    title: msg('Add an expense'),
+    icon: '➕',
+    title: msg('The + button'),
     lines: [
-      msg('Tap the + button, then Expense.'),
-      msg('Type the amount, pick a category, and pick the account you paid from.'),
-      msg('Tap Add expense. That account goes down by the amount.'),
+      msg('Tap + whenever money comes in or goes out.'),
+      msg("It opens one form with four kinds: Expense, Income, Transfer and Debt. Let's look at each one."),
     ],
     tab: 'summary',
     spot: 'add',
   },
   {
-    icon: '💰',
-    title: msg('Add income'),
-    lines: [msg('Tap +, then Income.'), msg('Type the amount, pick a category like Salary, and pick the account it went into.'), msg('That account goes up by the amount.')],
+    icon: '💸',
+    title: msg('Expense'),
+    lines: [
+      msg('For anything you pay for: food, bills, shopping.'),
+      msg('Type the amount, pick a category, and pick the account you paid from.'),
+      msg('You can change the date and time, and add a note or a fee. Tap Add expense: that account goes down by the amount.'),
+    ],
     tab: 'summary',
-    spot: 'add',
+    form: 'expense',
+  },
+  {
+    icon: '💰',
+    title: msg('Income'),
+    lines: [
+      msg('For money you receive: your salary, a bonus, money paid back to you.'),
+      msg('Type the amount, pick a category like Salary, and pick the account it went into.'),
+      msg('Tap Add income: that account goes up by the amount.'),
+    ],
+    tab: 'summary',
+    form: 'income',
   },
   {
     icon: '🔁',
-    title: msg('Move money between accounts'),
+    title: msg('Transfer'),
     lines: [
-      msg('Tap +, then Transfer. Pick where the money comes from and where it goes.'),
+      msg('For moving your own money from one account to another. Pick From and To.'),
       msg('For example: Bank to Cash when you take money from an ATM, or Bank to Thndr when you invest.'),
       msg("A transfer isn't spending. Your total stays the same; only where the money sits changes. If the bank took a fee, pick it under Fee."),
     ],
     tab: 'summary',
-    spot: 'add',
+    form: 'transfer',
   },
   {
     icon: '💳',
-    title: msg('Debts and instalments'),
+    title: msg('Debt'),
     lines: [
-      msg('Each lender is its own debt, like valU, TRU or a credit card, so you always see what you owe each one. Add more in Settings › Money › Debts.'),
-      msg('Bought something on instalments? Tap +, then Debt, choose I borrowed, and pick the lender.'),
-      msg('Paid an instalment? Tap +, then Debt, choose I paid back, pick the lender and the account you paid from.'),
+      msg('Each lender is its own debt (valU, TRU, a credit card), so you see what you owe each one.'),
+      [msg('I borrowed'), msg('you bought on instalments or took a loan. The debt goes up.')],
+      [msg('I paid back'), msg('you paid an instalment from one of your accounts. The debt goes down.')],
+      msg('More lenders: Settings › Money › Debts.'),
     ],
     tab: 'summary',
-    spot: 'add',
+    form: 'debt',
   },
   {
     icon: '📋',
     title: msg('Transactions'),
-    lines: [msg("Every entry for the month, newest first, grouped by day."), msg('Tap an entry to change it or delete it.')],
+    lines: [msg('Every entry for the month, newest first, grouped by day.'), msg('Tap an entry to change it or delete it.')],
     tab: 'transactions',
     spot: 'transactions',
   },
@@ -102,12 +126,40 @@ const STEPS: Step[] = [
     icon: '⚙️',
     title: msg('Settings'),
     lines: [
-      msg('Change your accounts, debts, categories and opening balances.'),
-      msg('Bill reminders, savings goals, language, theme and backup are here too.'),
-      msg('You can watch this tour again any time from Settings.'),
+      [msg('Language'), msg('English or Arabic.')],
+      [msg('Money'), msg('your currency, accounts, debts and their limits, and opening balances.')],
+      [msg('Categories'), msg('your expense and income categories, with their icons and order.')],
+      [msg('Bills, goals and alerts'), msg('reminders for bills and instalments, savings goals, and a warning when you get near your budget.')],
+      [msg('Bank SMS'), msg('add payments from your bank messages (Android app).')],
+      [msg('Look and security'), msg('colours, dark mode, decimals, the clock and an app lock.')],
+      [msg('Backup and import'), msg('back up to Google Drive, export a spreadsheet, or import from Excel.')],
+      [msg('Feedback'), msg('send an idea or report a problem.')],
+      [msg('App'), msg('updates, and erasing your data. You can also watch this tour again from Settings.')],
     ],
     tab: 'settings',
     spot: 'settings',
+  },
+  {
+    icon: '🏷️',
+    title: msg('Set up your categories'),
+    lines: [
+      msg('Open Settings › Categories to see your expense and income categories.'),
+      msg('Tap + New to add one and pick its icon. Tap a category to rename it or change its icon, or hold and drag it to change the order.'),
+      msg('You can also add one while adding an entry: tap + New under Category.'),
+    ],
+    tab: 'settings',
+    group: 'categories',
+  },
+  {
+    icon: '✉️',
+    title: msg('Add payments from bank SMS'),
+    lines: [
+      msg('In the Android app, your bank and e-wallet messages can become entries, so you type less.'),
+      msg('To turn it on: Settings › Bank SMS › Allow access to SMS, then tap Allow when Android asks.'),
+      msg('Pick which account or debt each card belongs to. New payments then wait at the top of Summary and Transactions: tap one, check the category, and add it. Nothing is added on its own.'),
+    ],
+    tab: 'settings',
+    group: 'sms',
   },
   {
     icon: '✅',
@@ -119,8 +171,8 @@ const STEPS: Step[] = [
 ]
 
 interface Props {
-  /** Shows a page behind the card and lights up what the step points at. */
-  onStep: (tab: GuideTab, spot: GuideSpot | undefined) => void
+  /** Shows a page (or the add form) behind the card and lights up what the step points at. */
+  onStep: (step: GuideStep) => void
   onDone: () => void
 }
 
@@ -128,7 +180,7 @@ export function Guide({ onStep, onDone }: Props) {
   const [i, setI] = useState(0)
   const step = STEPS[i]
   const last = i === STEPS.length - 1
-  useEffect(() => onStep(step.tab, step.spot), [step, onStep])
+  useEffect(() => onStep(step), [step, onStep])
 
   // The phone's back gesture clicks the backdrop (see closeTopPopup): go back a step, or
   // close on the first. A real tap outside the card does nothing, so a stray touch can't end it.
@@ -139,7 +191,11 @@ export function Guide({ onStep, onDone }: Props) {
   }
 
   return (
-    <div className="sheet-backdrop guide-backdrop" onClick={onBackdrop}>
+    // With the add form open the card sits at the bottom, over the form, leaving its kinds in view.
+    // The card is drawn beside the dimming, not in it, so it stays above whatever is lit up.
+    <>
+      <div className={`sheet-backdrop guide-backdrop ${step.form ? 'over-form' : ''}`} onClick={onBackdrop} />
+      <div className={`guide-wrap ${step.form ? 'over-form' : ''}`}>
       <section className="guide-card" role="dialog" aria-modal="true" aria-labelledby="guide-title">
         <div className="guide-top">
           <span className="guide-icon" aria-hidden>
@@ -154,9 +210,17 @@ export function Guide({ onStep, onDone }: Props) {
         </div>
         <h2 id="guide-title">{t(step.title)}</h2>
         <ul className="guide-lines">
-          {step.lines.map((l) => (
-            <li key={l}>{t(l)}</li>
-          ))}
+          {step.lines.map((l) =>
+            typeof l === 'string' ? (
+              <li key={l}>{t(l)}</li>
+            ) : (
+              <li key={l[0]}>
+                <strong>{t(l[0])}</strong>
+                {t(': ')}
+                {t(l[1])}
+              </li>
+            ),
+          )}
         </ul>
         <div className="guide-dots" aria-hidden>
           {STEPS.map((_, j) => (
@@ -170,6 +234,7 @@ export function Guide({ onStep, onDone }: Props) {
           </button>
         </div>
       </section>
-    </div>
+      </div>
+    </>
   )
 }
