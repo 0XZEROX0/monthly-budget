@@ -31,6 +31,12 @@ export const DEFAULT_SETTINGS: Settings = {
   debtCategory: 'Instalment',
 }
 
+/** The same starting categories in Arabic, for someone who sets the app up in Arabic. */
+export const ARABIC_CATEGORIES: Settings['categories'] = {
+  expense: ['طعام', 'هدايا', 'صحة وعلاج', 'البيت', 'مواصلات', 'شخصي', 'رسوم بنكية', 'سلفة لشخص', 'أخرى', 'السيارة', 'أقساط'],
+  income: ['الراتب', 'أخرى'],
+}
+
 /** Fills in fields added after a user first saved settings. */
 export const withDefaults = (s: Partial<Settings> | undefined): Settings => ({ ...DEFAULT_SETTINGS, ...s })
 
