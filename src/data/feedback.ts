@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import { addDoc, collection, serverTimestamp, type Firestore } from 'firebase/firestore'
 
 // Feedback goes into one shared Firestore collection that the app can only add to (see
@@ -22,7 +23,7 @@ export interface FeedbackInput {
 /** The document as stored. Keep these fields in step with the rule in firestore.rules. */
 export function feedbackDoc(uid: string, f: FeedbackInput) {
   const message = f.message.trim().slice(0, FEEDBACK_MAX)
-  if (!message) throw new Error('Write a message first.')
+  if (!message) throw new Error(t('Write a message first.'))
   return {
     uid,
     kind: f.kind,

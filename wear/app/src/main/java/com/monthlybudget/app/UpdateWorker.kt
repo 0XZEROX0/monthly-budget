@@ -45,13 +45,14 @@ class UpdateWorker(context: Context, params: WorkerParameters) : CoroutineWorker
 
 private fun notifyUpdate(context: Context, build: Int) {
     if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+    Store.settings(context) // loads the language for the text below
     val manager = context.getSystemService(NotificationManager::class.java)
-    manager.createNotificationChannel(NotificationChannel("updates", "App updates", NotificationManager.IMPORTANCE_DEFAULT))
+    manager.createNotificationChannel(NotificationChannel("updates", tr("App updates", "تحديثات التطبيق"), NotificationManager.IMPORTANCE_DEFAULT))
     val open = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
     val notification = NotificationCompat.Builder(context, "updates")
         .setSmallIcon(R.drawable.ic_wallet)
-        .setContentTitle("Budget update ready")
-        .setContentText("Build $build is out. Open Budget and tap Update watch app.")
+        .setContentTitle(tr("Budget update ready", "تحديث الميزانية جاهز"))
+        .setContentText(tr("Build $build is out. Open Budget and tap Update watch app.", "الإصدار $build متاح. افتح الميزانية واضغط تحديث تطبيق الساعة."))
         .setContentIntent(open)
         .setAutoCancel(true)
         .build()

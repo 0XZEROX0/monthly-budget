@@ -5,6 +5,7 @@ import { BUILD } from '../data/appUpdate'
 import { firestore } from '../data/firebase'
 import { FEEDBACK_GAP_S, FEEDBACK_MAX, sendFeedback, type FeedbackKind } from '../data/feedback'
 import { showAlert } from './dialog'
+import { msg, t } from '../i18n'
 
 const LAST_KEY = 'budget-app:feedback-last'
 const lastSent = () => {
@@ -16,8 +17,8 @@ const lastSent = () => {
 }
 
 const KINDS: { id: FeedbackKind; label: string; hint: string }[] = [
-  { id: 'idea', label: '💡 Idea', hint: 'A feature you would like, or something that could work better.' },
-  { id: 'bug', label: '🐞 Problem', hint: 'What you did, what you expected, and what happened instead.' },
+  { id: 'idea', label: msg('💡 Idea'), hint: msg('A feature you would like, or something that could work better.') },
+  { id: 'bug', label: msg('🐞 Problem'), hint: msg('What you did, what you expected, and what happened instead.') },
 ]
 
 /** Settings › Feedback: send an idea or a bug report to the developer. */
@@ -31,15 +32,15 @@ export function FeedbackCard({ user }: { user: User | null | undefined }) {
   if (!user || !firestore) {
     return (
       <section className="card">
-        <h2>Send feedback</h2>
-        <p className="muted small">Sign in with Google to send ideas and bug reports.</p>
+        <h2>{t('Send feedback')}</h2>
+        <p className="muted small">{t('Sign in with Google to send ideas and bug reports.')}</p>
       </section>
     )
   }
 
   const send = async () => {
     const wait = FEEDBACK_GAP_S - Math.floor((Date.now() - lastSent()) / 1000)
-    if (wait > 0) return showAlert(`Thanks! Please wait ${wait} seconds before sending more.`)
+    if (wait > 0) return showAlert(t('Thanks! Please wait {n} seconds before sending more.', { n: wait }))
     setBusy(true)
     try {
       const result = await sendFeedback(firestore!, user.uid, {
@@ -55,28 +56,28 @@ export function FeedbackCard({ user }: { user: User | null | undefined }) {
         /* no wait between sends, which is fine */
       }
       setMessage('')
-      setDone(result === 'sent' ? 'Thanks, your feedback was sent.' : "Thanks! You're offline, so it will be sent when you're back online.")
+      setDone(result === 'sent' ? t('Thanks, your feedback was sent.') : t("Thanks! You're offline, so it will be sent when you're back online."))
     } catch (e) {
-      showAlert(`Could not send: ${(e as Error).message}`)
+      showAlert(t('Could not send: {error}', { error: (e as Error).message }))
     } finally {
       setBusy(false)
     }
   }
 
-  const hint = KINDS.find((k) => k.id === kind)!.hint
+  const hint = t(KINDS.find((k) => k.id === kind)!.hint)
   return (
     <section className="card stack">
-      <h2>Send feedback</h2>
-      <p className="muted small">Suggest a feature or report a problem. It goes straight to the developer.</p>
-      <div className="segmented" role="radiogroup" aria-label="Type of feedback">
+      <h2>{t('Send feedback')}</h2>
+      <p className="muted small">{t('Suggest a feature or report a problem. It goes straight to the developer.')}</p>
+      <div className="segmented" role="radiogroup" aria-label={t('Type of feedback')}>
         {KINDS.map((k) => (
           <button type="button" role="radio" aria-checked={kind === k.id} key={k.id} className={kind === k.id ? 'active' : ''} onClick={() => setKind(k.id)}>
-            {k.label}
+            {t(k.label)}
           </button>
         ))}
       </div>
       <label>
-        <span className="sr-only">Message</span>
+        <span className="sr-only">{t('Message')}</span>
         <textarea
           className="feedback-text"
           rows={5}
@@ -95,14 +96,14 @@ export function FeedbackCard({ user }: { user: User | null | undefined }) {
       {user.email && (
         <label className="edit-row toggle-row">
           <span className="grow">
-            Let the developer reply
-            <span className="muted small block">Shares {user.email} with this message.</span>
+            {t('Let the developer reply')}
+            <span className="muted small block">{t('Shares {email} with this message.', { email: user.email })}</span>
           </span>
           <input type="checkbox" role="switch" checked={reply} onChange={(e) => setReply(e.target.checked)} />
         </label>
       )}
       <button className="primary" disabled={busy || !message.trim()} onClick={send}>
-        {busy ? 'Sending…' : 'Send'}
+        {busy ? t('Sending…') : t('Send')}
       </button>
       {done && (
         <p className="small" role="status">

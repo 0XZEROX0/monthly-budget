@@ -20,6 +20,7 @@ import { createLocalBackend } from './data/localBackend'
 import { isStateCode, newSignInState, takeSignInState } from './data/signinState'
 import { GoogleSignIn } from './native/googleSignIn'
 import { shareWithWatch } from './native/wear'
+import { t } from './i18n'
 
 // Google doesn't allow its sign-in page inside an app's WebView. The Android app shows
 // Google's own account picker instead (GoogleSignInPlugin). If that isn't set up, it opens
@@ -64,7 +65,7 @@ export default function App() {
   }, [user])
 
   if (isBridge) return <AppSignInBridge />
-  if (firebaseConfigured && user === undefined) return <div className="center muted">Loading…</div>
+  if (firebaseConfigured && user === undefined) return <div className="center muted">{t('Loading…')}</div>
   if (!backend) return <SignIn error={authError} />
   return <MonthView backend={backend} user={user} onSignOut={auth ? () => signOut(auth!) : undefined} />
 }
@@ -84,7 +85,7 @@ function SignIn({ error: outerError }: { error: string }) {
         if ((e as { code?: string }).code === 'CANCELED') return
         // Not set up for this app in Firebase yet, or no Google account on the phone.
         const state = safeNewState()
-        if (!state) return setError('Could not start sign-in. Please try again.')
+        if (!state) return setError(t('Could not start sign-in. Please try again.'))
         return Browser.open({ url: `${WEB_URL}?app-signin=1&state=${state}` })
       }
     }
@@ -100,10 +101,10 @@ function SignIn({ error: outerError }: { error: string }) {
   return (
     <div className="center signin">
       <img src="./favicon.svg" alt="" width={72} height={72} />
-      <h1>Monthly Budget</h1>
-      <p className="muted">Sign in to sync your budget across all your devices.</p>
+      <h1>{t('Monthly Budget')}</h1>
+      <p className="muted">{t('Sign in to sync your budget across all your devices.')}</p>
       <button className="primary" onClick={signIn}>
-        Sign in with Google
+        {t('Sign in with Google')}
       </button>
       {(error || outerError) && <p className="error">{error || outerError}</p>}
     </div>
@@ -147,10 +148,10 @@ function AppSignInBridge() {
 
   const finish = (result: UserCredential) => {
     const token = GoogleAuthProvider.credentialFromResult(result)?.idToken
-    if (!token) return setError('Google did not return a sign-in token. Please try again.')
+    if (!token) return setError(t('Google did not return a sign-in token. Please try again.'))
     // The app's one-time code: kept across Google's redirect, and handed straight back.
     const state = bridgeState()
-    if (!state) return setError('This sign-in link is out of date. Go back to the app and tap Sign in again.')
+    if (!state) return setError(t('This sign-in link is out of date. Go back to the app and tap Sign in again.'))
     // An intent link opens the installed app straight from Chrome, and only that app.
     const url = `intent://signin?id_token=${encodeURIComponent(token)}&state=${state}#Intent;scheme=monthlybudget;package=${APP_PACKAGE};end`
     setLink(url)
@@ -177,19 +178,19 @@ function AppSignInBridge() {
   return (
     <div className="center signin">
       <img src="./favicon.svg" alt="" width={72} height={72} />
-      <h1>Sign in to the app</h1>
+      <h1>{t('Sign in to the app')}</h1>
       {link ? (
         <>
-          <p className="muted">You're signed in. Head back to the Monthly Budget app.</p>
+          <p className="muted">{t("You're signed in. Head back to the Monthly Budget app.")}</p>
           <a className="button primary" href={link}>
-            Open Monthly Budget
+            {t('Open Monthly Budget')}
           </a>
         </>
       ) : (
         <>
-          <p className="muted">Choose your Google account, and you'll go straight back to the Monthly Budget app.</p>
+          <p className="muted">{t("Choose your Google account, and you'll go straight back to the Monthly Budget app.")}</p>
           <button className="primary" onClick={signIn}>
-            Sign in with Google
+            {t('Sign in with Google')}
           </button>
         </>
       )}

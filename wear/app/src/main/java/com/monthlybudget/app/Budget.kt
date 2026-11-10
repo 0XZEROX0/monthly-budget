@@ -171,6 +171,7 @@ object Budget {
             allAccounts = (doc["accounts"] as? List<*>)?.mapNotNull { (it as? Map<*, *>)?.get("name") as? String }?.takeIf { it.isNotEmpty() } ?: d.allAccounts,
             debts = (doc["debts"] as? List<*>)?.mapNotNull { (it as? Map<*, *>)?.get("name") as? String }.orEmpty(),
             decimals = doc["decimals"] == true,
+            arabic = doc["lang"] == "ar",
             fees = (doc["feeTemplates"] as? List<*>)?.mapNotNull { it as? Map<*, *> }?.mapNotNull { f ->
                 val id = f["id"] as? String ?: return@mapNotNull null
                 FeeTemplate(id, f["name"] as? String ?: id, (f["pct"] as? Double) ?: 0.0, f["min"] as? Double, f["max"] as? Double)
@@ -298,15 +299,15 @@ object Budget {
         val amount = (t["amount"] as? Double) ?: 0.0
         val date = str("date")
         val kind = str("kind")
-        val catSub = (if (t["notSpending"] == true) "Not counted · " else "") + if (note.isNotEmpty()) "$category · " else ""
+        val catSub = (if (t["notSpending"] == true) tr("Not counted · ", "لا يُحسب · ") else "") + if (note.isNotEmpty()) "$category · " else ""
         val time = str("time")
         return when (kind) {
             "expense" -> Txn(date, amount, note.ifEmpty { category }, catSub + account, categoryIcon(category), "−", kind, category, account, time)
             "income" -> Txn(date, amount, note.ifEmpty { category }, "${catSub}into $account", categoryIcon(category), "+", kind, category, account, time)
-            "transfer" -> Txn(date, amount, "$account → ${str("toAccount")}", note.ifEmpty { "Transfer" }, "⇄", "", time = time)
-            "repay" -> Txn(date, amount, note.ifEmpty { "Paid $debt" }, "Debt payment · $account", categoryIcon(debt.ifEmpty { "debt" }), "−", time = time)
-            "borrow" -> Txn(date, amount, note.ifEmpty { "Borrowed · $debt" }, if (account.isNotEmpty()) "into $account" else "Debt", categoryIcon(debt.ifEmpty { "debt" }), "", time = time)
-            else -> Txn(date, kotlin.math.abs(amount), note.ifEmpty { "Balance update" }, debt.ifEmpty { account }, categoryIcon(debt.ifEmpty { account }), if (amount >= 0) "+" else "−", time = time)
+            "transfer" -> Txn(date, amount, "$account → ${str("toAccount")}", note.ifEmpty { tr("Transfer", "تحويل") }, "⇄", "", time = time)
+            "repay" -> Txn(date, amount, note.ifEmpty { tr("Paid $debt", "سداد $debt") }, tr("Debt payment · ", "سداد دين · ") + account, categoryIcon(debt.ifEmpty { "debt" }), "−", time = time)
+            "borrow" -> Txn(date, amount, note.ifEmpty { tr("Borrowed · ", "اقتراض · ") + debt }, if (account.isNotEmpty()) tr("into ", "إلى ") + account else tr("Debt", "دين"), categoryIcon(debt.ifEmpty { "debt" }), "", time = time)
+            else -> Txn(date, kotlin.math.abs(amount), note.ifEmpty { tr("Balance update", "تعديل رصيد") }, debt.ifEmpty { account }, categoryIcon(debt.ifEmpty { account }), if (amount >= 0) "+" else "−", time = time)
         }
     }
 

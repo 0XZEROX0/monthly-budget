@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { formatDateWith } from '../data/month'
+import { t } from '../i18n'
 
 // In-app replacements for alert(), confirm() and prompt(), which on Android show the
 // system's plain grey dialog. Call them from anywhere; <DialogHost /> shows them.
@@ -67,7 +69,7 @@ export const askForm = (message: string, fields: Field[], opts: Opts = {}) =>
 
 /** A year box and a month box, each with up and down arrows (or tap for a list); resolves with YYYY-MM, or null. */
 export const askMonth = (title: string, current: string, min: string, max: string) =>
-  open({ kind: 'month', message: '', title, current, min, max, ok: 'Show' }).then((v) => (typeof v === 'string' ? v : null))
+  open({ kind: 'month', message: '', title, current, min, max, ok: t('Show') }).then((v) => (typeof v === 'string' ? v : null))
 
 /** Mounted once at the root of the app. */
 export function DialogHost() {
@@ -160,22 +162,23 @@ function Dialog({ req, onDone }: { req: Request; onDone: (v: Answer) => void }) 
         <div className="row">
           {req.kind !== 'alert' && (
             <button type="button" className="grow" onClick={cancel}>
-              Cancel
+              {t('Cancel')}
             </button>
           )}
-          {req.kind !== 'choice' && <button className={`grow ${req.danger ? 'danger solid' : 'primary'}`}>{req.ok ?? (req.kind === 'alert' ? 'OK' : typed ? 'Add' : 'OK')}</button>}
+          {req.kind !== 'choice' && <button className={`grow ${req.danger ? 'danger solid' : 'primary'}`}>{req.ok ?? (req.kind === 'alert' ? t('OK') : typed ? t('Add') : t('OK'))}</button>}
         </div>
       </form>
     </div>
   )
 }
 
-const MONTH_NAMES = Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleDateString(undefined, { month: 'long' }))
+const monthNames = () => Array.from({ length: 12 }, (_, i) => formatDateWith(new Date(2000, i, 1), { month: 'long' }))
 const pad = (n: number) => String(n).padStart(2, '0')
 
 /** Two boxes, year and month: the arrows step through them, and tapping the value opens its list. */
 function MonthPicker({ value, min, max, onChange }: { value: string; min: string; max: string; onChange: (v: string) => void }) {
   const [list, setList] = useState<'year' | 'month' | null>(null)
+  const MONTH_NAMES = monthNames()
   const [y, m] = value.split('-').map(Number)
   const [minY, minM] = min.split('-').map(Number)
   const [maxY, maxM] = max.split('-').map(Number)
@@ -193,13 +196,13 @@ function MonthPicker({ value, min, max, onChange }: { value: string; min: string
   const box = (kind: 'year' | 'month', label: string, shown: string, up: () => void, down: () => void, canUp: boolean, canDown: boolean) => (
     <div className="month-box">
       <span className="field-label">{label}</span>
-      <button type="button" className="month-step" aria-label={`Next ${kind}`} disabled={!canUp} onClick={up}>
+      <button type="button" className="month-step" aria-label={kind === 'year' ? t('Next year') : t('Next month')} disabled={!canUp} onClick={up}>
         ▲
       </button>
-      <button type="button" className={`month-value ${list === kind ? 'active' : ''}`} aria-label={`Choose ${kind}`} onClick={() => setList(list === kind ? null : kind)}>
+      <button type="button" className={`month-value ${list === kind ? 'active' : ''}`} aria-label={kind === 'year' ? t('Choose year') : t('Choose month')} onClick={() => setList(list === kind ? null : kind)}>
         {shown}
       </button>
-      <button type="button" className="month-step" aria-label={`Previous ${kind}`} disabled={!canDown} onClick={down}>
+      <button type="button" className="month-step" aria-label={kind === 'year' ? t('Previous year') : t('Previous month')} disabled={!canDown} onClick={down}>
         ▼
       </button>
     </div>
@@ -207,11 +210,11 @@ function MonthPicker({ value, min, max, onChange }: { value: string; min: string
   return (
     <div className="month-picker">
       <div className="month-boxes">
-        {box('month', 'Month', MONTH_NAMES[m - 1], () => stepMonth(1), () => stepMonth(-1), value < max, value > min)}
-        {box('year', 'Year', String(y), () => set(y + 1, m), () => set(y - 1, m), y < maxY, y > minY)}
+        {box('month', t('Month'), MONTH_NAMES[m - 1], () => stepMonth(1), () => stepMonth(-1), value < max, value > min)}
+        {box('year', t('Year'), String(y), () => set(y + 1, m), () => set(y - 1, m), y < maxY, y > minY)}
       </div>
       {list && (
-        <div className={`choice-list month-list ${list}`} role="listbox" aria-label={list === 'year' ? 'Year' : 'Month'}>
+        <div className={`choice-list month-list ${list}`} role="listbox" aria-label={list === 'year' ? t('Year') : t('Month')}>
           {list === 'year'
             ? years.map((year) => (
                 <button type="button" role="option" aria-selected={year === y} key={year} className={year === y ? 'active' : ''} onClick={() => (set(year, m), setList(null))}>

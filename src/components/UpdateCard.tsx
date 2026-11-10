@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { applyWebUpdate, BUILD, checkForUpdate, type Available } from '../data/appUpdate'
 import { AppUpdater } from '../native/appUpdater'
 import { notificationsAllowed } from '../native/notify'
+import { t } from '../i18n'
 
 type Status =
   | { state: 'idle' | 'checking' | 'latest' }
@@ -48,13 +49,13 @@ function Changes({ changes }: { changes: string[] }) {
   const more = changes.length - MAX_CHANGES
   return (
     <div className="update-changes">
-      <strong className="small">What's new</strong>
+      <strong className="small">{t("What's new")}</strong>
       <ul>
         {changes.slice(0, MAX_CHANGES).map((c, i) => (
           <li key={i}>{c}</li>
         ))}
       </ul>
-      {more > 0 && <p className="muted small">and {more} more</p>}
+      {more > 0 && <p className="muted small">{t('and {n} more', { n: more })}</p>}
     </div>
   )
 }
@@ -80,7 +81,7 @@ function useUpdater() {
       const update = await checkForUpdate()
       set(update.kind === 'none' ? { state: quiet ? 'idle' : 'latest' } : { state: 'available', update })
     } catch (e) {
-      set(quiet ? { state: 'idle' } : { state: 'error', message: `Couldn't check for updates (${(e as Error).message}).` })
+      set(quiet ? { state: 'idle' } : { state: 'error', message: t("Couldn't check for updates ({error}).", { error: (e as Error).message }) })
     }
   }
 
@@ -99,7 +100,7 @@ function useUpdater() {
         setStatus(r.needsPermission ? { state: 'allow' } : { state: 'idle' })
       }
     } catch (e) {
-      setStatus({ state: 'error', message: `Update failed: ${(e as Error).message}` })
+      setStatus({ state: 'error', message: t('Update failed: {error}', { error: (e as Error).message }) })
     }
   }
 
@@ -125,41 +126,41 @@ export function UpdateCard() {
 
   return (
     <section className="card">
-      <h2>App</h2>
-      <p className="muted small">Monthly Budget for Android, build {BUILD || 'dev'}</p>
+      <h2>{t('App')}</h2>
+      <p className="muted small">{t('Monthly Budget for Android, build {build}', { build: BUILD || 'dev' })}</p>
       {status.state === 'available' ? (
         <>
           <p className="small">
-            Build {status.update.build} is ready ({mb(status.update.size)}).{' '}
-            {status.update.kind === 'web' ? 'It installs in a moment, right here.' : 'This one changes the Android side, so Android will ask you to confirm the install.'}
+            {t('Build {build} is ready ({size}).', { build: status.update.build, size: mb(status.update.size) })}{' '}
+            {status.update.kind === 'web' ? t('It installs in a moment, right here.') : t('This one changes the Android side, so Android will ask you to confirm the install.')}
           </p>
           <Changes changes={status.update.changes} />
           <button className="primary" onClick={() => install(status.update)}>
-            Update now
+            {t('Update now')}
           </button>
         </>
       ) : status.state === 'downloading' ? (
         <>
           <progress max={100} value={status.pct ?? undefined} />
-          <p className="muted small">Downloading{status.pct !== null ? ` ${status.pct}%` : '…'}</p>
+          <p className="muted small">{t('Downloading')}{status.pct !== null ? ` ${status.pct}%` : '…'}</p>
         </>
       ) : status.state === 'allow' ? (
-        <p className="small">Turn on "Allow from this source" for Monthly Budget, then come back here to finish the update.</p>
+        <p className="small">{t('Turn on "Allow from this source" for Monthly Budget, then come back here to finish the update.')}</p>
       ) : (
         <button onClick={() => check()} disabled={status.state === 'checking'}>
-          {status.state === 'checking' ? 'Checking…' : 'Check for updates'}
+          {status.state === 'checking' ? t('Checking…') : t('Check for updates')}
         </button>
       )}
-      {status.state === 'latest' && <p className="muted small">You have the latest version.</p>}
+      {status.state === 'latest' && <p className="muted small">{t('You have the latest version.')}</p>}
       {status.state === 'error' && <p className="error small">{status.message}</p>}
       <label className="edit-row toggle-row">
         <span className="grow">
-          Notify me about new updates
-          <span className="muted small block">Checks every few hours, even with the app closed, and tells you what changed.</span>
+          {t('Notify me about new updates')}
+          <span className="muted small block">{t('Checks every few hours, even with the app closed, and tells you what changed.')}</span>
         </span>
         <input type="checkbox" role="switch" checked={notify} onChange={(e) => toggleNotify(e.target.checked)} />
       </label>
-      {notify && blocked && <p className="muted small">Notifications are off for Monthly Budget. Allow them in Android's settings to get these.</p>}
+      {notify && blocked && <p className="muted small">{t("Notifications are off for Monthly Budget. Allow them in Android's settings to get these.")}</p>}
     </section>
   )
 }
@@ -193,34 +194,34 @@ export function UpdatePrompt() {
         <div className="dialog-icon" aria-hidden>
           ⬆
         </div>
-        <h2 id="update-title">{status.state === 'error' ? 'Update failed' : 'An update is out'}</h2>
+        <h2 id="update-title">{status.state === 'error' ? t('Update failed') : t('An update is out')}</h2>
         {status.state === 'available' ? (
           <>
             <p className="muted small">
-              Build {status.update.build} is ready ({mb(status.update.size)}); you have build {BUILD}.{' '}
-              {status.update.kind === 'web' ? 'It installs in a few seconds.' : 'Android will ask you to confirm the install.'}
+              {t('Build {build} is ready ({size}); you have build {current}.', { build: status.update.build, size: mb(status.update.size), current: BUILD })}{' '}
+              {status.update.kind === 'web' ? t('It installs in a few seconds.') : t('Android will ask you to confirm the install.')}
             </p>
             <Changes changes={status.update.changes} />
             <div className="row">
               <button className="grow" onClick={close}>
-                Later
+                {t('Later')}
               </button>
               <button className="primary grow" onClick={() => install(status.update)}>
-                Update now
+                {t('Update now')}
               </button>
             </div>
           </>
         ) : status.state === 'downloading' ? (
           <>
             <progress max={100} value={status.pct ?? undefined} />
-            <p className="muted small">Downloading{status.pct !== null ? ` ${status.pct}%` : '…'}</p>
+            <p className="muted small">{t('Downloading')}{status.pct !== null ? ` ${status.pct}%` : '…'}</p>
           </>
         ) : status.state === 'allow' ? (
-          <p className="small">Turn on "Allow from this source" for Monthly Budget, then come back here to finish the update.</p>
+          <p className="small">{t('Turn on "Allow from this source" for Monthly Budget, then come back here to finish the update.')}</p>
         ) : (
           <>
             <p className="error small">{status.state === 'error' && status.message}</p>
-            <button onClick={close}>Close</button>
+            <button onClick={close}>{t('Close')}</button>
           </>
         )}
       </div>

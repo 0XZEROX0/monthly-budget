@@ -63,24 +63,24 @@ public class SmsReceiver extends BroadcastReceiver {
         NotificationManagerCompat nm = NotificationManagerCompat.from(context);
         if (!nm.areNotificationsEnabled()) return;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(CHANNEL, "Bank messages", NotificationManager.IMPORTANCE_DEFAULT);
-            channel.setDescription("Card payments to add to your budget");
+            NotificationChannel channel = new NotificationChannel(CHANNEL, L.t(context, "Bank messages", "رسائل البنك"), NotificationManager.IMPORTANCE_DEFAULT);
+            channel.setDescription(L.t(context, "Card payments to add to your budget", "مدفوعات البطاقة لإضافتها إلى ميزانيتك"));
             context.getSystemService(NotificationManager.class).createNotificationChannel(channel);
         }
         Intent open = new Intent(context, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent tap = PendingIntent.getActivity(context, 0, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         NotificationCompat.Builder n = new NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_budget)
-            .setContentTitle("New payment from " + address)
-            .setContentText("Tap to add it to your budget")
+            .setContentTitle(L.t(context, "New payment from ", "دفعة جديدة من ") + address)
+            .setContentText(L.t(context, "Tap to add it to your budget", "اضغط لإضافتها إلى ميزانيتك"))
             .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
             .setContentIntent(tap)
             // On the lock screen: no bank message text.
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setPublicVersion(new NotificationCompat.Builder(context, CHANNEL)
                 .setSmallIcon(R.drawable.ic_stat_budget)
-                .setContentTitle("New bank payment")
-                .setContentText("Unlock to add it to your budget")
+                .setContentTitle(L.t(context, "New bank payment", "دفعة بنكية جديدة"))
+                .setContentText(L.t(context, "Unlock to add it to your budget", "افتح القفل لإضافتها إلى ميزانيتك"))
                 .build())
             .setAutoCancel(true);
         try {

@@ -9,6 +9,6 @@ import org.json.JSONObject;
 public class CategoriesWidget extends BoardWidget {
     @Override
     RemoteViews views(Context ctx, int id, JSONObject data, Bundle size) {
-        return WidgetViews.card(ctx, id, "categories", "Categories", data, "monthlybudget://summary", 30, false);
+        return WidgetViews.card(ctx, id, "categories", L.t(ctx, "Categories", "الفئات"), data, "monthlybudget://summary", 30, false);
     }
 }

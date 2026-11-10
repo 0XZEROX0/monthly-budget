@@ -1,0 +1,18 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- Widget names in the phone's widget list when the phone itself is in Arabic. -->
+<resources>
+    <string name="app_name">Monthly Budget</string>
+    <string name="title_activity_main">Monthly Budget</string>
+    <string name="widget_name">المتبقي للصرف</string>
+    <string name="widget_description">ميزانية هذا الشهر في لمحة، مع زر لإضافة مصروف.</string>
+    <string name="widget_plan_name">خطة الشهر</string>
+    <string name="widget_plan_description">الدخل والمصروف مقارنة بخطة هذا الشهر، والمتبقي وما ادخرته.</string>
+    <string name="widget_categories_name">الفئات</string>
+    <string name="widget_categories_description">المصروف مقابل الميزانية لكل فئة هذا الشهر. كبّر الأداة لترى المزيد.</string>
+    <string name="widget_recent_name">آخر المصروفات</string>
+    <string name="widget_recent_description">أحدث مصروفاتك هذا الشهر، مع زر لإضافة مصروف.</string>
+    <string name="widget_accounts_name">الحسابات</string>
+    <string name="widget_accounts_description">رصيد كل حساب، والكاش والبنك، والديون.</string>
+    <string name="widget_goals_name">أهداف الادخار</string>
+    <string name="widget_goals_description">التقدم في كل هدف ادخار، وما يلزم لتحقيقه.</string>
+</resources>

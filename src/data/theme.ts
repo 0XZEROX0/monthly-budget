@@ -1,3 +1,4 @@
+import { msg } from '../i18n'
 // Accent colour and light/dark choice, applied as data-accent / data-mode on <html>
 // (styles in index.css). Saved with the user's settings so every device matches, and
 // cached locally so the right colours show before settings load.
@@ -13,13 +14,13 @@ export const DEFAULT_THEME: Theme = { accent: 'purple', mode: 'system' }
 
 /** Accent choices: name, swatch for light and dark mode. */
 export const ACCENTS: { id: string; label: string; light: string; dark: string }[] = [
-  { id: 'purple', label: 'Purple', light: '#4b3fd1', dark: '#9085e9' },
-  { id: 'blue', label: 'Blue', light: '#1f5fbf', dark: '#6ea6f0' },
-  { id: 'teal', label: 'Teal', light: '#0f766e', dark: '#4fc1b3' },
-  { id: 'green', label: 'Green', light: '#2f7d32', dark: '#6cc070' },
-  { id: 'orange', label: 'Orange', light: '#c2560f', dark: '#f0904f' },
-  { id: 'pink', label: 'Pink', light: '#be2f6e', dark: '#ee7aab' },
-  { id: 'graphite', label: 'Graphite', light: '#2b2b2b', dark: '#d6d6d2' },
+  { id: 'purple', label: msg('Purple'), light: '#4b3fd1', dark: '#9085e9' },
+  { id: 'blue', label: msg('Blue'), light: '#1f5fbf', dark: '#6ea6f0' },
+  { id: 'teal', label: msg('Teal'), light: '#0f766e', dark: '#4fc1b3' },
+  { id: 'green', label: msg('Green'), light: '#2f7d32', dark: '#6cc070' },
+  { id: 'orange', label: msg('Orange'), light: '#c2560f', dark: '#f0904f' },
+  { id: 'pink', label: msg('Pink'), light: '#be2f6e', dark: '#ee7aab' },
+  { id: 'graphite', label: msg('Graphite'), light: '#2b2b2b', dark: '#d6d6d2' },
 ]
 
 const KEY = 'budget-app:theme'

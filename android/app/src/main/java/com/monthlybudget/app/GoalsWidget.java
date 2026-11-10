@@ -15,6 +15,6 @@ public class GoalsWidget extends BoardWidget {
 
     @Override
     RemoteViews views(Context ctx, int id, JSONObject data, Bundle size) {
-        return WidgetViews.card(ctx, id, "goals", "Savings goals", data, "monthlybudget://summary", 60, false);
+        return WidgetViews.card(ctx, id, "goals", L.t(ctx, "Savings goals", "أهداف الادخار"), data, "monthlybudget://summary", 60, false);
     }
 }

@@ -35,9 +35,9 @@ public class BudgetWidget extends AppWidgetProvider {
         boolean stale = WidgetPlugin.stale(ctx);
         String value = stale ? "" : p.getString("value", "");
         boolean over = !stale && p.getBoolean("over", false);
-        v.setTextViewText(R.id.widget_label, value.isEmpty() ? "Monthly Budget" : p.getString("label", ""));
-        v.setTextViewText(R.id.widget_value, value.isEmpty() ? "Open the app" : value);
-        v.setTextViewText(R.id.widget_sub, stale ? "A new month has started" : p.getString("sub", ""));
+        v.setTextViewText(R.id.widget_label, value.isEmpty() ? L.t(ctx, "Monthly Budget", "الميزانية الشهرية") : p.getString("label", ""));
+        v.setTextViewText(R.id.widget_value, value.isEmpty() ? L.t(ctx, "Open the app", "افتح التطبيق") : value);
+        v.setTextViewText(R.id.widget_sub, stale ? L.t(ctx, "A new month has started", "بدأ شهر جديد") : p.getString("sub", ""));
         v.setTextColor(R.id.widget_value, ctx.getColor(over ? R.color.widget_over : R.color.widget_text));
         v.setProgressBar(R.id.widget_progress, 100, p.getInt("pct", 0), false);
         v.setViewVisibility(R.id.widget_progress, value.isEmpty() ? View.GONE : View.VISIBLE);

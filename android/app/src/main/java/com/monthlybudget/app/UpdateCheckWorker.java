@@ -114,22 +114,22 @@ public class UpdateCheckWorker extends Worker {
         NotificationManagerCompat nm = NotificationManagerCompat.from(ctx);
         if (!nm.areNotificationsEnabled()) return;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel ch = new NotificationChannel(CHANNEL, "App updates", NotificationManager.IMPORTANCE_DEFAULT);
+            NotificationChannel ch = new NotificationChannel(CHANNEL, L.t(ctx, "App updates", "تحديثات التطبيق"), NotificationManager.IMPORTANCE_DEFAULT);
             ctx.getSystemService(NotificationManager.class).createNotificationChannel(ch);
         }
         Intent open = new Intent(ctx, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent tap = PendingIntent.getActivity(ctx, 3, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         NotificationCompat.Builder n = new NotificationCompat.Builder(ctx, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_budget)
-            .setContentTitle("Monthly Budget update is out")
-            .setContentText(changes.isEmpty() ? "Build " + build + " is ready. Tap to update." : changes.get(0))
+            .setContentTitle(L.t(ctx, "Monthly Budget update is out", "يوجد تحديث للميزانية الشهرية"))
+            .setContentText(changes.isEmpty() ? L.t(ctx, "Build " + build + " is ready. Tap to update.", "الإصدار " + build + " جاهز. اضغط للتحديث.") : changes.get(0))
             .setContentIntent(tap)
             .setAutoCancel(true);
         if (!changes.isEmpty()) {
             // Expanded: up to four changes, then how many more.
-            StringBuilder text = new StringBuilder("Build " + build + " is ready. What's new:");
+            StringBuilder text = new StringBuilder(L.t(ctx, "Build " + build + " is ready. What's new:", "الإصدار " + build + " جاهز. الجديد:"));
             for (int i = 0; i < Math.min(4, changes.size()); i++) text.append("\n• ").append(changes.get(i));
-            if (changes.size() > 4) text.append("\nand ").append(changes.size() - 4).append(" more");
+            if (changes.size() > 4) text.append(L.t(ctx, "\nand " + (changes.size() - 4) + " more", "\nو" + (changes.size() - 4) + " غيرها"));
             n.setStyle(new NotificationCompat.BigTextStyle().bigText(text));
         }
         try {

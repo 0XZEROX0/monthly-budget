@@ -3,6 +3,7 @@ import { defaultTarget, smsSettings, splitTarget, targetFor, type BankSms } from
 import { bankName, senderKey } from '../data/egyptBanks'
 import type { Settings, SmsSettings, SmsTarget } from '../data/types'
 import { Picker } from './Picker'
+import { t } from '../i18n'
 
 const RELEASE_URL = 'https://github.com/0XZEROX0/monthly-budget/releases/latest/download/monthly-budget.apk'
 
@@ -17,9 +18,9 @@ export function SmsSettingsCard({ sms, settings, onSave }: Props) {
   if (!sms.available)
     return (
       <section className="card">
-        <h2>Bank SMS</h2>
+        <h2>{t('Bank SMS')}</h2>
         <p className="muted small">
-          The Android app can read your bank's card messages and list each payment for you to add. <a href={RELEASE_URL}>Download the Android app</a>.
+          {t("The Android app can read your bank's card messages and list each payment for you to add.")} <a href={RELEASE_URL}>{t('Download the Android app')}</a>.
         </p>
       </section>
     )
@@ -36,45 +37,44 @@ export function SmsSettingsCard({ sms, settings, onSave }: Props) {
 
   return (
     <section className="card">
-      <h2>Bank SMS</h2>
+      <h2>{t('Bank SMS')}</h2>
       <p className="muted small">
-        Card payments and transfers from your bank's messages wait under Transactions › Pending until you pick a category. Nothing is added on its own.
+        {t("Card payments and transfers from your bank's messages wait under Transactions › Pending until you pick a category. Nothing is added on its own.")}
       </p>
       {sms.permission !== 'granted' ? (
         <button className="primary" onClick={sms.requestPermission}>
-          Allow access to SMS
+          {t('Allow access to SMS')}
         </button>
       ) : (
         <>
           <label className="edit-row">
-            <span className="grow">Read messages from</span>
+            <span className="grow">{t('Read messages from')}</span>
             <input type="date" value={cfg.since} onChange={(e) => e.target.value && set({ since: e.target.value })} style={{ width: 'auto' }} />
           </label>
           <div className="field">
-            <span className="field-label">Banks</span>
+            <span className="field-label">{t('Banks')}</span>
             {banks.length ? (
               <div className="row wrap">
                 {banks.map((x) => (
-                  <button key={x} className="chip active" onClick={() => turnOff(x)} aria-pressed title="Tap to stop reading this sender">
+                  <button key={x} className="chip active" onClick={() => turnOff(x)} aria-pressed title={t('Tap to stop reading this sender')}>
                     {bankName(x) ?? x} ✕
                   </button>
                 ))}
               </div>
             ) : (
-              <p className="muted small">No bank messages since that day yet. Pick an earlier day to look further back.</p>
+              <p className="muted small">{t('No bank messages since that day yet. Pick an earlier day to look further back.')}</p>
             )}
             <p className="muted small">
-              Egyptian banks and e-wallets (Vodafone Cash, Orange Cash, Etisalat Cash, WE Pay, InstaPay) are recognised by their sender, and any other
-              sender whose messages show a card like ****1234. Pay-later apps such as TRU and valU are left out.
+              {t('Egyptian banks and e-wallets (Vodafone Cash, Orange Cash, Etisalat Cash, WE Pay, InstaPay) are recognised by their sender, and any other sender whose messages show a card like ****1234. Pay-later apps such as TRU and valU are left out.')}
             </p>
           </div>
           <AddSender onAdd={turnOn} />
-          <TargetRow label="Cards not listed below" value={defaultTarget(settings)} settings={settings} onChange={(t) => set({ defaultTarget: t })} />
+          <TargetRow label={t('Cards not listed below')} value={defaultTarget(settings)} settings={settings} onChange={(x) => set({ defaultTarget: x })} />
           {[...cards, ...pendingCards].map((c) => (
-            <TargetRow key={c} label={/^\d{4}$/.test(c) ? `Card or account ••${c}` : c} value={targetFor(c, settings)} settings={settings} onChange={(t) => set({ cards: { ...cfg.cards, [c]: t } })} />
+            <TargetRow key={c} label={/^\d{4}$/.test(c) ? t('Card or account ••{n}', { n: c }) : c} value={targetFor(c, settings)} settings={settings} onChange={(x) => set({ cards: { ...cfg.cards, [c]: x } })} />
           ))}
           <button className="link" onClick={sms.refresh}>
-            Check messages again
+            {t('Check messages again')}
           </button>
         </>
       )}
@@ -94,7 +94,7 @@ function TargetRow({ label, value, settings, onChange }: { label: string; value:
         onChange={(v) => onChange(v as SmsTarget)}
         options={[
           ...settings.accounts.map((a) => ({ value: `account:${a.name}`, label: a.name })),
-          ...settings.debts.map((d) => ({ value: `debt:${d.name}`, label: `${d.name} (credit)` })),
+          ...settings.debts.map((d) => ({ value: `debt:${d.name}`, label: t('{name} (credit)', { name: d.name }) })),
           ...(!settings.accounts.some((a) => a.name === known.name) && !settings.debts.some((d) => d.name === known.name) ? [{ value, label: known.name }] : []),
         ]}
       />
@@ -111,8 +111,8 @@ function AddSender({ onAdd }: { onAdd: (sender: string) => void }) {
   }
   return (
     <div className="row">
-      <input value={name} placeholder="Add a bank by its SMS sender name" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
-      <button onClick={add}>Add</button>
+      <input value={name} placeholder={t('Add a bank by its SMS sender name')} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
+      <button onClick={add}>{t('Add')}</button>
     </div>
   )
 }

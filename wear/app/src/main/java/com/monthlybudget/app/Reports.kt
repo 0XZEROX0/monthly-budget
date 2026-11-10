@@ -3,7 +3,6 @@ package com.monthlybudget.app
 import android.content.Context
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
-import java.util.Locale
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -26,7 +25,7 @@ data class Report(val months: List<MonthBar>, val categories: List<ReportCategor
     }
 }
 
-private val shortMonth = DateTimeFormatter.ofPattern("MMM", Locale.US)
+private val shortMonth get() = DateTimeFormatter.ofPattern("MMM", watchLocale())
 
 fun monthShort(month: String): String = runCatching { YearMonth.parse(month).format(shortMonth) }.getOrDefault(month)
 

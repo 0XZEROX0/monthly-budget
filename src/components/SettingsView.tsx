@@ -20,6 +20,8 @@ import { useReorder } from './useReorder'
 import { ask, askText, showAlert } from './dialog'
 import { askEditCategory, askEditHolder, askNewCategory } from './categoryRename'
 import { Picker } from './Picker'
+import { applyLang, LANGS, msg, t, type Lang } from '../i18n'
+import { formatDateWith } from '../data/month'
 
 interface Props {
   backend: Backend
@@ -33,7 +35,7 @@ interface Props {
 }
 
 const CURRENCIES = ['EGP', 'USD', 'EUR', 'GBP', 'SAR', 'AED', 'KWD', 'QAR', 'TRY']
-const fail = (e: Error) => showAlert(`Could not save: ${e.message}`)
+const fail = (e: Error) => showAlert(t('Could not save: {error}', { error: e.message }))
 
 export function SettingsView({ backend, settings, sms, user, onSignOut, lock, initialGroup }: Props) {
   const save = (s: Settings) => backend.saveSettings(s).catch(fail)
@@ -53,7 +55,7 @@ export function SettingsView({ backend, settings, sms, user, onSignOut, lock, in
     }
   }
   const group = (id: string, title: string, hint: string, icon: string, children: ReactNode) => (
-    <SettingsGroup id={id} title={title} hint={hint} icon={icon} open={open === id} onToggle={() => toggle(id)}>
+    <SettingsGroup id={id} title={t(title)} hint={t(hint)} icon={icon} open={open === id} onToggle={() => toggle(id)}>
       {children}
     </SettingsGroup>
   )
@@ -61,29 +63,31 @@ export function SettingsView({ backend, settings, sms, user, onSignOut, lock, in
   return (
     <div className="stack">
       <section className="card">
-        <h2>Account</h2>
+        <h2>{t('Account')}</h2>
         {backend.mode === 'cloud' && user ? (
           <div className="row wrap">
             <span className="grow">
-              Signed in as <strong>{user.email}</strong>. Your data syncs across devices.
+              {t('Signed in as')} <strong>{user.email}</strong>. {t('Your data syncs across devices.')}
             </span>
-            <button onClick={onSignOut}>Sign out</button>
+            <button onClick={onSignOut}>{t('Sign out')}</button>
           </div>
         ) : (
-          <p className="muted small">Local mode: data is saved in this browser only.</p>
+          <p className="muted small">{t('Local mode: data is saved in this browser only.')}</p>
         )}
       </section>
 
+      <LanguageCard settings={settings} onSave={save} />
+
       {group(
         'money',
-        'Money',
-        'Currency, accounts, debts and opening balances',
+        msg('Money'),
+        msg('Currency, accounts, debts and opening balances'),
         '💰',
         <>
           <section className="card">
             <div className="edit-row">
-              <span className="grow">Currency</span>
-              <Picker label="Currency" value={settings.currency} options={[...new Set([settings.currency, ...CURRENCIES])].map((c) => ({ value: c, label: c }))} onChange={(c) => save({ ...settings, currency: c })} />
+              <span className="grow">{t('Currency')}</span>
+              <Picker label={t('Currency')} value={settings.currency} options={[...new Set([settings.currency, ...CURRENCIES])].map((c) => ({ value: c, label: c }))} onChange={(c) => save({ ...settings, currency: c })} />
             </div>
           </section>
           <AccountsEditor settings={settings} onSave={save} onEdit={editHolder} />
@@ -94,19 +98,19 @@ export function SettingsView({ backend, settings, sms, user, onSignOut, lock, in
 
       {group(
         'categories',
-        'Categories',
-        'Names, icons and order',
+        msg('Categories'),
+        msg('Names, icons and order'),
         '🏷️',
         <>
-          <CategoryEditor title="Expense categories" list={settings.categories.expense} onChange={(l) => setCategories('expense', l)} onEdit={(c) => askEditCategory(backend, settings, 'expense', c)} onNew={() => newCategory('expense')} />
-          <CategoryEditor title="Income categories" list={settings.categories.income} onChange={(l) => setCategories('income', l)} onEdit={(c) => askEditCategory(backend, settings, 'income', c)} onNew={() => newCategory('income')} />
+          <CategoryEditor title={t('Expense categories')} list={settings.categories.expense} onChange={(l) => setCategories('expense', l)} onEdit={(c) => askEditCategory(backend, settings, 'expense', c)} onNew={() => newCategory('expense')} />
+          <CategoryEditor title={t('Income categories')} list={settings.categories.income} onChange={(l) => setCategories('income', l)} onEdit={(c) => askEditCategory(backend, settings, 'income', c)} onNew={() => newCategory('income')} />
         </>,
       )}
 
       {group(
         'planning',
-        'Bills, goals and alerts',
-        'Reminders, savings goals and budget warnings',
+        msg('Bills, goals and alerts'),
+        msg('Reminders, savings goals and budget warnings'),
         '📆',
         <>
           <BillsEditor settings={settings} onSave={save} />
@@ -115,28 +119,28 @@ export function SettingsView({ backend, settings, sms, user, onSignOut, lock, in
         </>,
       )}
 
-      {group('sms', 'Bank SMS', 'Add entries from your bank and wallet messages', '✉️', <SmsSettingsCard sms={sms} settings={settings} onSave={save} />)}
+      {group('sms', msg('Bank SMS'), msg('Add entries from your bank and wallet messages'), '✉️', <SmsSettingsCard sms={sms} settings={settings} onSave={save} />)}
 
       {group(
         'look',
-        'Look and security',
-        'Theme, dark mode, decimals, clock and app lock',
+        msg('Look and security'),
+        msg('Theme, dark mode, decimals, clock and app lock'),
         '🎨',
         <>
           <ThemeCard settings={settings} onSave={save} />
           <section className="card">
-            <h2>Display</h2>
+            <h2>{t('Display')}</h2>
             <label className="edit-row toggle-row">
               <span className="grow">
-                Show decimals
-                <span className="muted small block">Amounts like 1,284.50 instead of 1,285.</span>
+                {t('Show decimals')}
+                <span className="muted small block">{t('Amounts like 1,284.50 instead of 1,285.')}</span>
               </span>
               <input type="checkbox" role="switch" checked={!!settings.decimals} onChange={(e) => save({ ...settings, decimals: e.target.checked })} />
             </label>
             <label className="edit-row toggle-row">
               <span className="grow">
-                12-hour clock
-                <span className="muted small block">Times like 8:30 PM instead of 20:30.</span>
+                {t('12-hour clock')}
+                <span className="muted small block">{t('Times like 8:30 PM instead of 20:30.')}</span>
               </span>
               <input type="checkbox" role="switch" checked={!!settings.clock12} onChange={(e) => save({ ...settings, clock12: e.target.checked })} />
             </label>
@@ -147,8 +151,8 @@ export function SettingsView({ backend, settings, sms, user, onSignOut, lock, in
 
       {group(
         'data',
-        'Backup and import',
-        'Google Drive backup, CSV export and Excel import',
+        msg('Backup and import'),
+        msg('Google Drive backup, CSV export and Excel import'),
         '☁️',
         <>
           <BackupCard backend={backend} settings={settings} />
@@ -156,28 +160,28 @@ export function SettingsView({ backend, settings, sms, user, onSignOut, lock, in
         </>,
       )}
 
-      {group('feedback', 'Feedback', 'Suggest a feature or report a problem', '💬', <FeedbackCard user={backend.mode === 'cloud' ? user : null} />)}
+      {group('feedback', msg('Feedback'), msg('Suggest a feature or report a problem'), '💬', <FeedbackCard user={backend.mode === 'cloud' ? user : null} />)}
 
       {group(
         'app',
-        'App',
-        quickBarSupported ? 'Quick-add bar, updates and erasing your data' : 'Updates and erasing your data',
+        msg('App'),
+        quickBarSupported ? msg('Quick-add bar, updates and erasing your data') : msg('Updates and erasing your data'),
         '⚙️',
         <>
           {quickBarSupported && <QuickBarCard />}
           <UpdateCard />
           <section className="card">
-            <h2>Danger zone</h2>
-            <p className="muted small">Erase every transaction, plan and setting, on all your devices.</p>
+            <h2>{t('Danger zone')}</h2>
+            <p className="muted small">{t('Erase every transaction, plan and setting, on all your devices.')}</p>
             <button
               className="danger"
               onClick={() => {
-                askText('Type ERASE to delete all your budget data, on all your devices.', { title: 'Erase all data', ok: 'Erase', danger: true, placeholder: 'ERASE' }).then((v) => {
+                askText(t('Type ERASE to delete all your budget data, on all your devices.'), { title: t('Erase all data'), ok: t('Erase'), danger: true, placeholder: 'ERASE' }).then((v) => {
                   if (v?.trim() === 'ERASE') backend.clearAll().catch(fail)
                 })
               }}
             >
-              Erase all data
+              {t('Erase all data')}
             </button>
           </section>
         </>,
@@ -213,13 +217,13 @@ function SettingsGroup({ id, title, hint, icon, open, onToggle, children }: { id
   )
 }
 
-const fullDate = (iso: string) => new Date(iso + 'T00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+const fullDate = (iso: string) => formatDateWith(new Date(iso + 'T00:00'), { day: 'numeric', month: 'short', year: 'numeric' })
 
 function ImportCard({ backend, settings }: { backend: Backend; settings: Settings }) {
   const input = useRef<HTMLInputElement>(null)
   const [status, setStatus] = useState('')
   const onFile = async (file: File) => {
-    setStatus('Reading the file…')
+    setStatus(t('Reading the file…'))
     try {
       const { importGrids, readWorkbook } = await import('../data/importSheet')
       const { importList, listColumns } = await import('../data/importList')
@@ -230,52 +234,54 @@ function ImportCard({ backend, settings }: { backend: Backend; settings: Setting
         const { transactions: existing } = await backend.exportAll()
         const res = importList(list.s.grid, list.cols, settings, existing)
         const added = [
-          res.newAccounts.length ? `New accounts: ${res.newAccounts.join(', ')}.` : '',
-          res.newCategories.length ? `New categories: ${res.newCategories.join(', ')}.` : '',
+          res.newAccounts.length ? t('New accounts: {names}.', { names: res.newAccounts.join(', ') }) : '',
+          res.newCategories.length ? t('New categories: {names}.', { names: res.newCategories.join(', ') }) : '',
         ].filter(Boolean)
         const ok = await ask(
-          `Found ${res.transactions.length} entries from ${fullDate(res.first)} to ${fullDate(res.last)}, each in the month of its date.` +
-            (res.skipped ? ` ${res.skipped} more look like entries you already have (same day, type and amount) and are left out.` : '') +
+          t('Found {n} entries from {first} to {last}, each in the month of its date.', { n: res.transactions.length, first: fullDate(res.first), last: fullDate(res.last) }) +
+            (res.skipped ? ' ' + t('{n} more look like entries you already have (same day, type and amount) and are left out.', { n: res.skipped }) : '') +
             (added.length ? `\n\n${added.join('\n')}` : '') +
-            '\n\nAdd them? Your plans and balances stay as they are. Importing the same file again replaces these entries instead of duplicating them.',
-          { title: 'Import entries', ok: 'Import' },
+            '\n\n' +
+            t('Add them? Your plans and balances stay as they are. Importing the same file again replaces these entries instead of duplicating them.'),
+          { title: t('Import entries'), ok: t('Import') },
         )
         if (!ok) return setStatus('')
-        setStatus('Importing…')
+        setStatus(t('Importing…'))
         await backend.importAll({ settings: res.settings, plans: {}, transactions: res.transactions })
-        return setStatus(`Imported ${res.transactions.length} entries${res.skipped ? `, skipped ${res.skipped} you already had` : ''}.`)
+        return setStatus(res.skipped ? t('Imported {n} entries, skipped {skipped} you already had.', { n: res.transactions.length, skipped: res.skipped }) : t('Imported {n} entries.', { n: res.transactions.length }))
       }
       const res = importGrids(sheets, settings)
       const first = res.months[0].month
       const last = res.months[res.months.length - 1].month
       const ok = await ask(
-        `Found ${res.months.length} months (${monthLabel(first)} to ${monthLabel(last)}) with ${res.transactions.length} entries.\n\n` +
-          'Import them? Your accounts, debts, categories and plans will be set from the sheet. Importing the same file again replaces those entries instead of duplicating them.',
-        { title: 'Import sheet', ok: 'Import' },
+        t('Found {months} months ({first} to {last}) with {n} entries.', { months: res.months.length, first: monthLabel(first), last: monthLabel(last), n: res.transactions.length }) +
+          '\n\n' +
+          t('Import them? Your accounts, debts, categories and plans will be set from the sheet. Importing the same file again replaces those entries instead of duplicating them.'),
+        { title: t('Import sheet'), ok: t('Import') },
       )
       if (!ok) return setStatus('')
-      setStatus('Importing…')
+      setStatus(t('Importing…'))
       // The sheet knows nothing about bank SMS, so keep those settings.
       await backend.importAll(settings.sms ? { ...res, settings: { ...res.settings, sms: settings.sms } } : res)
-      setStatus(`Imported ${res.transactions.length} entries from ${res.months.length} months.`)
+      setStatus(t('Imported {n} entries from {months} months.', { n: res.transactions.length, months: res.months.length }))
     } catch (e) {
-      setStatus(`Import failed: ${(e as Error).message}`)
+      setStatus(t('Import failed: {error}', { error: (e as Error).message }))
     } finally {
       if (input.current) input.current.value = ''
     }
   }
   return (
     <section className="card">
-      <h2>Import from Excel</h2>
+      <h2>{t('Import from Excel')}</h2>
       <p className="muted small">
-        Your Google Sheet: choose File › Download › Microsoft Excel (.xlsx), then pick that file here. Every month tab (like 10/2026) is imported, and balances are matched to the sheet's own totals.
+        {t("Your Google Sheet: choose File › Download › Microsoft Excel (.xlsx), then pick that file here. Every month tab (like 10/2026) is imported, and balances are matched to the sheet's own totals.")}
       </p>
       <p className="muted small">
-        An export from another budget app (like Money Manager), with one entry per row and its date in the first column, works too. Each entry goes into the month of its date, and new accounts and categories are added for you.
+        {t('An export from another budget app (like Money Manager), with one entry per row and its date in the first column, works too. Each entry goes into the month of its date, and new accounts and categories are added for you.')}
       </p>
       <input ref={input} type="file" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
       <button className="primary" onClick={() => input.current?.click()}>
-        Choose Excel file
+        {t('Choose Excel file')}
       </button>
       {status && <p className="small">{status}</p>}
     </section>
@@ -287,7 +293,7 @@ type EditHolder = (what: 'account' | 'debt', name: string) => void
 /** An account's or debt's icon and name; tap to change them. */
 function HolderName({ name, suffix = '', onClick }: { name: string; suffix?: string; onClick: () => void }) {
   return (
-    <button className="holder-name grow" aria-label={`Edit ${name}`} onClick={onClick}>
+    <button className="holder-name grow" aria-label={t('Edit {name}', { name })} onClick={onClick}>
       <span className="cat-icon plan-icon">{categoryIcon(name)}</span>
       <strong>
         {name}
@@ -303,39 +309,39 @@ function AccountsEditor({ settings, onSave, onEdit }: { settings: Settings; onSa
   const [name, setName] = useState('')
   const set = (accounts: Account[]) => onSave({ ...settings, accounts })
   const update = (i: number, a: Account) => set(settings.accounts.map((x, j) => (j === i ? a : x)))
-  const types = [...ACCOUNT_TYPES, ...(settings.accountTypes ?? []).map((t) => ({ id: t, label: t }))]
+  const types = [...ACCOUNT_TYPES.map((x) => ({ ...x, label: t(x.label) })), ...(settings.accountTypes ?? []).map((x) => ({ id: x, label: x }))]
   const setType = async (i: number, type: string) => {
     if (type !== NEW_TYPE) return update(i, { ...settings.accounts[i], type })
-    const name = (await askText('Like Credit card or Prepaid card. It counts as money you can spend, like a bank.', { title: 'New account type', placeholder: 'Type name' }))?.trim()
+    const name = (await askText(t('Like Credit card or Prepaid card. It counts as money you can spend, like a bank.'), { title: t('New account type'), placeholder: t('Type name') }))?.trim()
     if (!name) return
-    const existing = types.find((t) => t.label.toLowerCase() === name.toLowerCase())
+    const existing = types.find((x) => x.label.toLowerCase() === name.toLowerCase())
     const accounts = settings.accounts.map((x, j) => (j === i ? { ...x, type: existing?.id ?? name } : x))
     onSave({ ...settings, accounts, ...(existing ? {} : { accountTypes: [...(settings.accountTypes ?? []), name] }) })
   }
   return (
     <section className="card">
-      <h2>Accounts</h2>
-      <p className="muted small">Where your money is. Cash, bank, e-wallets and your own types count as liquidity; investments count toward capital. Tap one to change its name or icon.</p>
+      <h2>{t('Accounts')}</h2>
+      <p className="muted small">{t('Where your money is. Cash, bank, e-wallets and your own types count as liquidity; investments count toward capital. Tap one to change its name or icon.')}</p>
       {settings.accounts.map((a, i) => (
         <div className="edit-group" key={a.name}>
         <div className="edit-row">
           <HolderName name={a.name} onClick={() => onEdit('account', a.name)} />
           <Picker
-            label={`${a.name} type`}
+            label={t('{name} type', { name: a.name })}
             value={a.type}
             onChange={(v) => setType(i, v)}
             options={[
-              ...[...types, ...(types.some((t) => t.id === a.type) ? [] : [{ id: a.type, label: a.type }])].map((t) => ({ value: t.id, label: t.label })),
-              { value: NEW_TYPE, label: '+ New type…' },
+              ...[...types, ...(types.some((x) => x.id === a.type) ? [] : [{ id: a.type, label: a.type }])].map((x) => ({ value: x.id, label: x.label })),
+              { value: NEW_TYPE, label: t('+ New type…') },
             ]}
           />
-          <button className="icon ghost" aria-label={`Remove ${a.name}`} onClick={() => ask(`Remove ${a.name}? Its past entries stay.`, { ok: 'Remove', danger: true }).then((ok) => ok && set(settings.accounts.filter((_, j) => j !== i)))}>
+          <button className="icon ghost" aria-label={t('Remove {name}', { name: a.name })} onClick={() => ask(t('Remove {name}? Its past entries stay.', { name: a.name }), { ok: t('Remove'), danger: true }).then((ok) => ok && set(settings.accounts.filter((_, j) => j !== i)))}>
             ×
           </button>
         </div>
         {a.type === 'investment' && (
           <label className="edit-row sub-row">
-            <span className="grow muted small">Interest rate</span>
+            <span className="grow muted small">{t('Interest rate')}</span>
             <span className="mini">
               <NumberInput value={a.interestPct ?? 0} onChange={(n) => update(i, { ...a, interestPct: n })} />
               <span>%</span>
@@ -344,7 +350,7 @@ function AccountsEditor({ settings, onSave, onEdit }: { settings: Settings; onSa
         )}
         </div>
       ))}
-      <AddRow placeholder="New account" value={name} onChange={setName} onAdd={() => {
+      <AddRow placeholder={t('New account')} value={name} onChange={setName} onAdd={() => {
         const n = name.trim()
         if (n && !settings.accounts.some((a) => a.name === n)) set([...settings.accounts, { name: n, type: guessType(n) }])
         setName('')
@@ -358,30 +364,30 @@ function DebtsEditor({ settings, onSave, onEdit }: { settings: Settings; onSave:
   const set = (debts: Debt[]) => onSave({ ...settings, debts })
   return (
     <section className="card">
-      <h2>Debts</h2>
-      <p className="muted small">Lenders and their limits (the number on the right). Add what you owe under Opening balances or with a Debt entry. Tap one to change its name or icon.</p>
+      <h2>{t('Debts')}</h2>
+      <p className="muted small">{t('Lenders and their limits (the number at the end). Add what you owe under Opening balances or with a Debt entry. Tap one to change its name or icon.')}</p>
       {settings.debts.map((d, i) => (
         <div className="edit-row" key={d.name}>
           <HolderName name={d.name} onClick={() => onEdit('debt', d.name)} />
           <label className="mini">
-            <span className="sr-only">Limit</span>
+            <span className="sr-only">{t('Limit')}</span>
             <NumberInput value={d.limit} onChange={(n) => set(settings.debts.map((x, j) => (j === i ? { ...x, limit: n } : x)))} />
           </label>
-          <button className="icon ghost" aria-label={`Remove ${d.name}`} onClick={() => ask(`Remove ${d.name}?`, { ok: 'Remove', danger: true }).then((ok) => ok && set(settings.debts.filter((_, j) => j !== i)))}>
+          <button className="icon ghost" aria-label={t('Remove {name}', { name: d.name })} onClick={() => ask(t('Remove {name}?', { name: d.name }), { ok: t('Remove'), danger: true }).then((ok) => ok && set(settings.debts.filter((_, j) => j !== i)))}>
             ×
           </button>
         </div>
       ))}
       <div className="edit-row">
-        <span className="grow">Payments count as</span>
+        <span className="grow">{t('Payments count as')}</span>
         <Picker
-          label="Payments count as"
+          label={t('Payments count as')}
           value={settings.debtCategory ?? ''}
           onChange={(v) => onSave({ ...settings, debtCategory: v })}
-          options={[{ value: '', label: 'Their own row' }, ...settings.categories.expense.map((c) => ({ value: c, label: c, icon: categoryIcon(c) }))]}
+          options={[{ value: '', label: t('Their own row') }, ...settings.categories.expense.map((c) => ({ value: c, label: c, icon: categoryIcon(c) }))]}
         />
       </div>
-      <AddRow placeholder="New lender" value={name} onChange={setName} onAdd={() => {
+      <AddRow placeholder={t('New lender')} value={name} onChange={setName} onAdd={() => {
         const n = name.trim()
         if (n && !settings.debts.some((d) => d.name === n)) set([...settings.debts, { name: n, limit: 0 }])
         setName('')
@@ -401,33 +407,33 @@ function OpeningEditor({ settings, onSave, onEdit }: { settings: Settings; onSav
   const set = (o: Partial<typeof opening>) => onSave({ ...settings, opening: { ...opening, ...o } })
   return (
     <section className="card">
-      <h2>Opening balances</h2>
-      <p className="muted small">What you had at the start of the first month you track. Every later month is worked out from your entries.</p>
+      <h2>{t('Opening balances')}</h2>
+      <p className="muted small">{t('What you had at the start of the first month you track. Every later month is worked out from your entries.')}</p>
       <label className="edit-row">
-        <span className="grow">First month</span>
+        <span className="grow">{t('First month')}</span>
         <input type="month" value={opening.month} onChange={(e) => e.target.value && set({ month: e.target.value })} style={{ width: 'auto' }} />
       </label>
       {settings.accounts.map((a) => (
         <div className="edit-row" key={a.name}>
           <HolderName name={a.name} onClick={() => onEdit('account', a.name)} />
           <label className="mini">
-            <span className="sr-only">{a.name} opening balance</span>
+            <span className="sr-only">{t('{name} opening balance', { name: a.name })}</span>
             <NumberInput value={opening.accounts[a.name] ?? 0} onChange={(n) => set({ accounts: { ...opening.accounts, [a.name]: n } })} />
           </label>
         </div>
       ))}
       {settings.debts.map((d) => (
         <div className="edit-row" key={d.name}>
-          <HolderName name={d.name} suffix=" owed" onClick={() => onEdit('debt', d.name)} />
+          <HolderName name={d.name} suffix={' ' + t('owed')} onClick={() => onEdit('debt', d.name)} />
           <label className="mini">
-            <span className="sr-only">{d.name} owed at the start</span>
+            <span className="sr-only">{t('{name} owed at the start', { name: d.name })}</span>
             <NumberInput value={opening.debts[d.name] ?? 0} onChange={(n) => set({ debts: { ...opening.debts, [d.name]: n } })} />
           </label>
         </div>
       ))}
-      <AddRow placeholder="Add a debt, like TRU or Valu" value={lender} onChange={setLender} onAdd={addLender} />
+      <AddRow placeholder={t('Add a debt, like TRU or Valu')} value={lender} onChange={setLender} onAdd={addLender} />
       <p className="muted small">
-        Total opening: {formatWhole(Object.values(opening.accounts).reduce((a, b) => a + b, 0), settings.currency)}
+        {t('Total opening:')} {formatWhole(Object.values(opening.accounts).reduce((a, b) => a + b, 0), settings.currency)}
       </p>
     </section>
   )
@@ -437,7 +443,7 @@ function AddRow({ placeholder, value, onChange, onAdd }: { placeholder: string; 
   return (
     <div className="row">
       <input value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onAdd()} />
-      <button onClick={onAdd}>Add</button>
+      <button onClick={onAdd}>{t('Add')}</button>
     </div>
   )
 }
@@ -447,20 +453,20 @@ function CategoryEditor({ title, list, onChange, onEdit, onNew }: { title: strin
   return (
     <section className="card">
       <h2>{title}</h2>
-      <p className="muted small">Tap a category to change its name or icon. Hold and drag it to change the order.</p>
+      <p className="muted small">{t('Tap a category to change its name or icon. Hold and drag it to change the order.')}</p>
       <ul className="chips">
         {reorder.order.map((c) => (
           <li key={c} {...reorder.itemProps(c)}>
-            <button className="chip-name" aria-label={`Edit ${c}`} onClick={() => onEdit(c)}>
+            <button className="chip-name" aria-label={t('Edit {name}', { name: c })} onClick={() => onEdit(c)}>
               {categoryIcon(c)} {c}
             </button>
-            <button aria-label={`Remove ${c}`} onClick={() => ask(`Remove "${c}"? Past entries keep it.`, { ok: 'Remove', danger: true }).then((ok) => ok && onChange(list.filter((x) => x !== c)))}>
+            <button aria-label={t('Remove {name}', { name: c })} onClick={() => ask(t('Remove "{name}"? Past entries keep it.', { name: c }), { ok: t('Remove'), danger: true }).then((ok) => ok && onChange(list.filter((x) => x !== c)))}>
               ×
             </button>
           </li>
         ))}
         <li className="chip-new">
-          <button onClick={onNew}>+ New</button>
+          <button onClick={onNew}>{t('+ New')}</button>
         </li>
       </ul>
     </section>
@@ -472,18 +478,18 @@ function AlertsCard({ settings, onSave }: { settings: Settings; onSave: (s: Sett
   const set = (a: Partial<typeof alerts>) => onSave({ ...settings, alerts: { ...alerts, ...a } })
   return (
     <section className="card">
-      <h2>Budget alerts</h2>
+      <h2>{t('Budget alerts')}</h2>
       <label className="edit-row toggle-row">
         <span className="grow">
-          Warn me before I run out
-          <span className="muted small block">A notification and a card on the Summary when a category reaches the level below, and again when it goes over.</span>
+          {t('Warn me before I run out')}
+          <span className="muted small block">{t('A notification and a card on the Summary when a category reaches the level below, and again when it goes over.')}</span>
         </span>
         <input type="checkbox" role="switch" checked={!alerts.off} onChange={(e) => set({ off: !e.target.checked })} />
       </label>
       {!alerts.off && (
         <div className="edit-row">
-          <span className="grow">Alert at</span>
-          <Picker label="Alert at" value={String(alerts.pct ?? 80)} onChange={(v) => set({ pct: Number(v) })} options={[50, 70, 75, 80, 90].map((p) => ({ value: String(p), label: `${p}% of budget` }))} />
+          <span className="grow">{t('Alert at')}</span>
+          <Picker label={t('Alert at')} value={String(alerts.pct ?? 80)} onChange={(v) => set({ pct: Number(v) })} options={[50, 70, 75, 80, 90].map((p) => ({ value: String(p), label: t('{pct}% of budget', { pct: p }) }))} />
         </div>
       )}
     </section>
@@ -491,25 +497,25 @@ function AlertsCard({ settings, onSave }: { settings: Settings; onSave: (s: Sett
 }
 
 const MODES: { id: ThemeMode; label: string }[] = [
-  { id: 'system', label: 'System' },
-  { id: 'light', label: 'Light' },
-  { id: 'dark', label: 'Dark' },
+  { id: 'system', label: msg('System') },
+  { id: 'light', label: msg('Light') },
+  { id: 'dark', label: msg('Dark') },
 ]
 
 function ThemeCard({ settings, onSave }: { settings: Settings; onSave: (s: Settings) => void }) {
   const theme = settings.theme ?? DEFAULT_THEME
-  const set = (t: Partial<Theme>) => {
-    const next = { ...theme, ...t }
+  const set = (change: Partial<Theme>) => {
+    const next = { ...theme, ...change }
     // Apply at once; saving syncs it to your other devices.
     applyTheme(next)
     onSave({ ...settings, theme: next })
   }
   return (
     <section className="card">
-      <h2>Themes</h2>
+      <h2>{t('Themes')}</h2>
       <div className="field">
-        <span className="field-label">Colour</span>
-        <div className="swatches" role="radiogroup" aria-label="Theme colour">
+        <span className="field-label">{t('Colour')}</span>
+        <div className="swatches" role="radiogroup" aria-label={t('Theme colour')}>
           {ACCENTS.map((a) => (
             <button
               key={a.id}
@@ -520,20 +526,42 @@ function ThemeCard({ settings, onSave }: { settings: Settings; onSave: (s: Setti
               onClick={() => set({ accent: a.id })}
             >
               <span className="swatch-dot" aria-hidden />
-              <span className="swatch-label">{a.label}</span>
+              <span className="swatch-label">{t(a.label)}</span>
             </button>
           ))}
         </div>
       </div>
       <div className="field">
-        <span className="field-label">Appearance</span>
+        <span className="field-label">{t('Appearance')}</span>
         <div className="segmented three">
           {MODES.map((m) => (
             <button key={m.id} className={theme.mode === m.id ? 'active' : ''} onClick={() => set({ mode: m.id })}>
-              {m.label}
+              {t(m.label)}
             </button>
           ))}
         </div>
+      </div>
+    </section>
+  )
+}
+
+/** English or Arabic, for the app, the website and the watch. Its title shows in both, so it can be found in either. */
+function LanguageCard({ settings, onSave }: { settings: Settings; onSave: (s: Settings) => void }) {
+  const current: Lang = settings.lang ?? 'en'
+  const set = (lang: Lang) => {
+    // Apply at once; saving syncs it to your other devices.
+    applyLang(lang)
+    onSave({ ...settings, lang })
+  }
+  return (
+    <section className="card">
+      <h2>{t('Language')} · {current === 'ar' ? 'Language' : 'اللغة'}</h2>
+      <div className="segmented" role="radiogroup" aria-label={t('Language')}>
+        {LANGS.map((l) => (
+          <button key={l.id} role="radio" aria-checked={current === l.id} className={current === l.id ? 'active' : ''} lang={l.id} onClick={() => set(l.id)}>
+            {l.label}
+          </button>
+        ))}
       </div>
     </section>
   )

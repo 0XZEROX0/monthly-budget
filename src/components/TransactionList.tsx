@@ -1,8 +1,9 @@
 import { memo, useState } from 'react'
 import { categoryIcon } from '../data/icons'
-import { dayLabel, formatMoney, formatWhole, showTime } from '../data/month'
+import { dayLabel, formatWhole, showTime, signedMoney } from '../data/month'
 import { countsAsIncome, countsAsSpending } from '../data/summary'
 import type { Settings, Transaction } from '../data/types'
+import { msg, t as tr } from '../i18n'
 
 /** A drill-down from the Summary: one category, account or debt. */
 export type ListFocus =
@@ -29,15 +30,15 @@ const inFocus = (t: Transaction, f: ListFocus | null, debtCategory?: string) =>
         ? t.debt === f.value
         : t.kind === 'repay')
 
-const focusLabel = (f: ListFocus) => (f.kind === 'debtPayments' ? 'Debt payments' : f.value)
+const focusLabel = (f: ListFocus) => (f.kind === 'debtPayments' ? tr('Debt payments') : f.value)
 
 type Filter = 'all' | 'expense' | 'income' | 'moves'
 
 const FILTERS: { id: Filter; label: string }[] = [
-  { id: 'all', label: 'All' },
-  { id: 'expense', label: 'Spent' },
-  { id: 'income', label: 'Income' },
-  { id: 'moves', label: 'Moves' },
+  { id: 'all', label: msg('All') },
+  { id: 'expense', label: msg('Spent') },
+  { id: 'income', label: msg('Income') },
+  { id: 'moves', label: msg('Moves') },
 ]
 
 const matches = (t: Transaction, f: Filter) =>
@@ -50,15 +51,15 @@ function describe(t: Transaction): { title: string; sub: string; icon: string; s
     case 'expense':
       return { title: note || t.category, sub: `${note ? `${t.category} · ` : ''}${t.account ?? ''}`, icon: categoryIcon(t.category), sign: '−' }
     case 'income':
-      return { title: note || t.category, sub: `${note ? `${t.category} · ` : ''}into ${t.account ?? ''}`, icon: categoryIcon(t.category), sign: '+' }
+      return { title: note || t.category, sub: `${note ? `${t.category} · ` : ''}${tr('into {account}', { account: t.account ?? '' })}`, icon: categoryIcon(t.category), sign: '+' }
     case 'transfer':
-      return { title: `${t.account} → ${t.toAccount}`, sub: note || 'Transfer', icon: '⇄', sign: '' }
+      return { title: `${t.account} → ${t.toAccount}`, sub: note || tr('Transfer'), icon: '⇄', sign: '' }
     case 'repay':
-      return { title: note || `Paid ${t.debt}`, sub: `Debt payment · ${t.account ?? ''}`, icon: categoryIcon(t.debt ?? 'debt'), sign: '−' }
+      return { title: note || tr('Paid {name}', { name: t.debt ?? '' }), sub: `${tr('Debt payment')} · ${t.account ?? ''}`, icon: categoryIcon(t.debt ?? 'debt'), sign: '−' }
     case 'borrow':
-      return { title: note || `Borrowed · ${t.debt}`, sub: t.account ? `into ${t.account}` : 'Debt', icon: categoryIcon(t.debt ?? 'debt'), sign: '' }
+      return { title: note || `${tr('Borrowed')} · ${t.debt}`, sub: t.account ? tr('into {account}', { account: t.account }) : tr('Debt'), icon: categoryIcon(t.debt ?? 'debt'), sign: '' }
     case 'adjust':
-      return { title: note || 'Balance update', sub: t.debt ?? t.account ?? '', icon: categoryIcon(t.debt ?? t.account ?? ''), sign: t.amount >= 0 ? '+' : '−' }
+      return { title: note || tr('Balance update'), sub: t.debt ?? t.account ?? '', icon: categoryIcon(t.debt ?? t.account ?? ''), sign: t.amount >= 0 ? '+' : '−' }
   }
 }
 
@@ -85,36 +86,36 @@ export const TransactionList = memo(function TransactionList({ txns, settings, o
           <span className="cat-icon plan-icon">{focus.kind === 'debtPayments' ? categoryIcon('debt') : categoryIcon(focus.value)}</span>
           <span className="grow list-main">
             <strong>{focusLabel(focus)}</strong>
-            <span className="muted small">Showing only this {focus.kind === 'category' ? 'category' : focus.kind === 'account' ? 'account' : 'debt'} for the month</span>
+            <span className="muted small">{focus.kind === 'category' ? tr('Showing only this category for the month') : focus.kind === 'account' ? tr('Showing only this account for the month') : tr('Showing only this debt for the month')}</span>
           </span>
           <button className="chip" onClick={onClearFocus}>
-            Clear ✕
+            {tr('Clear')} ✕
           </button>
         </div>
       )}
       <div className="segmented four">
         {FILTERS.map((f) => (
           <button key={f.id} className={filter === f.id ? 'active' : ''} onClick={() => setFilter(f.id)}>
-            {f.label}
+            {tr(f.label)}
           </button>
         ))}
       </div>
-      <input className="search" type="search" placeholder="Search notes, categories or accounts" value={search} onChange={(e) => setSearch(e.target.value)} />
+      <input className="search" type="search" placeholder={tr('Search notes, categories or accounts')} value={search} onChange={(e) => setSearch(e.target.value)} />
       <div className="row totals small">
         <span>
-          <i className="key-dot" style={{ background: 'var(--income)' }} /> In {formatWhole(totalIn, currency)}
+          <i className="key-dot" style={{ background: 'var(--income)' }} /> {tr('In')} {formatWhole(totalIn, currency)}
         </span>
         <span>
-          <i className="key-dot" style={{ background: 'var(--expense)' }} /> Out {formatWhole(totalOut, currency)}
+          <i className="key-dot" style={{ background: 'var(--expense)' }} /> {tr('Out')} {formatWhole(totalOut, currency)}
         </span>
         <span className="spacer" />
-        <span className="muted">{shown.length} entries</span>
+        <span className="muted">{tr('{n} entries', { n: shown.length })}</span>
       </div>
       {shown.length === 0 ? (
         <div className="empty">
           <span className="empty-icon">🧾</span>
-          <p>{q ? 'Nothing matches your search.' : 'Nothing here this month yet.'}</p>
-          {!q && <p className="muted small">Tap the + button to add an entry.</p>}
+          <p>{q ? tr('Nothing matches your search.') : tr('Nothing here this month yet.')}</p>
+          {!q && <p className="muted small">{tr('Tap the + button to add an entry.')}</p>}
         </div>
       ) : (
         [...days].map(([date, list]) => {
@@ -137,12 +138,11 @@ export const TransactionList = memo(function TransactionList({ txns, settings, o
                           <span className="muted small">
                             {d.sub}
                             {t.time && ` · ${showTime(t.time, settings.clock12)}`}
-                            {t.notSpending && (t.kind === 'income' ? ' · not counted as income' : ' · not counted as spending')}
+                            {t.notSpending && ' · ' + (t.kind === 'income' ? tr('not counted as income') : tr('not counted as spending'))}
                           </span>
                         </span>
                         <strong className={d.sign === '+' ? 'amount-in' : d.sign === '' ? 'muted' : ''}>
-                          {d.sign}
-                          {formatMoney(Math.abs(t.amount), currency)}
+                          {signedMoney(d.sign, Math.abs(t.amount), currency)}
                         </strong>
                       </button>
                     </li>

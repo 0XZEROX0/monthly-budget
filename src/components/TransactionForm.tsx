@@ -1,10 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { useReorder } from './useReorder'
 import { guessType } from '../data/accounts'
-import { defaultFee, feeCategory, feeFollowing, feeFor, feeHint, feeIdFor, feeTemplates, type FeeKind } from '../data/fees'
+import { BUILT_IN_FEES, defaultFee, feeCategory, feeFollowing, feeFor, feeIdFor, feeTemplates, type FeeKind } from '../data/fees'
+import { msg, t as tr } from '../i18n'
 import { categoryIcon } from '../data/icons'
-import { parseAmount, today } from '../data/month'
-import type { Backend, NewTransaction, Settings, Transaction, TxnKind } from '../data/types'
+import { formatNumber, parseAmount, today } from '../data/month'
+import type { Backend, FeeTemplate, NewTransaction, Settings, Transaction, TxnKind } from '../data/types'
 import { ask, askForm, askText, showAlert } from './dialog'
 import { askEditCategory, askNewCategory } from './categoryRename'
 
@@ -26,17 +27,26 @@ interface Props {
 type Tab = 'expense' | 'income' | 'transfer' | 'debt'
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'expense', label: 'Expense' },
-  { id: 'income', label: 'Income' },
-  { id: 'transfer', label: 'Transfer' },
-  { id: 'debt', label: 'Debt' },
+  { id: 'expense', label: msg('Expense') },
+  { id: 'income', label: msg('Income') },
+  { id: 'transfer', label: msg('Transfer') },
+  { id: 'debt', label: msg('Debt') },
 ]
+
+/** A fee template's name to show: the built-in ones in the app's language, the user's own as typed. */
+const feeName = (f: FeeTemplate) => (BUILT_IN_FEES.some((b) => b.id === f.id) ? tr(f.name) : f.name)
+
+/** How a template works it out, like "0.1%, at least 0.5 and at most 20". */
+function feeHint(f: FeeTemplate): string {
+  const limits = [f.min != null && tr('at least {n}', { n: formatNumber(f.min) }), f.max != null && tr('at most {n}', { n: formatNumber(f.max) })].filter(Boolean)
+  return `${formatNumber(f.pct)}%${limits.length ? `${tr(', ')}${limits.join(tr(' and '))}` : ''}`
+}
 
 const tabOf = (k: TxnKind): Tab => (k === 'repay' || k === 'borrow' ? 'debt' : k === 'adjust' ? 'transfer' : k)
 
 // Writes are not awaited: with the offline cache they apply locally at once and
 // sync later, so waiting on the server would freeze the form without a connection.
-const report = (p: Promise<void>) => p.catch((e: Error) => showAlert(`Could not save: ${e.message}`))
+const report = (p: Promise<void>) => p.catch((e: Error) => showAlert(tr('Could not save: {error}', { error: e.message })))
 
 const nowTime = () => {
   const d = new Date()
@@ -113,7 +123,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, exi
   const catKind = tab === 'income' ? 'income' : 'expense'
   const categories = settings.categories[catKind]
   const addAccount = async () => {
-    const name = (await askText('Give it a name, like Wallet, CIB card or Instapay.', { title: 'New account', placeholder: 'Account name' }))?.trim()
+    const name = (await askText(tr('Give it a name, like Wallet, CIB card or Instapay.'), { title: tr('New account'), placeholder: tr('Account name') }))?.trim()
     if (!name) return
     if (!accounts.includes(name)) saveSettings({ ...settings, accounts: [...settings.accounts, { name, type: guessType(name) }] })
     setAccount(name)
@@ -150,7 +160,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, exi
   const feeValue = !showFee ? 0 : fee === 'custom' ? parseAmount(customFee) || 0 : feeFor(feeTemplate, amountValue)
   // Shown before any amount is typed too: InstaPay's minimum of 0.5 straight away.
   const feeShown = feeValue || (showFee && feeTemplate && !(amountValue > 0) ? feeTemplate.min ?? 0 : 0)
-  const money2 = (n: number) => `${settings.currency} ${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+  const money2 = (n: number) => `${settings.currency} ${formatNumber(n)}`
   const ownTemplates = settings.feeTemplates ?? []
   const pickFee = (id: FeeKind) => {
     setFee(id)
@@ -159,29 +169,29 @@ export function TransactionForm({ backend, settings: saved, month, existing, exi
   // A fee template of the user's own: a percentage kept between an optional minimum and maximum.
   const addFeeTemplate = async () => {
     const v = await askForm(
-      'Worked out as a percentage of the amount, like InstaPay.',
+      tr('Worked out as a percentage of the amount, like InstaPay.'),
       [
-        { key: 'name', label: 'Name', placeholder: 'Like Bank transfer' },
-        { key: 'pct', label: 'Percentage', placeholder: 'Like 0.5', inputMode: 'decimal' },
-        { key: 'min', label: 'Minimum (optional)', placeholder: 'No minimum', inputMode: 'decimal' },
-        { key: 'max', label: 'Maximum (optional)', placeholder: 'No maximum', inputMode: 'decimal' },
+        { key: 'name', label: tr('Name'), placeholder: tr('Like Bank transfer') },
+        { key: 'pct', label: tr('Percentage'), placeholder: tr('Like 0.5'), inputMode: 'decimal' },
+        { key: 'min', label: tr('Minimum (optional)'), placeholder: tr('No minimum'), inputMode: 'decimal' },
+        { key: 'max', label: tr('Maximum (optional)'), placeholder: tr('No maximum'), inputMode: 'decimal' },
       ],
-      { title: 'New fee' },
+      { title: tr('New fee') },
     )
     if (!v) return
     const n = (k: string) => (v[k]?.trim() ? parseAmount(v[k].replace('%', '')) : undefined)
     const name = v.name?.trim()
     const [pct, min, max] = [n('pct'), n('min'), n('max')]
     if (!name || pct == null || !(pct >= 0) || [min, max].some((x) => x != null && !(x >= 0)))
-      return void showAlert('Give it a name and a percentage, with numbers for the minimum and maximum if you set them.')
-    if (min != null && max != null && min > max) return void showAlert('The minimum is more than the maximum.')
+      return void showAlert(tr('Give it a name and a percentage, with numbers for the minimum and maximum if you set them.'))
+    if (min != null && max != null && min > max) return void showAlert(tr('The minimum is more than the maximum.'))
     const t = { id: crypto.randomUUID(), name, pct, ...(min != null ? { min } : {}), ...(max != null ? { max } : {}) }
     saveSettings({ ...settings, feeTemplates: [...ownTemplates, t] })
     pickFee(t.id)
   }
   const removeFeeTemplate = async (id: string) => {
     const t = ownTemplates.find((x) => x.id === id)
-    if (!t || !(await ask(`Remove the ${t.name} fee? Fees already saved stay.`, { ok: 'Remove', danger: true }))) return
+    if (!t || !(await ask(tr('Remove the {name} fee? Fees already saved stay.', { name: t.name }), { ok: tr('Remove'), danger: true }))) return
     saveSettings({ ...settings, feeTemplates: ownTemplates.filter((x) => x.id !== id) })
     pickFee('none')
   }
@@ -189,15 +199,15 @@ export function TransactionForm({ backend, settings: saved, month, existing, exi
   const submit = (e: FormEvent) => {
     e.preventDefault()
     const value = parseAmount(amount)
-    if (!Number.isFinite(value) || value <= 0) return void showAlert('Type the amount as a number above zero, like 250 or 99.50.')
-    if ((tab === 'expense' || tab === 'income') && !category) return void showAlert('Pick a category.')
+    if (!Number.isFinite(value) || value <= 0) return void showAlert(tr('Type the amount as a number above zero, like 250 or 99.50.'))
+    if ((tab === 'expense' || tab === 'income') && !category) return void showAlert(tr('Pick a category.'))
     // The time orders entries within a day, newest first.
-    if (time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return void showAlert(clock12 ? 'Type the time like 09:30 and pick AM or PM.' : 'Type the time like 09:30 or 21:15.')
+    if (time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return void showAlert(clock12 ? tr('Type the time like 09:30 and pick AM or PM.') : tr('Type the time like 09:30 or 21:15.'))
     const base = { amount: value, date, ...(time && { time }), description: description.trim(), category: '' }
     let t: NewTransaction
     if (tab === 'expense' || tab === 'income') t = { ...base, kind: tab, category, account, ...(notSpending && { notSpending: true }) }
     else if (tab === 'transfer') {
-      if (account === toAccount) return void showAlert('Pick two different accounts.')
+      if (account === toAccount) return void showAlert(tr('Pick two different accounts.'))
       t = { ...base, kind: 'transfer', account, toAccount }
     } else if (debtMode === 'repay') t = { ...base, kind: 'repay', account, debt }
     else t = { ...base, kind: 'borrow', debt, ...(account ? { account } : {}) }
@@ -207,7 +217,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, exi
     if (feeValue > 0) {
       // The fee is its own expense from the same account, saved next to the entry it belongs to.
       const mainId = id ?? crypto.randomUUID()
-      const label = feeTemplate?.name ?? 'Transfer'
+      const label = feeTemplate ? feeName(feeTemplate) : tr('Transfer')
       report(backend.updateTransaction(mainId, t))
       report(
         backend.updateTransaction(feeIdFor(mainId), {
@@ -218,7 +228,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, exi
           ...(t.month ? { month: t.month } : {}),
           category: feeCategory(settings.categories.expense),
           account,
-          description: `${label} fee${t.description ? ` · ${t.description}` : ''}`,
+          description: `${tr('{name} fee', { name: label })}${t.description ? ` · ${t.description}` : ''}`,
         }),
       )
     } else report(id ? backend.updateTransaction(id, t) : backend.addTransaction(t))
@@ -230,67 +240,68 @@ export function TransactionForm({ backend, settings: saved, month, existing, exi
   }
 
   const remove = async () => {
-    const question = existingFee ? `Delete this entry and its ${money2(existingFee.amount)} fee?` : 'Delete this entry?'
-    if (!existing || !(await ask(question, { ok: 'Delete', danger: true }))) return
+    const question = existingFee ? tr('Delete this entry and its {amount} fee?', { amount: money2(existingFee.amount) }) : tr('Delete this entry?')
+    if (!existing || !(await ask(question, { ok: tr('Delete'), danger: true }))) return
     report(backend.deleteTransaction(existing.id))
     if (existingFee) report(backend.deleteTransaction(existingFee.id))
     onClose()
   }
 
-  const title = tab === 'debt' ? (debtMode === 'repay' ? 'debt payment' : 'borrowing') : tab
+  // Whole phrases, since Arabic words don't follow "Add" the way English ones do.
+  const what = tab === 'debt' ? debtMode : tab
+  const ADD: Record<string, string> = { expense: tr('Add expense'), income: tr('Add income'), transfer: tr('Add transfer'), repay: tr('Add debt payment'), borrow: tr('Add borrowing') }
+  const EDIT: Record<string, string> = { expense: tr('Edit expense'), income: tr('Edit income'), transfer: tr('Edit transfer'), repay: tr('Edit debt payment'), borrow: tr('Edit borrowing') }
 
   return (
     <div className="sheet-backdrop" onClick={onClose}>
       <form className={`sheet kind-${tab}`} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
         <div className="sheet-grab" aria-hidden />
         <div className="sheet-head">
-          <h2>
-            {existing ? 'Edit' : 'Add'} {title}
-          </h2>
-          <button type="button" className="icon ghost" aria-label="Close" onClick={onClose}>
+          <h2>{existing ? EDIT[what] : ADD[what]}</h2>
+          <button type="button" className="icon ghost" aria-label={tr('Close')} onClick={onClose}>
             ✕
           </button>
         </div>
         <div className="segmented four">
           {TABS.map((t) => (
             <button type="button" key={t.id} className={tab === t.id ? 'active' : ''} onClick={() => switchTab(t.id)}>
-              {t.label}
+              {tr(t.label)}
             </button>
           ))}
         </div>
         <label className="amount">
-          <span className="sr-only">Amount in {settings.currency}</span>
+          <span className="sr-only">{tr('Amount in {currency}', { currency: settings.currency })}</span>
           <span className="amount-currency">{settings.currency}</span>
           <input inputMode="decimal" autoFocus required value={amount} style={{ width: `${Math.max(1, amount.length) + 0.6}ch` }} onChange={(e) => setAmount(e.target.value)} placeholder="0" />
         </label>
         {feeShown > 0 && (
           <p className="amount-fee" aria-live="polite">
-            + {money2(feeShown)} {feeTemplate?.name ?? 'transfer'} fee
-            {amountValue > 0 && <> · {money2(amountValue + feeShown)} in total</>}
+            + {money2(feeShown)} {tr('{name} fee', { name: feeTemplate ? feeName(feeTemplate) : tr('transfer') })}
+            {amountValue > 0 && <> · {tr('{amount} in total', { amount: money2(amountValue + feeShown) })}</>}
           </p>
         )}
 
         {existingFee && (
           <p className="amount-fee">
-            + {money2(existingFee.amount)} fee, saved as its own entry. It moves and is deleted with this one.
+            + {tr('{amount} fee, saved as its own entry. It moves and is deleted with this one.', { amount: money2(existingFee.amount) })}
           </p>
         )}
 
         {tab === 'debt' && (
           <div className="segmented">
             <button type="button" className={debtMode === 'repay' ? 'active' : ''} onClick={() => setDebtMode('repay')}>
-              I paid back
+              {tr('I paid back')}
             </button>
             <button type="button" className={debtMode === 'borrow' ? 'active' : ''} onClick={() => setDebtMode('borrow')}>
-              I borrowed
+              {tr('I borrowed')}
             </button>
           </div>
         )}
 
-        {tab === 'debt' && <Chips label="Debt" options={settings.debts.map((d) => d.name)} value={debt} onChange={setDebt} />}
+        {tab === 'debt' && <Chips label={tr('Debt')} options={settings.debts.map((d) => d.name)} value={debt} onChange={setDebt} />}
 
         <Chips
-          label={tab === 'income' ? 'Into' : tab === 'transfer' ? 'From' : tab === 'debt' ? (debtMode === 'repay' ? 'Paid from' : 'Into (optional)') : 'Paid from'}
+          label={tab === 'income' ? tr('Into') : tab === 'transfer' ? tr('From') : tab === 'debt' ? (debtMode === 'repay' ? tr('Paid from') : tr('Into (optional)')) : tr('Paid from')}
           options={accounts}
           value={account}
           onChange={(a) => {
@@ -301,14 +312,14 @@ export function TransactionForm({ backend, settings: saved, month, existing, exi
             if (a === toAccount) setToAccount(accounts.find((x) => x !== a) ?? '')
           }}
           onAdd={addAccount}
-          addLabel="New account"
+          addLabel={tr('New account')}
         />
-        {tab === 'transfer' && <Chips label="To" options={accounts.filter((a) => a !== account)} value={toAccount} onChange={setToAccount} />}
+        {tab === 'transfer' && <Chips label={tr('To')} options={accounts.filter((a) => a !== account)} value={toAccount} onChange={setToAccount} />}
 
         {(tab === 'expense' || tab === 'income') && (
           <div className="field">
             <span className="field-label">
-              Category <span className="muted small">· tap again to edit, hold to reorder</span>
+              {tr('Category')} <span className="muted small">· {tr('tap again to edit, hold to reorder')}</span>
             </span>
             <div className="cat-grid" role="radiogroup">
               {!categories.includes(category) && category && (
@@ -323,9 +334,9 @@ export function TransactionForm({ backend, settings: saved, month, existing, exi
                   <span className="cat-name">{c.replace('/', '/​')}</span>
                 </button>
               ))}
-              <button type="button" className="cat-add" onClick={addCategory} aria-label={`New ${catKind} category`}>
+              <button type="button" className="cat-add" onClick={addCategory} aria-label={catKind === 'income' ? tr('New income category') : tr('New expense category')}>
                 <span className="cat-icon">+</span>
-                <span className="cat-name">New</span>
+                <span className="cat-name">{tr('New')}</span>
               </button>
             </div>
           </div>
@@ -334,20 +345,20 @@ export function TransactionForm({ backend, settings: saved, month, existing, exi
         {showFee && (
           <div className="field">
             <span className="field-label">
-              Fee{feeShown > 0 && <span className="muted small"> · {money2(feeShown)} from {account}</span>}
+              {tr('Fee')}{feeShown > 0 && <span className="muted small"> · {tr('{amount} from {account}', { amount: money2(feeShown), account })}</span>}
             </span>
-            <div className="row wrap" role="radiogroup" aria-label="Fee">
-              {[{ id: 'none', name: 'No fee' }, ...templates, { id: 'custom', name: 'Other' }].map((f) => (
+            <div className="row wrap" role="radiogroup" aria-label={tr('Fee')}>
+              {[{ id: 'none', name: tr('No fee') }, ...templates.map((x) => ({ id: x.id, name: feeName(x) })), { id: 'custom', name: tr('Other') }].map((f) => (
                 <button type="button" role="radio" aria-checked={fee === f.id} key={f.id} className={`chip ${fee === f.id ? 'active' : ''}`} onClick={() => pickFee(f.id)}>
                   {f.name}
                 </button>
               ))}
-              <button type="button" className="chip chip-add" onClick={addFeeTemplate} aria-label="New fee">
-                + New
+              <button type="button" className="chip chip-add" onClick={addFeeTemplate} aria-label={tr('New fee')}>
+                {tr('+ New')}
               </button>
             </div>
             {fee === 'custom' ? (
-              <input inputMode="decimal" value={customFee} onChange={(e) => setCustomFee(e.target.value)} placeholder="Fee amount" aria-label="Fee amount" />
+              <input inputMode="decimal" value={customFee} onChange={(e) => setCustomFee(e.target.value)} placeholder={tr('Fee amount')} aria-label={tr('Fee amount')} />
             ) : (
               feeTemplate && (
                 <span className="muted small">
@@ -356,7 +367,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, exi
                     <>
                       {' · '}
                       <button type="button" className="link small" onClick={() => removeFeeTemplate(fee)}>
-                        Remove
+                        {tr('Remove')}
                       </button>
                     </>
                   )}
@@ -367,39 +378,39 @@ export function TransactionForm({ backend, settings: saved, month, existing, exi
         )}
 
         <div className="field">
-          <span className="field-label">Date and time</span>
+          <span className="field-label">{tr('Date and time')}</span>
           <div className="row wrap">
             <button type="button" className={`chip ${date === today() ? 'active' : ''}`} onClick={() => setDate(today())}>
-              Today
+              {tr('Today')}
             </button>
             <button type="button" className={`chip ${date === shiftDay(today(), -1) ? 'active' : ''}`} onClick={() => setDate(shiftDay(today(), -1))}>
-              Yesterday
+              {tr('Yesterday')}
             </button>
-            <input className="date-input" type="date" required value={date} onChange={(e) => setDate(e.target.value)} aria-label="Date" />
+            <input className="date-input" type="date" required value={date} onChange={(e) => setDate(e.target.value)} aria-label={tr('Date')} />
             {clock12 ? (
               <>
-                <input className="time-input" inputMode="numeric" value={typed12} onChange={(e) => set12(typeTime(e.target.value), pm)} placeholder="hh:mm" aria-label="Time" maxLength={5} />
-                <button type="button" className="chip ampm" aria-label={`${pm ? 'PM' : 'AM'}, tap to switch`} onClick={() => set12(typed12, !pm)}>
-                  {pm ? 'PM' : 'AM'}
+                <input className="time-input" inputMode="numeric" value={typed12} onChange={(e) => set12(typeTime(e.target.value), pm)} placeholder="hh:mm" aria-label={tr('Time')} maxLength={5} />
+                <button type="button" className="chip ampm" aria-label={tr('{ampm}, tap to switch', { ampm: pm ? tr('PM') : tr('AM') })} onClick={() => set12(typed12, !pm)}>
+                  {pm ? tr('PM') : tr('AM')}
                 </button>
               </>
             ) : (
-              <input className="time-input" inputMode="numeric" value={time} onChange={(e) => setTime(typeTime(e.target.value))} placeholder="HH:MM" aria-label="Time" maxLength={5} />
+              <input className="time-input" inputMode="numeric" value={time} onChange={(e) => setTime(typeTime(e.target.value))} placeholder="HH:MM" aria-label={tr('Time')} maxLength={5} />
             )}
           </div>
         </div>
         <label className="field">
-          <span className="field-label">Note</span>
-          <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What was it for? (optional)" />
+          <span className="field-label">{tr('Note')}</span>
+          <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={tr('What was it for? (optional)')} />
         </label>
         {(tab === 'expense' || tab === 'income') && (
           <label className="edit-row toggle-row">
             <span className="grow">
-              {tab === 'expense' ? "Don't count as an expense" : "Don't count as income"}
+              {tab === 'expense' ? tr("Don't count as an expense") : tr("Don't count as income")}
               <span className="muted small block">
                 {tab === 'expense'
-                  ? `It still comes out of ${account || 'the account'}, but stays out of spending, budgets and charts.`
-                  : `It still goes into ${account || 'the account'}, but stays out of income, the plan and charts.`}
+                  ? tr('It still comes out of {account}, but stays out of spending, budgets and charts.', { account: account || tr('the account') })
+                  : tr('It still goes into {account}, but stays out of income, the plan and charts.', { account: account || tr('the account') })}
               </span>
             </span>
             <input type="checkbox" role="switch" checked={notSpending} onChange={(e) => setNotSpending(e.target.checked)} />
@@ -408,10 +419,10 @@ export function TransactionForm({ backend, settings: saved, month, existing, exi
         <div className="row">
           {existing && (
             <button type="button" className="danger" onClick={remove}>
-              Delete
+              {tr('Delete')}
             </button>
           )}
-          <button className="primary grow">{existing ? 'Save changes' : `Add ${title}`}</button>
+          <button className="primary grow">{existing ? tr('Save changes') : ADD[what]}</button>
         </div>
       </form>
     </div>
@@ -430,7 +441,7 @@ function Chips({ label, options, value, onChange, onAdd, addLabel }: { label: st
         ))}
         {onAdd && (
           <button type="button" className="chip chip-add" onClick={onAdd} aria-label={addLabel}>
-            + New
+            {tr('+ New')}
           </button>
         )}
       </div>

@@ -1,3 +1,4 @@
+import { msg } from '../i18n'
 import type { Account, AccountType } from './types'
 
 /** A sensible type for an account named on the fly; it can be changed in Settings. */
@@ -11,10 +12,10 @@ export const guessType = (name: string): AccountType =>
         : 'bank'
 
 export const ACCOUNT_TYPES: { id: AccountType; label: string }[] = [
-  { id: 'cash', label: 'Cash' },
-  { id: 'bank', label: 'Bank' },
-  { id: 'wallet', label: 'E-wallet' },
-  { id: 'investment', label: 'Investment' },
+  { id: 'cash', label: msg('Cash') },
+  { id: 'bank', label: msg('Bank') },
+  { id: 'wallet', label: msg('E-wallet') },
+  { id: 'investment', label: msg('Investment') },
 ]
 
 // Thndr gets spelled several ways (Static's other app says "Thandr").

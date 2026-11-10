@@ -192,14 +192,14 @@ private fun App(start: String?, onStarted: () -> Unit, finish: () -> Unit) {
             onPage = { homePage = it },
             onPayBill = { bill ->
                 val entry = billEntry(context, bill, bill.amount)
-                screen = if (bill.amount > 0) Screen.Confirm(entry, "Pay ${bill.name}") else Screen.Amount("expense", bill)
+                screen = if (bill.amount > 0) Screen.Confirm(entry, tr("Pay ", "ادفع ") + bill.name) else Screen.Amount("expense", bill)
             },
         )
         is Screen.Amount -> {
             BackHandler { home() }
             AmountScreen(s.kind, onNext = { amount ->
                 screen = when {
-                    s.bill != null -> Screen.Confirm(billEntry(context, s.bill, amount), "Pay ${s.bill.name}")
+                    s.bill != null -> Screen.Confirm(billEntry(context, s.bill, amount), tr("Pay ", "ادفع ") + s.bill.name)
                     s.kind == "transfer" -> Screen.Transfer(amount)
                     s.kind == "debt" -> Screen.Debt(amount)
                     else -> Screen.Category(s.kind, amount)
@@ -286,9 +286,9 @@ private fun billEntry(context: android.content.Context, bill: Bill, amount: Doub
 private fun overBudget(context: android.content.Context, e: Entry): String? {
     if (e.kind != "expense") return null
     val row = Store.detail(context)?.rows?.firstOrNull { it.category == e.category }
-    if (row != null && row.planned > 0 && row.actual > row.planned) return "${e.category} is ${whole(row.actual - row.planned)} over budget"
+    if (row != null && row.planned > 0 && row.actual > row.planned) return tr("${e.category} is ${whole(row.actual - row.planned)} over budget", "${e.category} تجاوزت الميزانية بـ ${whole(row.actual - row.planned)}")
     val g = Store.glance(context) ?: return null
-    if (g.planned > 0 && g.left < 0) return "This month is ${whole(-g.left)} over budget"
+    if (g.planned > 0 && g.left < 0) return tr("This month is ${whole(-g.left)} over budget", "هذا الشهر تجاوز الميزانية بـ ${whole(-g.left)}")
     return null
 }
 
@@ -321,7 +321,7 @@ private fun HomeScreen(
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         favorites = if (f in favorites) favorites - f else (listOf(f) + favorites).take(6)
         Store.saveFavorites(context, favorites)
-        status = if (f in favorites) "Pinned to favorites" else "Removed from favorites"
+        status = if (f in favorites) tr("Pinned to favorites", "تم التثبيت في المفضلة") else tr("Removed from favorites", "أُزيل من المفضلة")
     }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(Unit) {
@@ -332,18 +332,18 @@ private fun HomeScreen(
                 Sms.pull(context)
                 smsWaiting = Sms.pending(context).size
             }
-            status = if (glance == null) "Loading…" else null
+            status = if (glance == null) tr("Loading…", "جارٍ التحميل…") else null
             status = try {
                 glance = Budget.refresh(context)
                 detail = Store.detail(context)
                 report = Store.report(context)
                 null
             } catch (e: SignedOutException) {
-                "Sign in again in the phone app"
+                tr("Sign in again in the phone app", "سجّل الدخول مرة أخرى في تطبيق الهاتف")
             } catch (e: QuotaException) {
-                "Daily sync limit reached. Back at ${e.resetsAt}"
+                tr("Daily sync limit reached. Back at ${e.resetsAt}", "وصلت للحد اليومي للمزامنة. يعود الساعة ${e.resetsAt}")
             } catch (e: Exception) {
-                if (glance == null) "Can't reach your budget. Check the connection." else "Offline: showing saved figures"
+                if (glance == null) tr("Can't reach your budget. Check the connection.", "تعذّر الوصول لميزانيتك. تحقق من الاتصال.") else tr("Offline: showing saved figures", "بدون اتصال: تُعرض آخر أرقام محفوظة")
             }
             link = Store.link(context)
             // The phone may have switched privacy mode while the app was closed.
@@ -371,13 +371,13 @@ private fun HomeScreen(
     }
     val installUpdate = { release: WatchRelease ->
         if (updating == null) {
-            updating = "Downloading…"
+            updating = tr("Downloading…", "جارٍ التنزيل…")
             scope.launch {
                 updating = try {
-                    Updater.install(context, release) { updating = "Downloading ${(it * 100).toInt()}%" }
-                    "Installing…"
+                    Updater.install(context, release) { updating = tr("Downloading ", "جارٍ التنزيل ") + "${(it * 100).toInt()}%" }
+                    tr("Installing…", "جارٍ التثبيت…")
                 } catch (e: Exception) {
-                    null.also { status = "Update failed. Try again on Wi-Fi." }
+                    null.also { status = tr("Update failed. Try again on Wi-Fi.", "فشل التحديث. حاول مرة أخرى على الواي فاي.") }
                 }
             }
         }
@@ -390,7 +390,7 @@ private fun HomeScreen(
         HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { p ->
             if (link == null) {
                 Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-                    Text("Open Monthly Budget on your phone, signed in, to link this watch.", textAlign = TextAlign.Center, style = MaterialTheme.typography.body2)
+                    Text(tr("Open Monthly Budget on your phone, signed in, to link this watch.", "افتح تطبيق الميزانية الشهرية على هاتفك وأنت مسجّل الدخول لربط هذه الساعة."), textAlign = TextAlign.Center, style = MaterialTheme.typography.body2)
                 }
                 return@HorizontalPager
             }
@@ -420,7 +420,7 @@ private fun HomeScreen(
                                         .clip(RoundedCornerShape(12.dp))
                                         .clickable(onClick = toggleHidden)
                                         .padding(horizontal = 8.dp)
-                                        .semantics { contentDescription = if (hidden) "Show amounts" else "Hide amounts" },
+                                        .semantics { contentDescription = if (hidden) tr("Show amounts", "إظهار المبالغ") else tr("Hide amounts", "إخفاء المبالغ") },
                                 )
                             }
                             item {
@@ -436,13 +436,13 @@ private fun HomeScreen(
                             if (g.planned > 0 && g.month == currentMonth()) {
                                 val today = LocalDate.now()
                                 val days = today.lengthOfMonth() - today.dayOfMonth + 1
-                                val daysText = if (days == 1) "last day" else "$days days left"
+                                val daysText = if (days == 1) tr("last day", "آخر يوم") else tr("$days days left", "باقي $days يوم")
                                 item {
                                     Text(
                                         when {
-                                            g.left <= 0 -> "No daily allowance · $daysText"
+                                            g.left <= 0 -> tr("No daily allowance", "لا مصروف يومي متاح") + " · $daysText"
                                             hidden -> daysText
-                                            else -> "≈ ${whole(g.left / days)} a day · $daysText"
+                                            else -> tr("≈ ${whole(g.left / days)} a day", "≈ ${whole(g.left / days)} في اليوم") + " · $daysText"
                                         },
                                         style = MaterialTheme.typography.caption3,
                                         color = if (g.left <= 0) ExpenseColor else MaterialTheme.colors.primary,
@@ -452,22 +452,22 @@ private fun HomeScreen(
                         }
                         item {
                             Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                                AddButton("−", "Add expense", ExpenseColor) { onAdd("expense") }
-                                AddButton("+", "Add income", IncomeColor) { onAdd("income") }
+                                AddButton("−", tr("Add expense", "إضافة مصروف"), ExpenseColor) { onAdd("expense") }
+                                AddButton("+", tr("Add income", "إضافة دخل"), IncomeColor) { onAdd("income") }
                             }
                         }
                         item {
                             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                                AddButton("⇄", "Add transfer", TransferColor) { onAdd("transfer") }
-                                AddButton("💳", "Add debt payment or borrowing", DebtColor) { onAdd("debt") }
+                                AddButton("⇄", tr("Add transfer", "إضافة تحويل"), TransferColor) { onAdd("transfer") }
+                                AddButton("💳", tr("Add debt payment or borrowing", "سداد دين أو اقتراض"), DebtColor) { onAdd("debt") }
                             }
                         }
                         if (smsWaiting > 0) {
                             item {
                                 Chip(
                                     onClick = onSms,
-                                    label = { Text("$smsWaiting bank ${if (smsWaiting == 1) "SMS" else "messages"}", maxLines = 1) },
-                                    secondaryLabel = { Text("Tap to add or skip", maxLines = 1) },
+                                    label = { Text(tr("$smsWaiting bank ${if (smsWaiting == 1) "SMS" else "messages"}", "$smsWaiting رسالة بنك"), maxLines = 1) },
+                                    secondaryLabel = { Text(tr("Tap to add or skip", "اضغط للإضافة أو التخطي"), maxLines = 1) },
                                     icon = { Text("✉️", fontSize = 16.sp) },
                                     colors = ChipDefaults.secondaryChipColors(),
                                     modifier = Modifier.fillMaxWidth(),
@@ -475,20 +475,20 @@ private fun HomeScreen(
                             }
                         }
                         if (waiting > 0) {
-                            item { Text("$waiting waiting to sync", style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant) }
+                            item { Text(tr("$waiting waiting to sync", "$waiting في انتظار المزامنة"), style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant) }
                         }
                         status?.let { item { Text(it, style = MaterialTheme.typography.caption3, textAlign = TextAlign.Center, color = MaterialTheme.colors.onSurfaceVariant) } }
                         update?.let { release ->
                             item {
-                                CompactChip(onClick = { installUpdate(release) }, label = { Text(updating ?: "Update watch app") }, colors = ChipDefaults.primaryChipColors())
+                                CompactChip(onClick = { installUpdate(release) }, label = { Text(updating ?: tr("Update watch app", "تحديث تطبيق الساعة")) }, colors = ChipDefaults.primaryChipColors())
                             }
                         }
                         if (d != null && d.due.isNotEmpty()) {
-                            item { ListHeader { Text("Due") } }
+                            item { ListHeader { Text(tr("Due", "مستحق")) } }
                             items(d.due) { bill -> BillLine(bill, onClick = { onPayBill(bill) }) }
                         }
                         if (favorites.isNotEmpty()) {
-                            item { ListHeader { Text("Favorites") } }
+                            item { ListHeader { Text(tr("Favorites", "المفضلة")) } }
                             items(favorites) { f ->
                                 FavoriteLine(
                                     f,
@@ -498,9 +498,9 @@ private fun HomeScreen(
                             }
                         }
                         if (d != null && g != null) {
-                            item { ListHeader { Text("This month") } }
-                            item { Line("Income", secret(d.income), if (d.incomePlanned > 0) "of ${secret(d.incomePlanned)}" else null, IncomeColor) }
-                            item { Line("Spent", secret(g.spent), if (g.planned > 0) "of ${secret(g.planned)}" else null, ExpenseColor) }
+                            item { ListHeader { Text(tr("This month", "هذا الشهر")) } }
+                            item { Line(tr("Income", "الدخل"), secret(d.income), if (d.incomePlanned > 0) tr("of ", "من ") + secret(d.incomePlanned) else null, IncomeColor) }
+                            item { Line(tr("Spent", "المصروف"), secret(g.spent), if (g.planned > 0) tr("of ", "من ") + secret(g.planned) else null, ExpenseColor) }
                             // Category budgets stay visible in privacy mode, as on the phone.
                             items(d.rows) { row -> CategoryLine(row) }
                         }
@@ -512,9 +512,9 @@ private fun HomeScreen(
                     item { ListHeader { Text(monthName(currentMonth())) } }
                     val recent = d?.recent.orEmpty()
                     if (recent.isEmpty()) {
-                        item { Text("No entries yet this month", style = MaterialTheme.typography.caption2, color = MaterialTheme.colors.onSurfaceVariant) }
+                        item { Text(tr("No entries yet this month", "لا عمليات هذا الشهر بعد"), style = MaterialTheme.typography.caption2, color = MaterialTheme.colors.onSurfaceVariant) }
                     } else {
-                        item { Text("Hold an entry to pin it", style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant) }
+                        item { Text(tr("Hold an entry to pin it", "اضغط مطولًا على عملية لتثبيتها"), style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant) }
                     }
                     // Grouped by day, newest first, as on the phone's Transactions tab.
                     for ((day, list) in recent.groupBy { it.date }) {
@@ -526,17 +526,17 @@ private fun HomeScreen(
 
                 "Accounts" -> ScalingLazyColumn(state = lists[p], modifier = Modifier.fillMaxSize(), autoCentering = null, contentPadding = PagePadding) {
                     if (d == null || (d.balances.isEmpty() && d.goals.isEmpty())) {
-                        item { ListHeader { Text("Accounts") } }
-                        item { Text("Loading…", style = MaterialTheme.typography.caption2) }
+                        item { ListHeader { Text(tr("Accounts", "الحسابات")) } }
+                        item { Text(tr("Loading…", "جارٍ التحميل…"), style = MaterialTheme.typography.caption2) }
                     }
                     if (d != null && d.balances.isNotEmpty()) {
-                        item { ListHeader { Text("Accounts") } }
+                        item { ListHeader { Text(tr("Accounts", "الحسابات")) } }
                         val liquid = d.balances.filter { it.type != "investment" }
-                        if (liquid.size > 1) item { Line("Cash + bank", secret(liquid.sumOf { it.amount }), null, MaterialTheme.colors.onSurface) }
+                        if (liquid.size > 1) item { Line(tr("Cash + bank", "كاش + بنك"), secret(liquid.sumOf { it.amount }), null, MaterialTheme.colors.onSurface) }
                         items(d.balances) { b -> BalanceLine(b, secret(b.amount)) }
                     }
                     if (d != null && d.goals.isNotEmpty()) {
-                        item { ListHeader { Text("Goals") } }
+                        item { ListHeader { Text(tr("Goals", "الأهداف")) } }
                         items(d.goals) { goal -> GoalLine(goal, hidden) }
                     }
                     item { PageDots(p) }
@@ -544,30 +544,30 @@ private fun HomeScreen(
 
                 "Reports" -> ScalingLazyColumn(state = lists[p], modifier = Modifier.fillMaxSize(), autoCentering = null, contentPadding = PagePadding) {
                     val r = report
-                    item { ListHeader { Text("Last ${Report.PERIOD} months") } }
+                    item { ListHeader { Text(tr("Last ${Report.PERIOD} months", "آخر ${Report.PERIOD} شهور")) } }
                     if (r == null) {
-                        item { Text("Loading…", style = MaterialTheme.typography.caption2) }
+                        item { Text(tr("Loading…", "جارٍ التحميل…"), style = MaterialTheme.typography.caption2) }
                     } else {
-                        item { Line("Income", if (hidden) MASK else compact(r.income), if (hidden) null else "${compact(r.income / Report.PERIOD)}/mo", IncomeColor) }
-                        item { Line("Spent", if (hidden) MASK else compact(r.spent), if (hidden) null else "${compact(r.spent / Report.PERIOD)}/mo", ExpenseColor) }
+                        item { Line(tr("Income", "الدخل"), if (hidden) MASK else compact(r.income), if (hidden) null else "${compact(r.income / Report.PERIOD)}" + tr("/mo", "/شهر"), IncomeColor) }
+                        item { Line(tr("Spent", "المصروف"), if (hidden) MASK else compact(r.spent), if (hidden) null else "${compact(r.spent / Report.PERIOD)}" + tr("/mo", "/شهر"), ExpenseColor) }
                         item {
                             Line(
-                                if (r.saved >= 0) "Saved" else "Overspent",
+                                if (r.saved >= 0) tr("Saved", "المُدَّخر") else tr("Overspent", "صرف زائد"),
                                 compact(abs(r.saved)),
                                 r.rate?.let { "${it.toInt()}%" },
                                 if (r.saved >= 0) IncomeColor else ExpenseColor,
                             )
                         }
-                        item { ListHeader { Text("Income vs spending") } }
+                        item { ListHeader { Text(tr("Income vs spending", "الدخل مقابل المصروف")) } }
                         item {
                             if (hidden) {
-                                Text("Hidden in privacy mode", style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant)
+                                Text(tr("Hidden in privacy mode", "مخفي في وضع الخصوصية"), style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant)
                             } else {
                                 MonthsChart(r.months)
                             }
                         }
                         if (r.categories.isNotEmpty()) {
-                            item { ListHeader { Text("By category") } }
+                            item { ListHeader { Text(tr("By category", "حسب الفئة")) } }
                             val top = r.categories.first().total.takeIf { it > 0 } ?: 1.0
                             items(r.categories) { c -> ReportCategoryLine(c, top) }
                         }
@@ -576,12 +576,12 @@ private fun HomeScreen(
                 }
 
                 else -> ScalingLazyColumn(state = lists[p], modifier = Modifier.fillMaxSize(), autoCentering = null, contentPadding = PagePadding) {
-                    item { ListHeader { Text("Settings") } }
+                    item { ListHeader { Text(tr("Settings", "الإعدادات")) } }
                     item {
                         Chip(
                             onClick = toggleHidden,
-                            label = { Text("Hide amounts") },
-                            secondaryLabel = { Text(if (hidden) "On · tap the big number too" else "Off") },
+                            label = { Text(tr("Hide amounts", "إخفاء المبالغ")) },
+                            secondaryLabel = { Text(if (hidden) tr("On · tap the big number too", "مفعّل · أو اضغط على الرقم الكبير") else tr("Off", "متوقف")) },
                             icon = { Text(if (hidden) "🙈" else "👁", fontSize = 16.sp) },
                             colors = ChipDefaults.secondaryChipColors(),
                             modifier = Modifier.fillMaxWidth(),
@@ -594,16 +594,16 @@ private fun HomeScreen(
                                 if (release != null) {
                                     installUpdate(release)
                                 } else {
-                                    status = "Checking…"
+                                    status = tr("Checking…", "جارٍ البحث…")
                                     scope.launch {
                                         update = runCatching { Updater.check(context) }.getOrNull()
-                                        status = if (update == null) "Up to date" else null
+                                        status = if (update == null) tr("Up to date", "محدّث") else null
                                     }
                                 }
                             },
-                            label = { Text(updating ?: if (update != null) "Update watch app" else "Check for updates") },
+                            label = { Text(updating ?: if (update != null) tr("Update watch app", "تحديث تطبيق الساعة") else tr("Check for updates", "البحث عن تحديثات")) },
                             secondaryLabel = {
-                                Text(update?.let { "Build ${it.build} is out" } ?: "Build ${Updater.installedBuild(context)}" + (status?.let { " · $it" } ?: ""))
+                                Text(update?.let { tr("Build ${it.build} is out", "الإصدار ${it.build} متاح") } ?: tr("Build ", "الإصدار ") + "${Updater.installedBuild(context)}" + (status?.let { " · $it" } ?: ""))
                             },
                             icon = { Text("⬇", fontSize = 16.sp) },
                             colors = if (update != null) ChipDefaults.primaryChipColors() else ChipDefaults.secondaryChipColors(),
@@ -613,37 +613,37 @@ private fun HomeScreen(
                     item {
                         Chip(
                             onClick = {
-                                status = "Refreshing…"
+                                status = tr("Refreshing…", "جارٍ التحديث…")
                                 scope.launch {
                                     status = try {
                                         glance = Budget.refresh(context)
                                         detail = Store.detail(context)
                                         report = Store.report(context)
                                         Surfaces.update(context)
-                                        "Up to date"
+                                        tr("Up to date", "محدّث")
                                     } catch (e: SignedOutException) {
-                                        "Sign in again in the phone app"
+                                        tr("Sign in again in the phone app", "سجّل الدخول مرة أخرى في تطبيق الهاتف")
                                     } catch (e: QuotaException) {
-                                        "Daily sync limit reached. Back at ${e.resetsAt}"
+                                        tr("Daily sync limit reached. Back at ${e.resetsAt}", "وصلت للحد اليومي للمزامنة. يعود الساعة ${e.resetsAt}")
                                     } catch (e: Exception) {
-                                        "Can't reach your budget"
+                                        tr("Can't reach your budget", "تعذّر الوصول لميزانيتك")
                                     }
                                 }
                             },
-                            label = { Text("Refresh now") },
-                            secondaryLabel = { Text(glance?.let { "Updated ${timeOf(it.updatedAt)}" } ?: "Not loaded yet") },
+                            label = { Text(tr("Refresh now", "تحديث الآن")) },
+                            secondaryLabel = { Text(glance?.let { tr("Updated ", "آخر تحديث ") + timeOf(it.updatedAt) } ?: tr("Not loaded yet", "لم يُحمَّل بعد")) },
                             icon = { Text("↻", fontSize = 16.sp) },
                             colors = ChipDefaults.secondaryChipColors(),
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
                     if (favorites.isNotEmpty()) {
-                        item { ListHeader { Text("Favorites · tap to remove") } }
+                        item { ListHeader { Text(tr("Favorites · tap to remove", "المفضلة · اضغط للإزالة")) } }
                         items(favorites) { f -> FavoriteLine(f, onClick = { pin(f) }, onLongClick = { pin(f) }) }
                     }
                     item {
                         Text(
-                            "Linked to the account signed in on your phone. Sign out there to unlink.",
+                            tr("Linked to the account signed in on your phone. Sign out there to unlink.", "مرتبطة بالحساب المسجّل على هاتفك. سجّل الخروج هناك لإلغاء الربط."),
                             style = MaterialTheme.typography.caption3,
                             color = MaterialTheme.colors.onSurfaceVariant,
                             textAlign = TextAlign.Center,
@@ -677,14 +677,14 @@ private fun PageDots(current: Int) {
 }
 
 private fun monthName(month: String): String =
-    runCatching { java.time.YearMonth.parse(month).format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.US)) }.getOrDefault(month)
+    runCatching { java.time.YearMonth.parse(month).format(DateTimeFormatter.ofPattern("MMMM yyyy", watchLocale())) }.getOrDefault(month)
 
 private fun dayHeader(date: String): String {
     val d = runCatching { LocalDate.parse(date) }.getOrNull() ?: return date
     return when (d) {
-        LocalDate.now() -> "Today"
-        LocalDate.now().minusDays(1) -> "Yesterday"
-        else -> d.format(DateTimeFormatter.ofPattern("EEE, MMM d", Locale.US))
+        LocalDate.now() -> tr("Today", "اليوم")
+        LocalDate.now().minusDays(1) -> tr("Yesterday", "أمس")
+        else -> d.format(DateTimeFormatter.ofPattern(if (arabic) "EEE d MMM" else "EEE, MMM d", watchLocale()))
     }
 }
 
@@ -732,7 +732,7 @@ private fun ReportCategoryLine(c: ReportCategory, top: Double) {
             Box(Modifier.fillMaxWidth((c.total / top).toFloat().coerceIn(0f, 1f)).height(3.dp).background(MaterialTheme.colors.primary))
         }
         Row {
-            Text("${compact(c.perMonth)}/mo", style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant)
+            Text("${compact(c.perMonth)}" + tr("/mo", "/شهر"), style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant)
             c.change?.let {
                 Text(
                     " · ${if (it > 0) "▲" else "▼"} ${abs(it).toInt()}%",
@@ -790,7 +790,7 @@ private fun CategoryLine(row: CategoryRow) {
     }
 }
 
-private val dayFormat = DateTimeFormatter.ofPattern("MMM d", Locale.US)
+private val dayFormat get() = DateTimeFormatter.ofPattern(if (arabic) "d MMM" else "MMM d", watchLocale())
 
 @Composable
 private fun TxnLine(t: Txn, clock12: Boolean, onLongClick: (() -> Unit)? = null) {
@@ -842,7 +842,7 @@ private fun BalanceLine(b: Balance, amount: String) {
             // As on the phone: an investment's value includes its expected interest.
             if (b.interestPct > 0 && amount != MASK) {
                 val pct = String.format(Locale.US, "%.1f", b.interestPct).removeSuffix(".0")
-                Text("incl. ~${whole(b.interest)} interest ($pct%)", style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant)
+                Text(tr("incl. ~${whole(b.interest)} interest ($pct%)", "شامل ~${whole(b.interest)} فائدة ($pct%)"), style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant)
             }
         }
         Text(amount, style = MaterialTheme.typography.caption1, color = if (b.amount < 0) ExpenseColor else MaterialTheme.colors.onSurface)
@@ -865,7 +865,7 @@ private fun BillLine(bill: Bill, onClick: () -> Unit) {
         IconBadge(if (bill.type == "instalment") "📆" else "💳", ExpenseColor)
         Column(Modifier.weight(1f)) {
             Text(bill.name, style = MaterialTheme.typography.caption1, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("by $by · tap to pay", style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant)
+            Text(tr("by $by · tap to pay", "حتى $by · اضغط للدفع"), style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant)
         }
         if (bill.amount > 0) Text(whole(bill.amount), style = MaterialTheme.typography.caption1, color = ExpenseColor)
     }
@@ -894,7 +894,7 @@ private fun FavoriteLine(f: Favorite, onClick: () -> Unit, onLongClick: () -> Un
     }
 }
 
-private val monthFormat = DateTimeFormatter.ofPattern("MMM yyyy", Locale.US)
+private val monthFormat get() = DateTimeFormatter.ofPattern("MMM yyyy", watchLocale())
 
 @Composable
 private fun GoalLine(goal: Goal, hidden: Boolean) {
@@ -911,9 +911,9 @@ private fun GoalLine(goal: Goal, hidden: Boolean) {
         }
         val by = goal.deadline?.let { runCatching { LocalDate.parse(it).format(monthFormat) }.getOrDefault(it) }
         val note = when {
-            fraction >= 1f -> "Reached 🎉"
-            by != null && goal.perMonth != null && !hidden -> "${whole(goal.perMonth)} a month until $by"
-            by != null -> "by $by"
+            fraction >= 1f -> tr("Reached 🎉", "تحقق 🎉")
+            by != null && goal.perMonth != null && !hidden -> tr("${whole(goal.perMonth)} a month until $by", "${whole(goal.perMonth)} شهريًا حتى $by")
+            by != null -> tr("by $by", "حتى $by")
             else -> null
         }
         note?.let { Text(it, style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.primary) }
@@ -936,8 +936,8 @@ private fun ConfirmScreen(title: String, entry: Entry, fee: Entry?, onSave: () -
         Text(entryLine(entry), style = MaterialTheme.typography.caption2, maxLines = 1, overflow = TextOverflow.Ellipsis)
         fee?.let { Text("+ ${exact(it.amount)} ${it.description.substringBefore(" ·")}", style = MaterialTheme.typography.caption2, color = MaterialTheme.colors.onSurfaceVariant, maxLines = 1) }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
-            onChange?.let { CompactChip(onClick = it, label = { Text("Change") }, colors = ChipDefaults.secondaryChipColors()) }
-            CompactChip(onClick = onSave, label = { Text("Save") }, colors = ChipDefaults.primaryChipColors(backgroundColor = color, contentColor = Color.Black))
+            onChange?.let { CompactChip(onClick = it, label = { Text(tr("Change", "تغيير")) }, colors = ChipDefaults.secondaryChipColors()) }
+            CompactChip(onClick = onSave, label = { Text(tr("Save", "حفظ")) }, colors = ChipDefaults.primaryChipColors(backgroundColor = color, contentColor = Color.Black))
         }
     }
 }
@@ -982,7 +982,7 @@ private fun AmountScreen(kind: String, onNext: (Double) -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically),
     ) {
-        Text(kind.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.caption3, color = color)
+        Text(kindLabel(kind), style = MaterialTheme.typography.caption3, color = color)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(typedAmount(typed), style = MaterialTheme.typography.title2, color = MaterialTheme.colors.onSurface)
             Box(
@@ -991,7 +991,7 @@ private fun AmountScreen(kind: String, onNext: (Double) -> Unit) {
                     .clip(CircleShape)
                     .background(MaterialTheme.colors.surface.copy(alpha = 0.6f))
                     .combinedClickable(onLongClick = { typed = "" }, onClick = { press("⌫") })
-                    .semantics { contentDescription = "Delete" },
+                    .semantics { contentDescription = tr("Delete", "حذف") },
                 contentAlignment = Alignment.Center,
             ) { Text("⌫", fontSize = 15.sp) }
         }
@@ -1058,7 +1058,7 @@ private class FeeChoice(private val settings: WatchSettings, account: String, sm
 private fun FeeChip(fee: FeeChoice, amount: Double) {
     CompactChip(
         onClick = fee::next,
-        label = { Text(fee.template?.let { "+ ${exact(feeFor(it, amount))} ${it.name} fee  ⇄" } ?: "No fee  ⇄", maxLines = 1) },
+        label = { Text(fee.template?.let { "+ ${exact(feeFor(it, amount))} " + feeLabel(it.name) + "  ⇄" } ?: tr("No fee", "بدون رسوم") + "  ⇄", maxLines = 1) },
         colors = ChipDefaults.secondaryChipColors(),
     )
 }
@@ -1068,7 +1068,7 @@ private fun FeeChip(fee: FeeChoice, amount: Double) {
 private fun CountsChip(kind: String, counts: Boolean, onToggle: () -> Unit) {
     CompactChip(
         onClick = onToggle,
-        label = { Text(if (counts) "✓ Counts as $kind" else "✗ Not counted as $kind", maxLines = 1) },
+        label = { Text(if (counts) tr("✓ Counts as $kind", if (kind == "income") "✓ يُحسب دخلًا" else "✓ يُحسب مصروفًا") else tr("✗ Not counted as $kind", if (kind == "income") "✗ لا يُحسب دخلًا" else "✗ لا يُحسب مصروفًا"), maxLines = 1) },
         colors = ChipDefaults.secondaryChipColors(),
     )
 }
@@ -1106,7 +1106,7 @@ private fun CategoryScreen(kind: String, amount: Double, preset: Entry?, sms: Sm
                         account = settings.accounts[(i + 1) % settings.accounts.size]
                         fee.follow(account)
                     },
-                    label = { Text(categoryIcon(account) + (if (kind == "income") " Into " else " From ") + account + if (settings.accounts.size > 1) "  ⇄" else "") },
+                    label = { Text(categoryIcon(account) + (if (kind == "income") tr(" Into ", " إلى ") else tr(" From ", " من ")) + account + if (settings.accounts.size > 1) "  ⇄" else "") },
                     colors = ChipDefaults.secondaryChipColors(),
                 )
             }
@@ -1162,7 +1162,7 @@ private fun TransferScreen(amount: Double, onSave: (Entry, Entry?) -> Unit) {
                         if (to == from) to = accounts.firstOrNull { it != from } ?: ""
                         fee.follow(from)
                     },
-                    label = { Text("From") },
+                    label = { Text(tr("From", "من")) },
                     secondaryLabel = { Text(categoryIcon(from) + " " + from) },
                     colors = ChipDefaults.secondaryChipColors(),
                     modifier = Modifier.fillMaxWidth(),
@@ -1171,8 +1171,8 @@ private fun TransferScreen(amount: Double, onSave: (Entry, Entry?) -> Unit) {
             item {
                 Chip(
                     onClick = { if (others.isNotEmpty()) to = others[(others.indexOf(to) + 1) % others.size] },
-                    label = { Text("To") },
-                    secondaryLabel = { Text(if (to.isEmpty()) "Add another account on the phone" else categoryIcon(to) + " " + to) },
+                    label = { Text(tr("To", "إلى")) },
+                    secondaryLabel = { Text(if (to.isEmpty()) tr("Add another account on the phone", "أضف حسابًا آخر من الهاتف") else categoryIcon(to) + " " + to) },
                     colors = ChipDefaults.secondaryChipColors(),
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -1185,7 +1185,7 @@ private fun TransferScreen(amount: Double, onSave: (Entry, Entry?) -> Unit) {
                         onSave(entry, fee.entry(entry))
                     },
                     enabled = to.isNotEmpty() && to != from,
-                    label = { Text("Save") },
+                    label = { Text(tr("Save", "حفظ")) },
                     colors = ChipDefaults.primaryChipColors(backgroundColor = TransferColor, contentColor = Color.Black),
                 )
             }
@@ -1215,7 +1215,7 @@ private fun DebtScreen(amount: Double, onSave: (Entry, Entry?) -> Unit) {
                         borrowed = !borrowed
                         if (!borrowed && account.isEmpty()) account = settings.accounts.first()
                     },
-                    label = { Text(if (borrowed) "I borrowed  ⇄" else "I paid  ⇄") },
+                    label = { Text(if (borrowed) tr("I borrowed  ⇄", "اقترضت  ⇄") else tr("I paid  ⇄", "سددت  ⇄")) },
                     colors = ChipDefaults.secondaryChipColors(),
                 )
             }
@@ -1228,7 +1228,7 @@ private fun DebtScreen(amount: Double, onSave: (Entry, Entry?) -> Unit) {
                     label = {
                         Text(
                             when {
-                                account.isEmpty() -> "No account  ⇄"
+                                account.isEmpty() -> tr("No account  ⇄", "بدون حساب  ⇄")
                                 borrowed -> "${categoryIcon(account)} Into $account  ⇄"
                                 else -> "${categoryIcon(account)} From $account  ⇄"
                             },
@@ -1240,7 +1240,7 @@ private fun DebtScreen(amount: Double, onSave: (Entry, Entry?) -> Unit) {
             // A fee only when money goes out.
             if (!borrowed) item { FeeChip(fee, amount) }
             if (settings.debts.isEmpty()) {
-                item { Text("Add a debt in the phone app first", style = MaterialTheme.typography.caption2, textAlign = TextAlign.Center) }
+                item { Text(tr("Add a debt in the phone app first", "أضف دينًا من تطبيق الهاتف أولًا"), style = MaterialTheme.typography.caption2, textAlign = TextAlign.Center) }
             }
             items(settings.debts) { debt ->
                 Chip(
@@ -1268,7 +1268,7 @@ private fun SmsListScreen(onOpen: (SmsItem) -> Unit, onEmpty: () -> Unit) {
     val listState = rememberScalingLazyListState()
     Scaffold(positionIndicator = { PositionIndicator(scalingLazyListState = listState) }) {
         ScalingLazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-            item { Text("Bank SMS", style = MaterialTheme.typography.title3) }
+            item { Text(tr("Bank SMS", "رسائل البنك"), style = MaterialTheme.typography.title3) }
             items(items) { item ->
                 val color = kindColor(item.kind)
                 Chip(
@@ -1299,8 +1299,8 @@ private fun SmsReviewScreen(item: SmsItem, onAdd: () -> Unit, onSkip: () -> Unit
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
-                    CompactChip(onClick = onSkip, label = { Text("Skip") }, colors = ChipDefaults.secondaryChipColors())
-                    CompactChip(onClick = onAdd, label = { Text("Add") }, colors = ChipDefaults.primaryChipColors(backgroundColor = color, contentColor = Color.Black))
+                    CompactChip(onClick = onSkip, label = { Text(tr("Skip", "تخطي")) }, colors = ChipDefaults.secondaryChipColors())
+                    CompactChip(onClick = onAdd, label = { Text(tr("Add", "إضافة")) }, colors = ChipDefaults.primaryChipColors(backgroundColor = color, contentColor = Color.Black))
                 }
             }
         }

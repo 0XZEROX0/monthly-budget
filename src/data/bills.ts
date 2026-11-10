@@ -1,3 +1,4 @@
+import { currentLang, t } from '../i18n'
 import { daysInMonth, formatWhole, today } from './month'
 import type { Bill, NewTransaction, Settings, Transaction } from './types'
 
@@ -37,6 +38,7 @@ export function billStatus(b: Bill, month: string, txns: Transaction[], now = to
 }
 
 export const ordinal = (n: number) => {
+  if (currentLang() === 'ar') return String(n)
   const s = n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'
   return `${n}${s}`
 }
@@ -46,7 +48,7 @@ export function paymentFor(b: Bill, month: string, settings: Settings, amount: n
   const now = today()
   const date = now.startsWith(month) ? now : `${month}-${String(dueDay(b, month)).padStart(2, '0')}`
   const account = b.account || settings.accounts.find((a) => a.type !== 'investment')?.name || settings.accounts[0]?.name
-  const description = b.type === 'instalment' ? `${b.name} instalment` : `${b.name} payment`
+  const description = b.type === 'instalment' ? t('{name} instalment', { name: b.name }) : t('{name} payment', { name: b.name })
   if (b.debt) return { kind: 'repay', amount, date, month, description, category: '', account, debt: b.debt }
   return { kind: 'expense', amount, date, month, description, category: b.category || 'Other', account }
 }
@@ -54,12 +56,12 @@ export function paymentFor(b: Bill, month: string, settings: Settings, amount: n
 /** Notification text for one reminder day. */
 export function reminderText(b: Bill, month: string, day: number, currency: string) {
   const due = dueDay(b, month)
-  const amount = b.amount > 0 ? ` of ${formatWhole(b.amount, currency)}` : ''
-  if (b.type === 'card') return { title: `${b.name} payment due today`, body: `Pay your ${b.name}${amount} today.` }
+  const amount = b.amount > 0 ? t(' of {amount}', { amount: formatWhole(b.amount, currency) }) : ''
+  if (b.type === 'card') return { title: t('{name} payment due today', { name: b.name }), body: t('Pay your {name}{amount} today.', { name: b.name, amount }) }
   const days = reminderDays(b, month)
   const idx = days.indexOf(day) + 1
   return {
-    title: `Don't forget your ${b.name} instalment`,
-    body: `You have the ${b.name} instalment${amount}, due on the ${ordinal(due)}.${days.length > 1 ? ` Reminder ${idx} of ${days.length}.` : ''}`,
+    title: t("Don't forget your {name} instalment", { name: b.name }),
+    body: t('You have the {name} instalment{amount}, due on the {day}.', { name: b.name, amount, day: ordinal(due) }) + (days.length > 1 ? ' ' + t('Reminder {n} of {total}.', { n: idx, total: days.length }) : ''),
   }
 }
