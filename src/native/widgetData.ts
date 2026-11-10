@@ -11,6 +11,8 @@ import type { Settings, Transaction } from '../data/types'
 export interface WidgetData {
   /** "November 2026" */
   month: string
+  /** "2026-11": once the phone's month moves past it, the widgets say the numbers are last month's. */
+  monthKey: string
   hidden: boolean
   plan: {
     income: string
@@ -28,7 +30,8 @@ export interface WidgetData {
     savedPct: string
   }
   categories: { icon: string; name: string; spent: string; budget: string; pct: number; over: boolean }[]
-  recent: { icon: string; title: string; sub: string; amount: string }[]
+  /** `sub` is the whole second line as of now; `where`, `date` (YYYY-MM-DD) and `time` let the widget word the day itself, so "Today" turns into "Yesterday" without the app being opened. */
+  recent: { icon: string; title: string; sub: string; amount: string; where: string; date: string; time: string }[]
   /** Savings goals: saved / target, and a line like "40% · EGP 2,000/month to reach it by 31 Dec 2026". */
   goals: { icon: string; name: string; saved: string; target: string; pct: number; sub: string; late: boolean }[]
   accounts: { icon: string; name: string; value: string }[]
@@ -74,6 +77,9 @@ export function widgetData(month: string, s: MonthSummary, settings: Settings, t
       title: t.description || t.category || t.debt || 'Expense',
       sub: [t.category || t.debt, when(t, settings.clock12)].filter(Boolean).join(' · '),
       amount: hidden ? HIDDEN : `−${formatWhole(t.amount, settings.currency)}`,
+      where: t.category || t.debt || '',
+      date: t.date,
+      time: t.time ? showTime(t.time, settings.clock12) : '',
     }))
 
   const accounts = settings.accounts.map((a) => {
@@ -107,6 +113,7 @@ export function widgetData(month: string, s: MonthSummary, settings: Settings, t
 
   return {
     month: monthLabel(month),
+    monthKey: month,
     hidden,
     plan: {
       income: money(s.actual.income),

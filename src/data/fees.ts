@@ -1,7 +1,7 @@
 // Transfer fees charged on top of what you send. Each fee is saved as its own expense
 // from the same account, so the account balance and the spending both include it.
 import type { ParsedSms } from './smsParser'
-import type { FeeTemplate, Settings } from './types'
+import type { FeeTemplate, NewTransaction, Settings, Transaction } from './types'
 
 /** 'none', 'custom' (typed in), or the id of a fee template. */
 export type FeeKind = string
@@ -54,4 +54,20 @@ export function smsFee(p: ParsedSms, account: string, settings: Settings): { fee
   if (!p.transfer && !p.instant) return { fee: 'none' }
   const usual = defaultFee(account, settings.feeTemplates)
   return { fee: usual !== 'none' ? usual : p.instant || p.wallet === 'InstaPay' ? 'instapay' : 'none' }
+}
+
+/** The id a fee is saved under: next to the entry it belongs to, so the two can be found together. */
+export const feeIdFor = (id: string) => `${id}-fee`
+
+/**
+ * A fee entry after the entry it belongs to was edited: it keeps its own amount and note,
+ * and follows the date, time, month and account. Null when nothing about it changes.
+ */
+export function feeFollowing(fee: Transaction, main: NewTransaction): NewTransaction | null {
+  const { id: _id, ...rest } = fee
+  const next: NewTransaction = { ...rest, date: main.date, month: main.month ?? main.date.slice(0, 7), account: main.account ?? fee.account }
+  if (main.time) next.time = main.time
+  else delete next.time
+  const same = next.date === fee.date && next.month === fee.month && next.account === fee.account && next.time === fee.time
+  return same ? null : next
 }

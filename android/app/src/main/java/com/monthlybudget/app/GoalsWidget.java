@@ -7,6 +7,12 @@ import org.json.JSONObject;
 
 /** Savings goals: saved against target with a bar, and what it takes to reach each one. Scrolls. */
 public class GoalsWidget extends BoardWidget {
+    /** Balances and goals carry over from month to month. */
+    @Override
+    boolean monthly() {
+        return false;
+    }
+
     @Override
     RemoteViews views(Context ctx, int id, JSONObject data, Bundle size) {
         return WidgetViews.card(ctx, id, "goals", "Savings goals", data, "monthlybudget://summary", 60, false);

@@ -64,7 +64,7 @@ final class QuickBar {
 
         // The same line the home screen widget shows, e.g. "Left to spend EGP 3,250".
         SharedPreferences w = WidgetPlugin.prefs(ctx);
-        String value = w.getString("value", "");
+        String value = WidgetPlugin.stale(ctx) ? "" : w.getString("value", "");
         String line = value.isEmpty() ? "Quick add" : w.getString("label", "") + " " + value;
 
         NotificationCompat.Builder b = new NotificationCompat.Builder(ctx, CHANNEL)

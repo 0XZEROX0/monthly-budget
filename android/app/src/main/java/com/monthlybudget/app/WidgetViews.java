@@ -45,7 +45,7 @@ final class WidgetViews {
         v.setPendingIntentTemplate(R.id.widget_list, PendingIntent.getActivity(ctx, code + 2,
             tapIntent(ctx, tapLink), PendingIntent.FLAG_MUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
         v.setEmptyView(R.id.widget_list, R.id.widget_empty);
-        v.setTextViewText(R.id.widget_empty, data == null ? "Open the app to load your numbers" : emptyNote(kind));
+        v.setTextViewText(R.id.widget_empty, data != null ? emptyNote(kind) : WidgetPlugin.stale(ctx) ? WidgetPlugin.STALE_NOTE : "Open the app to load your numbers");
         return v;
     }
 
@@ -108,6 +108,34 @@ final class WidgetViews {
         return r;
     }
 
+    /**
+     * An expense's second line, "Food · Today, 8:30 PM". The day is worded here from the entry's
+     * date, so it reads Yesterday once midnight passes, without the app being opened.
+     */
+    static String recentSub(JSONObject o) {
+        String date = o.optString("date");
+        if (date.isEmpty()) return o.optString("sub");
+        String day;
+        try {
+            // SimpleDateFormat rather than java.time, which the oldest phones this app supports lack.
+            java.text.SimpleDateFormat iso = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US);
+            java.util.Date d = iso.parse(date);
+            java.util.Calendar c = java.util.Calendar.getInstance();
+            String today = iso.format(c.getTime());
+            c.add(java.util.Calendar.DAY_OF_MONTH, -1);
+            String yesterday = iso.format(c.getTime());
+            day = date.equals(today) ? "Today"
+                : date.equals(yesterday) ? "Yesterday"
+                : new java.text.SimpleDateFormat("EEE d MMM", java.util.Locale.getDefault()).format(d);
+        } catch (Exception e) {
+            return o.optString("sub");
+        }
+        String time = o.optString("time");
+        String when = time.isEmpty() ? day : day + ", " + time;
+        String where = o.optString("where");
+        return where.isEmpty() ? when : where + " · " + when;
+    }
+
     /** The row for entry `i` of a list kind, or null when it is missing. */
     static RemoteViews row(Context ctx, String kind, JSONArray list, int i) {
         JSONObject o = list == null ? null : list.optJSONObject(i);
@@ -116,7 +144,7 @@ final class WidgetViews {
         switch (kind) {
             case "categories": r = category(ctx, o); break;
             case "goals": r = goal(ctx, o); break;
-            case "recent": r = item(ctx, o.optString("icon"), o.optString("title"), o.optString("sub"), o.optString("amount")); break;
+            case "recent": r = item(ctx, o.optString("icon"), o.optString("title"), recentSub(o), o.optString("amount")); break;
             default: r = item(ctx, o.optString("icon"), o.optString("name"), null, o.optString("value"));
         }
         // Rows open the app through the list's PendingIntent template.

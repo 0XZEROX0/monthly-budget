@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useReorder } from './useReorder'
 import { guessType } from '../data/accounts'
-import { defaultFee, feeCategory, feeFor, feeHint, feeTemplates, type FeeKind } from '../data/fees'
+import { defaultFee, feeCategory, feeFollowing, feeFor, feeHint, feeIdFor, feeTemplates, type FeeKind } from '../data/fees'
 import { categoryIcon } from '../data/icons'
 import { parseAmount, today } from '../data/month'
 import type { Backend, NewTransaction, Settings, Transaction, TxnKind } from '../data/types'
@@ -13,6 +13,8 @@ interface Props {
   settings: Settings
   month: string
   existing: Transaction | null
+  /** The fee saved with `existing`, if it has one: it moves, and is deleted, along with it. */
+  existingFee?: Transaction
   /** A new entry filled in from elsewhere (a bank SMS), saved under this id so it is only added once. */
   draft?: { id: string; txn: NewTransaction; fee?: { fee: FeeKind; amount?: number } }
   onSaved?: (t: NewTransaction) => void
@@ -66,7 +68,7 @@ const shiftDay = (iso: string, days: number) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-export function TransactionForm({ backend, settings: saved, month, existing, draft, onSaved, onClose, startOn }: Props) {
+export function TransactionForm({ backend, settings: saved, month, existing, existingFee, draft, onSaved, onClose, startOn }: Props) {
   // Accounts and categories added here show at once, before the saved settings come back.
   const [settings, setSettings] = useState(saved)
   if (saved !== settings && saved.accounts.length >= settings.accounts.length && saved.categories.expense.length >= settings.categories.expense.length && saved.categories.income.length >= settings.categories.income.length) setSettings(saved)
@@ -208,7 +210,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
       const label = feeTemplate?.name ?? 'Transfer'
       report(backend.updateTransaction(mainId, t))
       report(
-        backend.updateTransaction(`${mainId}-fee`, {
+        backend.updateTransaction(feeIdFor(mainId), {
           kind: 'expense',
           amount: feeValue,
           date,
@@ -220,13 +222,18 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
         }),
       )
     } else report(id ? backend.updateTransaction(id, t) : backend.addTransaction(t))
+    // Its fee keeps its amount and follows the entry's date, time and account.
+    const movedFee = existingFee && feeFollowing(existingFee, t)
+    if (existingFee && movedFee) report(backend.updateTransaction(existingFee.id, movedFee))
     onSaved?.(t)
     onClose()
   }
 
   const remove = async () => {
-    if (!existing || !(await ask('Delete this entry?', { ok: 'Delete', danger: true }))) return
+    const question = existingFee ? `Delete this entry and its ${money2(existingFee.amount)} fee?` : 'Delete this entry?'
+    if (!existing || !(await ask(question, { ok: 'Delete', danger: true }))) return
     report(backend.deleteTransaction(existing.id))
+    if (existingFee) report(backend.deleteTransaction(existingFee.id))
     onClose()
   }
 
@@ -260,6 +267,12 @@ export function TransactionForm({ backend, settings: saved, month, existing, dra
           <p className="amount-fee" aria-live="polite">
             + {money2(feeShown)} {feeTemplate?.name ?? 'transfer'} fee
             {amountValue > 0 && <> · {money2(amountValue + feeShown)} in total</>}
+          </p>
+        )}
+
+        {existingFee && (
+          <p className="amount-fee">
+            + {money2(existingFee.amount)} fee, saved as its own entry. It moves and is deleted with this one.
           </p>
         )}
 
