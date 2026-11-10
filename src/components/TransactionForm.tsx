@@ -22,7 +22,7 @@ interface Props {
   onClose: () => void
   /** Which tab a new entry starts on, like Income from the notification bar's button. */
   startOn?: 'expense' | 'income' | 'transfer' | 'debt'
-  /** The tour (Guide.tsx) is showing this kind: its button is lit up. */
+  /** Shown by the tour (Guide.tsx): its kinds can be pointed at, and the number pad stays closed. */
   guided?: boolean
 }
 
@@ -266,7 +266,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, exi
         </div>
         <div className="segmented four">
           {TABS.map((t) => (
-            <button type="button" key={t.id} className={`${tab === t.id ? 'active' : ''} ${guided && tab === t.id ? 'guide-spot' : ''}`} onClick={() => switchTab(t.id)}>
+            <button type="button" key={t.id} className={tab === t.id ? 'active' : ''} data-guide={guided ? `form-${t.id}` : undefined} onClick={() => switchTab(t.id)}>
               {tr(t.label)}
             </button>
           ))}
@@ -274,7 +274,7 @@ export function TransactionForm({ backend, settings: saved, month, existing, exi
         <label className="amount">
           <span className="sr-only">{tr('Amount in {currency}', { currency: settings.currency })}</span>
           <span className="amount-currency">{settings.currency}</span>
-          <input inputMode="decimal" autoFocus required value={amount} style={{ width: `${Math.max(1, amount.length) + 0.6}ch` }} onChange={(e) => setAmount(e.target.value)} placeholder="0" />
+          <input inputMode="decimal" autoFocus={!guided} required value={amount} style={{ width: `${Math.max(1, amount.length) + 0.6}ch` }} onChange={(e) => setAmount(e.target.value)} placeholder="0" />
         </label>
         {feeShown > 0 && (
           <p className="amount-fee" aria-live="polite">

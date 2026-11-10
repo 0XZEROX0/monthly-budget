@@ -30,7 +30,7 @@ import { SummaryView } from './SummaryView'
 import { TransactionForm } from './TransactionForm'
 import { TransactionList, type ListFocus } from './TransactionList'
 import { FirstRunSetup } from './FirstRunSetup'
-import { Guide, type GuideForm, type GuideSpot, type GuideStep } from './Guide'
+import { Guide, type GuideForm, type GuideStep } from './Guide'
 import { ask, showAlert } from './dialog'
 import { isRtl, msg, t } from '../i18n'
 
@@ -142,7 +142,6 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   const [slide, setSlide] = useState<0 | 1 | -1>(0)
   const [touring, setTouring] = useState(false)
   const guideOpen = !needsSetup && (touring || settings?.onboarding === 'guide')
-  const [spot, setSpot] = useState<GuideSpot>()
   // The add form kind or Settings section the tour is showing.
   const [guideForm, setGuideForm] = useState<GuideForm>()
   const [guideGroup, setGuideGroup] = useState<string>()
@@ -151,7 +150,6 @@ export function MonthView({ backend, user, onSignOut }: Props) {
       setSlide(0)
       setTab(step.tab)
       setFocus(null)
-      setSpot(step.spot)
       setGuideForm(step.form)
       setGuideGroup(step.group)
       if (step.group) setSettingsGroup(step.group)
@@ -159,32 +157,25 @@ export function MonthView({ backend, user, onSignOut }: Props) {
     },
     [scroller],
   )
-  // A Settings section the tour points at: lit up and scrolled into view once it's drawn.
+  // A Settings section the tour points at: scrolled into view once it's drawn.
   useEffect(() => {
     if (!guideGroup) return
     const timer = window.setTimeout(() => {
       const head = [...document.querySelectorAll<HTMLElement>(`#settings-${guideGroup} .settings-group-head`)].find((el) => !el.closest('.pager-peek'))
-      if (!head) return
-      head.classList.add('guide-spot')
-      // Below the tour's card, which sits at the top of the screen.
-      const page = head.closest<HTMLElement>('.app, .desk-main')
-      if (page) page.scrollTo({ top: head.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop - page.clientHeight * 0.6, behavior: 'smooth' })
+      const page = head?.closest<HTMLElement>('.app, .desk-main')
+      // A little above the middle, leaving room for the tour's bubble under it.
+      if (head && page) page.scrollTo({ top: head.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop - page.clientHeight * 0.3, behavior: 'smooth' })
     }, 80)
-    return () => {
-      window.clearTimeout(timer)
-      document.querySelectorAll('.settings-group-head.guide-spot').forEach((el) => el.classList.remove('guide-spot'))
-    }
+    return () => window.clearTimeout(timer)
   }, [guideGroup, tab])
   const endGuide = () => {
     setTouring(false)
-    setSpot(undefined)
     setGuideForm(undefined)
     setGuideGroup(undefined)
     setTab('summary')
     if (settings?.onboarding === 'guide') backend.saveSettings({ ...settings, onboarding: 'done' }).catch(() => {})
   }
   const startGuide = useCallback(() => setTouring(true), [])
-  const lit = (what: GuideSpot) => (guideOpen && spot === what ? 'guide-spot' : '')
   // Apply the synced theme once settings arrive (main.tsx already applied this device's last one).
   const theme = settings?.theme
   useEffect(() => {
@@ -496,18 +487,18 @@ export function MonthView({ backend, user, onSignOut }: Props) {
     const current = TABS.find((t) => t.id === view)!
     return (
       <div className={`desk ${hasPanel ? 'has-panel' : ''} ${hasPanel && !rightOpen ? 'right-closed' : ''} ${leftOpen ? '' : 'left-closed'}`}>
-        <aside className={`sidebar ${guideOpen && spot ? 'guide-on' : ''}`}>
+        <aside className="sidebar">
           <div className="brand">
             <img src="./favicon.svg" alt="" width={34} height={34} />
             <span className="side-label">{t('Monthly Budget')}</span>
           </div>
-          <button className={`primary side-add ${lit('add')}`} onClick={() => setEditing('new')} aria-label={t('Add transaction')} title={leftOpen ? undefined : t('Add transaction')}>
+          <button className="primary side-add" data-guide="add" onClick={() => setEditing('new')} aria-label={t('Add transaction')} title={leftOpen ? undefined : t('Add transaction')}>
             <span aria-hidden>+</span>
             <span className="side-label">{t('Add transaction')}</span>
           </button>
           <nav className="side-nav" aria-label={t('Pages')}>
             {TABS.filter((x) => !(withPanel && x.id === 'reports')).map((tab) => (
-              <button key={tab.id} className={`${tab.id === view ? 'active' : ''} ${lit(tab.id)}`} aria-current={tab.id === view ? 'page' : undefined} onClick={() => openTab(tab.id)} aria-label={t(tab.label)} title={leftOpen ? undefined : t(tab.label)}>
+              <button key={tab.id} className={tab.id === view ? 'active' : ''} data-guide={tab.id} aria-current={tab.id === view ? 'page' : undefined} onClick={() => openTab(tab.id)} aria-label={t(tab.label)} title={leftOpen ? undefined : t(tab.label)}>
                 <svg viewBox="0 0 24 24" aria-hidden>
                   <path d={tab.icon} />
                 </svg>
@@ -571,7 +562,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
         </div>
         {hasPanel && settings && (
           // Stays on the page while hidden, so it can slide out and back in.
-          <aside className="report-panel" aria-label={t('Reports')} aria-hidden={!rightOpen} inert={!rightOpen}>
+          <aside className="report-panel" data-guide="reports" aria-label={t('Reports')} aria-hidden={!rightOpen} inert={!rightOpen}>
             <div className="report-panel-inner">
               <h2 className="report-panel-title">{t('Reports')}</h2>
               <ReportsView backend={backend} settings={settings} month={nowMonth} hidden={hidden} onSelectMonth={setMonth} />
@@ -610,14 +601,14 @@ export function MonthView({ backend, user, onSignOut }: Props) {
       </div>
 
       {(tab === 'summary' || tab === 'transactions') && (
-        <button className={`fab ${lit('add')}`} aria-label={t('Add transaction')} onClick={() => setEditing('new')}>
+        <button className="fab" data-guide="add" aria-label={t('Add transaction')} onClick={() => setEditing('new')}>
           +
         </button>
       )}
 
-      <nav className={`tabbar ${guideOpen && spot && spot !== 'add' ? 'guide-on' : ''}`}>
+      <nav className="tabbar">
         {TABS.map((x) => (
-          <button key={x.id} className={`${x.id === tab ? 'active' : ''} ${lit(x.id)}`} onClick={() => {
+          <button key={x.id} className={x.id === tab ? 'active' : ''} data-guide={x.id} onClick={() => {
               setSlide(0)
               setTab(x.id)
               setFocus(null)

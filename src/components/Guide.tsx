@@ -1,177 +1,70 @@
-import { useEffect, useState, type MouseEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from 'react'
 import { msg, t } from '../i18n'
 
-// A short tour after the first-start setup, and from Settings › Show the guide.
-// Each step opens the page it talks about and lights up the button it means.
+// A short tour after the first-start setup, and from Settings › How to use the app.
+// Each step shows a small speech bubble next to the button or section it's about, with an
+// arrow pointing at it; everything else is dimmed. Steps open the page (or the add form,
+// or the Settings section) they talk about first.
 
 export type GuideTab = 'summary' | 'transactions' | 'plan' | 'reports' | 'settings'
-/** What a step points at: a page's tab, or the + button. */
-export type GuideSpot = GuideTab | 'add'
 /** The add form's four kinds. */
 export type GuideForm = 'expense' | 'income' | 'transfer' | 'debt'
 
-/** A bullet, or a bold heading followed by its text. */
-type Line = string | [string, string]
-
 export interface GuideStep {
-  icon: string
   title: string
-  lines: Line[]
-  /** The page shown behind the card. */
+  text: string
+  /** The page shown behind the bubble. */
   tab: GuideTab
-  spot?: GuideSpot
-  /** Opens the add form on this kind and points at its button. */
+  /** What the bubble points at: an element marked data-guide="…". None: a bubble in the middle. */
+  target?: string
+  /** Opens the add form on this kind. */
   form?: GuideForm
-  /** Opens this Settings section and points at it. */
+  /** Opens this Settings section. */
   group?: string
 }
 
+const group = (id: string, title: string, text: string): GuideStep => ({ title, text, tab: 'settings', group: id, target: `group-${id}` })
+
 const STEPS: GuideStep[] = [
-  {
-    icon: '👋',
-    title: msg('A quick tour'),
-    lines: [msg('Your accounts are ready. This short tour shows what each page does and how to add your money in and out.'), msg('Tap Next to go on, or Skip to start using the app.')],
-    tab: 'summary',
-  },
-  {
-    icon: '📊',
-    title: msg('Summary'),
-    lines: [
-      msg('Your month at a glance: how much you have left to spend, your income and spending, every account balance and what you owe.'),
-      msg('Tap any row to see the entries behind it. Tap the month at the top to look at another month.'),
-    ],
-    tab: 'summary',
-    spot: 'summary',
-  },
-  {
-    icon: '➕',
-    title: msg('The + button'),
-    lines: [
-      msg('Tap + whenever money comes in or goes out.'),
-      msg("It opens one form with four kinds: Expense, Income, Transfer and Debt. Let's look at each one."),
-    ],
-    tab: 'summary',
-    spot: 'add',
-  },
-  {
-    icon: '💸',
-    title: msg('Expense'),
-    lines: [
-      msg('For anything you pay for: food, bills, shopping.'),
-      msg('Type the amount, pick a category, and pick the account you paid from.'),
-      msg('You can change the date and time, and add a note or a fee. Tap Add expense: that account goes down by the amount.'),
-    ],
-    tab: 'summary',
-    form: 'expense',
-  },
-  {
-    icon: '💰',
-    title: msg('Income'),
-    lines: [
-      msg('For money you receive: your salary, a bonus, money paid back to you.'),
-      msg('Type the amount, pick a category like Salary, and pick the account it went into.'),
-      msg('Tap Add income: that account goes up by the amount.'),
-    ],
-    tab: 'summary',
-    form: 'income',
-  },
-  {
-    icon: '🔁',
-    title: msg('Transfer'),
-    lines: [
-      msg('For moving your own money from one account to another. Pick From and To.'),
-      msg('For example: Bank to Cash when you take money from an ATM, or Bank to Thndr when you invest.'),
-      msg("A transfer isn't spending. Your total stays the same; only where the money sits changes. If the bank took a fee, pick it under Fee."),
-    ],
-    tab: 'summary',
-    form: 'transfer',
-  },
-  {
-    icon: '💳',
-    title: msg('Debt'),
-    lines: [
-      msg('Each lender is its own debt (valU, TRU, a credit card), so you see what you owe each one.'),
-      [msg('I borrowed'), msg('you bought on instalments or took a loan. The debt goes up.')],
-      [msg('I paid back'), msg('you paid an instalment from one of your accounts. The debt goes down.')],
-      msg('More lenders: Settings › Money › Debts.'),
-    ],
-    tab: 'summary',
-    form: 'debt',
-  },
-  {
-    icon: '📋',
-    title: msg('Transactions'),
-    lines: [msg('Every entry for the month, newest first, grouped by day.'), msg('Tap an entry to change it or delete it.')],
-    tab: 'transactions',
-    spot: 'transactions',
-  },
-  {
-    icon: '✏️',
-    title: msg('Plan'),
-    lines: [
-      msg('Set how much you want to spend in each category this month, and the income you expect.'),
-      msg("Summary then shows what's left in each one, and the app warns you when you get close to a limit."),
-    ],
-    tab: 'plan',
-    spot: 'plan',
-  },
-  {
-    icon: '📈',
-    title: msg('Reports'),
-    lines: [msg('Charts over the months: where your money goes, income against spending, and how much you saved.')],
-    tab: 'reports',
-    spot: 'reports',
-  },
-  {
-    icon: '⚙️',
-    title: msg('Settings'),
-    lines: [
-      [msg('Language'), msg('English or Arabic.')],
-      [msg('Money'), msg('your currency, accounts, debts and their limits, and opening balances.')],
-      [msg('Categories'), msg('your expense and income categories, with their icons and order.')],
-      [msg('Bills, goals and alerts'), msg('reminders for bills and instalments, savings goals, and a warning when you get near your budget.')],
-      [msg('Bank SMS'), msg('add payments from your bank messages (Android app).')],
-      [msg('Look and security'), msg('colours, dark mode, decimals, the clock and an app lock.')],
-      [msg('Backup and import'), msg('back up to Google Drive, export a spreadsheet, or import from Excel.')],
-      [msg('Feedback'), msg('send an idea or report a problem.')],
-      [msg('App'), msg('updates, and erasing your data. You can also watch this tour again from Settings.')],
-    ],
-    tab: 'settings',
-    spot: 'settings',
-  },
-  {
-    icon: '🏷️',
-    title: msg('Set up your categories'),
-    lines: [
-      msg('Open Settings › Categories to see your expense and income categories.'),
-      msg('Tap + New to add one and pick its icon. Tap a category to rename it or change its icon, or hold and drag it to change the order.'),
-      msg('You can also add one while adding an entry: tap + New under Category.'),
-    ],
-    tab: 'settings',
-    group: 'categories',
-  },
-  {
-    icon: '✉️',
-    title: msg('Add payments from bank SMS'),
-    lines: [
-      msg('In the Android app, your bank and e-wallet messages can become entries, so you type less.'),
-      msg('To turn it on: Settings › Bank SMS › Allow access to SMS, then tap Allow when Android asks.'),
-      msg('Pick which account or debt each card belongs to. New payments then wait at the top of Summary and Transactions: tap one, check the category, and add it. Nothing is added on its own.'),
-    ],
-    tab: 'settings',
-    group: 'sms',
-  },
-  {
-    icon: '✅',
-    title: msg("You're all set"),
-    lines: [msg('Start by adding today’s expenses with the + button. A minute a day keeps your budget right.')],
-    tab: 'summary',
-    spot: 'add',
-  },
+  { title: msg('Welcome!'), text: msg('A quick tour of the app. Tap Next to go on.'), tab: 'summary' },
+  { title: msg('Summary'), text: msg("Your month at a glance: what's left to spend, your balances and your debts. Tap any row for details."), tab: 'summary', target: 'summary' },
+  { title: msg('Add'), text: msg('Tap + to add money going out or coming in.'), tab: 'summary', target: 'add' },
+  { title: msg('Expense'), text: msg('Money you spend. Type the amount, pick a category and the account you paid from.'), tab: 'summary', form: 'expense', target: 'form-expense' },
+  { title: msg('Income'), text: msg('Money you receive, like your salary. Pick the account it went into.'), tab: 'summary', form: 'income', target: 'form-income' },
+  { title: msg('Transfer'), text: msg("Moving money between your accounts, like Bank to Cash. It isn't spending."), tab: 'summary', form: 'transfer', target: 'form-transfer' },
+  { title: msg('Debt'), text: msg('Instalments and loans, one debt per lender. I borrowed adds to it, I paid back lowers it.'), tab: 'summary', form: 'debt', target: 'form-debt' },
+  { title: msg('Transactions'), text: msg('Every entry this month. Tap one to change or delete it.'), tab: 'transactions', target: 'transactions' },
+  { title: msg('Plan'), text: msg("Set a budget for each category. Summary shows what's left."), tab: 'plan', target: 'plan' },
+  { title: msg('Reports'), text: msg('Charts of your spending and income over the months.'), tab: 'reports', target: 'reports' },
+  { title: msg('Settings'), text: msg("Your accounts, categories and more. Let's look inside."), tab: 'settings', target: 'settings' },
+  group('money', msg('Money'), msg('Your accounts, debts and their limits, and opening balances.')),
+  group('categories', msg('Categories'), msg('Tap + New to add a category with its icon. Tap one to rename it, hold and drag to reorder.')),
+  group('planning', msg('Bills, goals and alerts'), msg('Bill reminders, savings goals, and a warning when you near your budget.')),
+  group('sms', msg('Bank SMS'), msg('In the Android app, tap Allow access to SMS. Payments from your bank messages then wait for you to add them.')),
+  group('look', msg('Look and security'), msg('Colours, dark mode and an app lock.')),
+  group('data', msg('Backup and import'), msg('Back up to Google Drive, or import from Excel.')),
+  { title: msg('How to use the app'), text: msg('Watch this tour again any time from here.'), tab: 'settings', target: 'again' },
+  { title: msg("You're all set"), text: msg("Start by adding today's expenses with the + button."), tab: 'summary' },
 ]
 
+/** The element a step points at, as drawn now: not a neighbouring page kept off screen, nor a hidden panel. */
+function findTarget(name: string): HTMLElement | null {
+  const all = document.querySelectorAll<HTMLElement>(`[data-guide="${name}"]`)
+  for (const el of all) if (!el.closest('.pager-peek, [inert]') && el.getClientRects().length) return el
+  return null
+}
+
+interface Box {
+  top: number
+  left: number
+  width: number
+  height: number
+}
+
+const same = (a: Box | null, b: Box | null) => a === b || (!!a && !!b && a.top === b.top && a.left === b.left && a.width === b.width && a.height === b.height)
+
 interface Props {
-  /** Shows a page (or the add form) behind the card and lights up what the step points at. */
+  /** Shows the page (or add form, or Settings section) a step is about. */
   onStep: (step: GuideStep) => void
   onDone: () => void
 }
@@ -182,58 +75,92 @@ export function Guide({ onStep, onDone }: Props) {
   const last = i === STEPS.length - 1
   useEffect(() => onStep(step), [step, onStep])
 
+  // Where the target is, followed every frame: pages slide, the form rises and sections
+  // scroll into view after a step starts.
+  const [box, setBox] = useState<Box | null>(null)
+  useEffect(() => {
+    let frame = 0
+    let seen: Box | null = null
+    const follow = () => {
+      const el = step.target ? findTarget(step.target) : null
+      const r = el?.getBoundingClientRect()
+      const next = r ? { top: r.top, left: r.left, width: r.width, height: r.height } : null
+      if (!same(seen, next)) setBox((seen = next))
+      frame = requestAnimationFrame(follow)
+    }
+    follow()
+    return () => cancelAnimationFrame(frame)
+  }, [step])
+
+  // The bubble goes on whichever side of the target has more room, kept on screen.
+  const bubble = useRef<HTMLDivElement>(null)
+  const [place, setPlace] = useState<{ top: number; left: number; arrow: number; side: 'below' | 'above' | 'beside' } | null>(null)
+  useLayoutEffect(() => {
+    const el = bubble.current
+    if (!el || !box) return setPlace(null)
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    const w = el.offsetWidth
+    const h = el.offsetHeight
+    const gap = 16
+    // A tall target (the desktop Reports panel): beside it, where there's room.
+    if (box.height > vh * 0.5) {
+      const left = box.left - w - gap >= 12 ? box.left - w - gap : Math.min(box.left + box.width + gap, vw - w - 12)
+      return setPlace({ top: Math.min(Math.max(box.top + 24, 8), vh - h - 8), left, arrow: 0, side: 'beside' })
+    }
+    const below = box.top + box.height / 2 < vh / 2
+    const top = below ? Math.min(box.top + box.height + gap, vh - h - 8) : Math.max(box.top - gap - h, 8)
+    const center = box.left + box.width / 2
+    const left = Math.min(Math.max(center - w / 2, 12), vw - w - 12)
+    setPlace({ top, left, arrow: Math.min(Math.max(center - left, 22), w - 22), side: below ? 'below' : 'above' })
+  }, [box, i])
+
   // The phone's back gesture clicks the backdrop (see closeTopPopup): go back a step, or
-  // close on the first. A real tap outside the card does nothing, so a stray touch can't end it.
+  // close on the first. A real tap outside the bubble does nothing, so a stray touch can't end it.
   const onBackdrop = (e: MouseEvent) => {
-    if (e.target !== e.currentTarget || e.isTrusted) return
+    if (e.isTrusted) return
     if (i > 0) setI(i - 1)
     else onDone()
   }
 
+  const pad = 6
   return (
-    // With the add form open the card sits at the bottom, over the form, leaving its kinds in view.
-    // The card is drawn beside the dimming, not in it, so it stays above whatever is lit up.
     <>
-      <div className={`sheet-backdrop guide-backdrop ${step.form ? 'over-form' : ''}`} onClick={onBackdrop} />
-      <div className={`guide-wrap ${step.form ? 'over-form' : ''}`}>
-      <section className="guide-card" role="dialog" aria-modal="true" aria-labelledby="guide-title">
-        <div className="guide-top">
-          <span className="guide-icon" aria-hidden>
-            {step.icon}
-          </span>
+      <div className={`sheet-backdrop guide-backdrop ${box ? 'clear' : ''}`} onClick={onBackdrop} />
+      {box && (
+        <div
+          className="guide-hole"
+          aria-hidden
+          style={{ top: box.top - pad, left: box.left - pad, width: box.width + pad * 2, height: box.height + pad * 2 }}
+        />
+      )}
+      <div
+        ref={bubble}
+        className={`guide-bubble ${box ? (place?.side ?? 'below') : 'middle'}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="guide-title"
+        style={box && place ? { top: place.top, left: place.left, ['--arrow' as string]: `${place.arrow}px` } : box ? { visibility: 'hidden' } : undefined}
+      >
+        <h2 id="guide-title">{t(step.title)}</h2>
+        <p>{t(step.text)}</p>
+        <div className="guide-foot">
           <span className="muted small">{t('{n} of {total}', { n: i + 1, total: STEPS.length })}</span>
           {!last && (
-            <button className="link guide-skip" onClick={onDone}>
+            <button className="link small" onClick={onDone}>
               {t('Skip')}
             </button>
           )}
-        </div>
-        <h2 id="guide-title">{t(step.title)}</h2>
-        <ul className="guide-lines">
-          {step.lines.map((l) =>
-            typeof l === 'string' ? (
-              <li key={l}>{t(l)}</li>
-            ) : (
-              <li key={l[0]}>
-                <strong>{t(l[0])}</strong>
-                {t(': ')}
-                {t(l[1])}
-              </li>
-            ),
+          <span className="spacer" />
+          {i > 0 && (
+            <button className="small" onClick={() => setI(i - 1)}>
+              {t('Back')}
+            </button>
           )}
-        </ul>
-        <div className="guide-dots" aria-hidden>
-          {STEPS.map((_, j) => (
-            <span key={j} className={j === i ? 'on' : ''} />
-          ))}
-        </div>
-        <div className="row">
-          {i > 0 && <button onClick={() => setI(i - 1)}>{t('Back')}</button>}
-          <button className="primary grow" autoFocus onClick={() => (last ? onDone() : setI(i + 1))}>
-            {last ? t('Start using the app') : t('Next')}
+          <button className="primary small" autoFocus onClick={() => (last ? onDone() : setI(i + 1))}>
+            {last ? t('Done') : t('Next')}
           </button>
         </div>
-      </section>
       </div>
     </>
   )

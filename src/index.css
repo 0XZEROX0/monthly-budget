@@ -699,35 +699,26 @@ button.side-add, .side-nav button { transition: width var(--panel-time) var(--ea
 .setup-total { display: flex; justify-content: space-between; margin: 0; color: var(--text-2); }
 .setup-total strong { color: var(--text); font-variant-numeric: tabular-nums; }
 
-/* The tour: a card at the top, with the button or tab it talks about lit up above the dimmed page. */
-.sheet-backdrop.guide-backdrop { z-index: 5; }
-.guide-wrap { position: fixed; inset: 0; z-index: 8; display: flex; justify-content: center; align-items: flex-start; padding: calc(env(safe-area-inset-top) + 0.8rem) 0.9rem 0; pointer-events: none; }
-.guide-wrap .guide-card { pointer-events: auto; }
-.guide-card {
-  width: 100%; max-width: 440px; background: var(--surface); border-radius: 22px; padding: 1.1rem;
-  display: grid; gap: 0.75rem; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.3); animation: fade 0.18s ease;
+/* The tour: a speech bubble beside what it's about, with an arrow pointing at it. The rest of the
+   screen is dimmed by the lit-up hole's shadow, above any open form and below dialogs. */
+.sheet-backdrop.guide-backdrop { z-index: 20; }
+.sheet-backdrop.guide-backdrop.clear { background: none; }
+.guide-hole {
+  position: fixed; z-index: 21; border-radius: 16px; pointer-events: none;
+  box-shadow: 0 0 0 3px var(--accent), 0 0 0 9999px rgba(0, 0, 0, 0.5);
+  transition: top 0.25s ease, left 0.25s ease, width 0.25s ease, height 0.25s ease;
 }
-.guide-top { display: flex; align-items: center; gap: 0.6rem; }
-.guide-top .muted { flex: 1; }
-.guide-icon { width: 2.6rem; height: 2.6rem; border-radius: 14px; display: grid; place-items: center; font-size: 1.4rem; background: var(--accent-soft); }
-.guide-card h2 { font-size: 1.25rem; }
-.guide-lines { margin: 0; padding-inline-start: 1.15rem; display: grid; gap: 0.45rem; color: var(--text-2); line-height: 1.45; }
-.guide-dots { display: flex; justify-content: center; gap: 0.3rem; }
-.guide-dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--grid); }
-.guide-dots span.on { width: 18px; border-radius: 3px; background: var(--accent); }
-.tabbar.guide-on { z-index: 6; }
-.fab.guide-spot { z-index: 6; }
-.guide-spot { box-shadow: 0 0 0 3px var(--surface), 0 0 0 6px var(--accent) !important; animation: guide-pulse 1.4s ease-in-out infinite; }
-@keyframes guide-pulse { 50% { box-shadow: 0 0 0 3px var(--surface), 0 0 0 10px color-mix(in srgb, var(--accent) 35%, transparent); } }
-@media (prefers-reduced-motion: reduce) { .guide-spot { animation: none; } }
-.sidebar.guide-on { position: relative; z-index: 6; }
-.desk .guide-wrap:not(.over-form) { align-items: center; }
+.guide-bubble {
+  position: fixed; z-index: 22; width: min(320px, calc(100vw - 24px)); background: var(--surface); color: var(--text);
+  border-radius: 18px; padding: 0.9rem 1rem 0.8rem; display: grid; gap: 0.4rem; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.3); animation: fade 0.18s ease;
+}
+.guide-bubble.middle { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+.guide-bubble h2 { font-size: 1.05rem; }
+.guide-bubble p { margin: 0; color: var(--text-2); line-height: 1.45; }
+.guide-bubble::after { content: ''; position: absolute; left: calc(var(--arrow, 50%) - 9px); width: 18px; height: 18px; background: var(--surface); transform: rotate(45deg); border-radius: 3px; }
+.guide-bubble.below::after { top: -8px; }
+.guide-bubble.above::after { bottom: -8px; }
+.guide-bubble.middle::after, .guide-bubble.beside::after { display: none; }
+.guide-foot { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.3rem; }
+.guide-foot button:not(.link) { padding: 0.5rem 0.9rem; border-radius: 10px; }
 button.card.guide-again { width: 100%; text-align: start; }
-/* Steps that open the add form: the card sits over the bottom of the form, which keeps its own dimming. */
-.sheet-backdrop.guide-backdrop.over-form { z-index: 11; background: none; pointer-events: none; }
-.guide-wrap.over-form { z-index: 12; align-items: flex-end; padding: 0 0.9rem calc(0.9rem + env(safe-area-inset-bottom)); }
-.guide-wrap.over-form .guide-card { pointer-events: auto; box-shadow: 0 -6px 40px rgba(0, 0, 0, 0.35); }
-.guide-card { max-height: calc(100dvh - 1.6rem - env(safe-area-inset-top)); overflow-y: auto; }
-.guide-lines strong { color: var(--text); }
-.content .guide-spot, .desk-content .guide-spot { position: relative; z-index: 6; }
-.segmented button.guide-spot { position: relative; z-index: 1; }
