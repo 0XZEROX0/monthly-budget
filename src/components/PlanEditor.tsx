@@ -5,6 +5,7 @@ import type { Backend, Kind, MonthPlan, Settings } from '../data/types'
 import { NumberInput } from './NumberInput'
 import { categoryIcon } from '../data/icons'
 import { showAlert } from './dialog'
+import { t } from '../i18n'
 
 interface Props {
   backend: Backend
@@ -23,7 +24,7 @@ export function PlanEditor({ backend, month, plan, settings }: Props) {
     if (!p) return
     clearTimeout(p.timer)
     pending.current = null
-    backend.savePlan(p.month, p.plan).catch((e: Error) => showAlert(`Could not save: ${e.message}`))
+    backend.savePlan(p.month, p.plan).catch((e: Error) => showAlert(t('Could not save: {error}', { error: e.message })))
     setDirty(false)
   }
   useEffect(() => flush, [month]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -48,7 +49,7 @@ export function PlanEditor({ backend, month, plan, settings }: Props) {
   const copyPrevious = () => {
     const unsub = backend.watchPlan(shiftMonth(month, -1), (prev) => {
       queueMicrotask(() => unsub())
-      if (!prev) return void showAlert('Last month has no plan to copy.')
+      if (!prev) return void showAlert(t('Last month has no plan to copy.'))
       update(prev)
     })
   }
@@ -56,23 +57,23 @@ export function PlanEditor({ backend, month, plan, settings }: Props) {
   return (
     <div className="stack">
       <div className="plan-head">
-        <h2>Budget for {monthLabel(month)}</h2>
+        <h2>{t('Budget for {month}', { month: monthLabel(month) })}</h2>
         <span className="muted small" aria-live="polite">
-          {dirty ? 'Saving…' : 'Saved ✓'}
+          {dirty ? t('Saving…') : t('Saved ✓')}
         </span>
       </div>
       <section className="card">
-        <p className="muted small">Set how much you plan to spend in each category this month. Starting balances come from your accounts automatically.</p>
+        <p className="muted small">{t('Set how much you plan to spend in each category this month. Starting balances come from your accounts automatically.')}</p>
         <button className="link" onClick={copyPrevious}>
-          Copy planned amounts from last month
+          {t('Copy planned amounts from last month')}
         </button>
       </section>
       {(['expense'] as Kind[]).map((kind) => (
         <section className="card" key={kind}>
           <div className="card-head">
-            <h2>Planned spending</h2>
+            <h2>{t('Planned spending')}</h2>
             <span className="muted small">
-              Total {formatWhole(Object.values(draft.planned[kind]).reduce((a, b) => a + b, 0), settings.currency)}
+              {t('Total')} {formatWhole(Object.values(draft.planned[kind]).reduce((a, b) => a + b, 0), settings.currency)}
             </span>
           </div>
           {settings.categories[kind].map((c) => (

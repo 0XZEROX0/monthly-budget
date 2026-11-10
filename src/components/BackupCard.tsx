@@ -5,6 +5,7 @@ import { useRef, useState } from 'react'
 import { today } from '../data/month'
 import type { Backend, ImportData, Settings, Transaction } from '../data/types'
 import { ask } from './dialog'
+import { t } from '../i18n'
 
 const native = Capacitor.isNativePlatform()
 
@@ -47,21 +48,21 @@ export function BackupCard({ backend, settings }: { backend: Backend; settings: 
     } catch (e) {
       // Closing the share sheet isn't an error.
       const msg = (e as Error).message
-      setStatus(/cancel/i.test(msg) ? '' : `Failed: ${msg}`)
+      setStatus(/cancel/i.test(msg) ? '' : t('Failed: {error}', { error: msg }))
     }
   }
 
   const exportCsv = () =>
-    run('Preparing…', async () => {
+    run(t('Preparing…'), async () => {
       const { transactions } = await backend.exportAll()
-      await saveFile(`budget-${today()}.csv`, toCsv(transactions), 'text/csv', 'Export transactions')
+      await saveFile(`budget-${today()}.csv`, toCsv(transactions), 'text/csv', t('Export transactions'))
     })
 
   const backup = () =>
-    run('Preparing…', async () => {
+    run(t('Preparing…'), async () => {
       const data = await backend.exportAll()
       const file = { app: 'monthly-budget', version: 1, exportedAt: new Date().toISOString(), ...data }
-      await saveFile(`budget-backup-${today()}.json`, JSON.stringify(file), 'application/json', 'Back up your budget')
+      await saveFile(`budget-backup-${today()}.json`, JSON.stringify(file), 'application/json', t('Back up your budget'))
       try {
         localStorage.setItem('budget-app:last-backup', today())
       } catch {
@@ -70,12 +71,12 @@ export function BackupCard({ backend, settings }: { backend: Backend; settings: 
     })
 
   const restore = (f: File) =>
-    run('Reading the backup…', async () => {
+    run(t('Reading the backup…'), async () => {
       const data = JSON.parse(await f.text()) as Partial<ImportData> & { app?: string }
-      if (data.app !== 'monthly-budget' || !data.settings || !Array.isArray(data.transactions)) throw new Error('This is not a Monthly Budget backup file.')
-      if (!(await ask(`Restore ${data.transactions.length} entries and your settings from this backup? Entries in it replace the same entries here; newer ones stay.`, { title: 'Restore backup', ok: 'Restore' }))) return
+      if (data.app !== 'monthly-budget' || !data.settings || !Array.isArray(data.transactions)) throw new Error(t('This is not a Monthly Budget backup file.'))
+      if (!(await ask(t('Restore {n} entries and your settings from this backup? Entries in it replace the same entries here; newer ones stay.', { n: data.transactions.length }), { title: t('Restore backup'), ok: t('Restore') }))) return
       await backend.importAll({ settings: { ...data.settings, sms: settings.sms ?? data.settings.sms }, plans: data.plans ?? {}, transactions: data.transactions })
-      return `Restored ${data.transactions.length} entries.`
+      return t('Restored {n} entries.', { n: data.transactions.length })
     }).finally(() => {
       if (input.current) input.current.value = ''
     })
@@ -89,18 +90,18 @@ export function BackupCard({ backend, settings }: { backend: Backend; settings: 
 
   return (
     <section className="card">
-      <h2>Backup and export</h2>
+      <h2>{t('Backup and export')}</h2>
       <p className="muted small">
-        {native ? 'Back up opens Android\'s share menu: pick Drive to save the file to your Google Drive.' : 'Back up downloads a file you can keep in Google Drive.'}
-        {backend.mode === 'cloud' && ' Your data also syncs to your Google account all the time.'}
-        {last && ` Last backup: ${last}.`}
+        {native ? t("Back up opens Android's share menu: pick Drive to save the file to your Google Drive.") : t('Back up downloads a file you can keep in Google Drive.')}
+        {backend.mode === 'cloud' && ' ' + t('Your data also syncs to your Google account all the time.')}
+        {last && ' ' + t('Last backup: {date}.', { date: last })}
       </p>
       <div className="row wrap">
         <button className="primary" onClick={backup}>
-          Back up to Google Drive
+          {t('Back up to Google Drive')}
         </button>
-        <button onClick={exportCsv}>Export CSV</button>
-        <button onClick={() => input.current?.click()}>Restore</button>
+        <button onClick={exportCsv}>{t('Export CSV')}</button>
+        <button onClick={() => input.current?.click()}>{t('Restore')}</button>
       </div>
       <input ref={input} type="file" accept="application/json,.json" hidden onChange={(e) => e.target.files?.[0] && restore(e.target.files[0])} />
       {status && <p className="small">{status}</p>}

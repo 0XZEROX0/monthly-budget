@@ -23,7 +23,9 @@ public class WidgetPlugin extends Plugin {
         return !month.isEmpty() && !month.equals(new java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.US).format(new java.util.Date()));
     }
 
-    static final String STALE_NOTE = "A new month has started. Open the app to refresh.";
+    static String staleNote(Context ctx) {
+        return L.t(ctx, "A new month has started. Open the app to refresh.", "بدأ شهر جديد. افتح التطبيق لتحديث الأرقام.");
+    }
 
     @PluginMethod
     public void update(PluginCall call) {
@@ -35,6 +37,7 @@ public class WidgetPlugin extends Plugin {
             .putBoolean("over", Boolean.TRUE.equals(call.getBoolean("over", false)))
             .putString("data", call.getString("data", ""))
             .putString("month", call.getString("month", ""))
+            .putString("lang", call.getString("lang", "en"))
             .apply();
         BudgetWidget.refreshAll(getContext());
         BoardWidget.refreshAll(getContext());

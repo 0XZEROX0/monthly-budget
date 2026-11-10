@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { formatWhole, parseAmount, today } from '../data/month'
 import type { Account, Backend, Settings } from '../data/types'
 import { showAlert } from './dialog'
+import { t } from '../i18n'
 
 interface Props {
   backend: Backend
@@ -26,14 +27,14 @@ export function BalanceForm({ backend, account, month, current, settings, onClos
     if (Math.abs(diff) >= 0.005) {
       const date = today().startsWith(month) ? today() : `${month}-01`
       backend
-        .addTransaction({ kind: 'adjust', account: account.name, amount: diff, date, month, description: 'Value change', category: '' })
-        .catch((err: Error) => showAlert(`Could not save: ${err.message}`))
+        .addTransaction({ kind: 'adjust', account: account.name, amount: diff, date, month, description: t('Value change'), category: '' })
+        .catch((err: Error) => showAlert(t('Could not save: {error}', { error: err.message })))
     }
     const pct = parseAmount(rate)
     if (account.type === 'investment' && rate.trim() && Number.isFinite(pct) && pct !== account.interestPct)
       backend
         .saveSettings({ ...settings, accounts: settings.accounts.map((a) => (a.name === account.name ? { ...a, interestPct: pct } : a)) })
-        .catch((err: Error) => showAlert(`Could not save: ${err.message}`))
+        .catch((err: Error) => showAlert(t('Could not save: {error}', { error: err.message })))
     onClose()
   }
 
@@ -42,27 +43,27 @@ export function BalanceForm({ backend, account, month, current, settings, onClos
       <form className="sheet" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
         <div className="sheet-grab" aria-hidden />
         <div className="sheet-head">
-          <h2>Update {account.name}</h2>
-          <button type="button" className="icon ghost" aria-label="Close" onClick={onClose}>
+          <h2>{t('Update {name}', { name: account.name })}</h2>
+          <button type="button" className="icon ghost" aria-label={t('Close')} onClick={onClose}>
             ✕
           </button>
         </div>
-        <p className="muted small">Enter what {account.name} is worth now. The difference is saved as a value change, so it doesn't count as income or spending.</p>
+        <p className="muted small">{t("Enter what {name} is worth now. The difference is saved as a value change, so it doesn't count as income or spending.", { name: account.name })}</p>
         <label className="amount">
-          <span className="sr-only">Current value in {currency}</span>
+          <span className="sr-only">{t('Current value in {currency}', { currency })}</span>
           <span className="amount-currency">{currency}</span>
           <input inputMode="decimal" autoFocus value={value} style={{ width: `${Math.max(1, value.length) + 0.6}ch` }} onChange={(e) => setValue(e.target.value)} />
         </label>
         <p className="center small" style={{ padding: 0 }}>
-          {Math.abs(diff) < 0.005 ? 'No change' : `${diff > 0 ? 'Up' : 'Down'} ${formatWhole(Math.abs(diff), currency)} from ${formatWhole(current, currency)}`}
+          {Math.abs(diff) < 0.005 ? t('No change') : (diff > 0 ? t('Up {amount} from {from}', { amount: formatWhole(Math.abs(diff), currency), from: formatWhole(current, currency) }) : t('Down {amount} from {from}', { amount: formatWhole(Math.abs(diff), currency), from: formatWhole(current, currency) }))}
         </p>
         {account.type === 'investment' && (
           <label className="field">
-            <span className="field-label">Interest rate %</span>
-            <input inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} placeholder="e.g. 5.2" />
+            <span className="field-label">{t('Interest rate %')}</span>
+            <input inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} placeholder={t('e.g. 5.2')} />
           </label>
         )}
-        <button className="primary">Save</button>
+        <button className="primary">{t('Save')}</button>
       </form>
     </div>
   )

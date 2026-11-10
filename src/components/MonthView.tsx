@@ -30,6 +30,7 @@ import { SummaryView } from './SummaryView'
 import { TransactionForm } from './TransactionForm'
 import { TransactionList, type ListFocus } from './TransactionList'
 import { ask, showAlert } from './dialog'
+import { isRtl, msg, t } from '../i18n'
 
 type Tab = 'summary' | 'transactions' | 'plan' | 'reports' | 'settings'
 
@@ -39,11 +40,11 @@ const PANEL_QUERY = '(min-width: 1280px)'
 
 // Stroke icons drawn on a 24x24 grid.
 const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'summary', label: 'Summary', icon: 'M4 20V10M10 20V4M16 20v-7M22 20H2' },
-  { id: 'transactions', label: 'Transactions', icon: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01' },
-  { id: 'plan', label: 'Plan', icon: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z' },
-  { id: 'reports', label: 'Reports', icon: 'M3 17l6-6 4 4 8-8M15 7h6v6' },
-  { id: 'settings', label: 'Settings', icon: 'M4 6h16M4 12h16M4 18h16M8 4v4M16 10v4M10 16v4' },
+  { id: 'summary', label: msg('Summary'), icon: 'M4 20V10M10 20V4M16 20v-7M22 20H2' },
+  { id: 'transactions', label: msg('Transactions'), icon: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01' },
+  { id: 'plan', label: msg('Plan'), icon: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z' },
+  { id: 'reports', label: msg('Reports'), icon: 'M3 17l6-6 4 4 8-8M15 7h6v6' },
+  { id: 'settings', label: msg('Settings'), icon: 'M4 6h16M4 12h16M4 18h16M8 4v4M16 10v4M10 16v4' },
 ]
 
 interface Props {
@@ -117,11 +118,11 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   // null: form closed; 'new': adding; a transaction: editing it.
   const [editing, setEditing] = useState<Transaction | 'new' | null>(null)
   const editEntry = useCallback(
-    (t: Transaction) => {
+    (entry: Transaction) => {
       // Balance updates have no form; they can only be removed.
-      if (t.kind !== 'adjust') return setEditing(t)
-      ask('Delete this balance update?', { ok: 'Delete', danger: true }).then((ok) => {
-        if (ok) backend.deleteTransaction(t.id).catch((e: Error) => showAlert(e.message))
+      if (entry.kind !== 'adjust') return setEditing(entry)
+      ask(t('Delete this balance update?'), { ok: t('Delete'), danger: true }).then((ok) => {
+        if (ok) backend.deleteTransaction(entry.id).catch((e: Error) => showAlert(e.message))
       })
     },
     [backend],
@@ -253,7 +254,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
     const leave = () => {
       if (Date.now() - exitArmed.current < 2000) return void CapApp.exitApp()
       exitArmed.current = Date.now()
-      setToast('Swipe back again to exit')
+      setToast(t('Swipe back again to exit'))
     }
     if (lock.locked) return leave()
     if (tab === 'summary') return leave()
@@ -271,7 +272,9 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   const track = useRef<HTMLDivElement>(null)
   const tabNow = useRef(tab)
   tabNow.current = tab
-  const near = (t: Tab, dir: 1 | -1) => TABS[TABS.findIndex((x) => x.id === t) + dir]?.id
+  // dir is the side of the screen (1: right). Right to left, the next tab comes from the left.
+  const flip = isRtl() ? -1 : 1
+  const near = (t: Tab, dir: 1 | -1) => TABS[TABS.findIndex((x) => x.id === t) + dir * flip]?.id
   const settledTab = useDeferredValue(tab)
   // A neighbour asked for before the background build reached it.
   const [wanted, setWanted] = useState<Tab | null>(null)
@@ -321,7 +324,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   }
 
   const privacyButton = (
-    <button className="icon ghost privacy" onClick={togglePrivacy} aria-pressed={hidden} aria-label={hidden ? 'Show amounts' : 'Hide amounts'} title={hidden ? 'Show amounts' : 'Hide amounts'}>
+    <button className="icon ghost privacy" onClick={togglePrivacy} aria-pressed={hidden} aria-label={hidden ? t('Show amounts') : t('Hide amounts')} title={hidden ? t('Show amounts') : t('Hide amounts')}>
       <svg viewBox="0 0 24 24" aria-hidden>
         <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
         <circle cx="12" cy="12" r="3" />
@@ -334,7 +337,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   const monthless = (t: Tab) => t === 'reports' || t === 'settings'
   const backToCurrent = month !== nowMonth && (
     <button className="link back-current" onClick={() => setMonth(nowMonth)}>
-      Back to current month
+      {t('Back to current month')}
     </button>
   )
 
@@ -346,7 +349,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   // A tab's page. While swiping, the next tab's page is drawn beside the current one.
   const pageFor = (view: Tab, focus: ListFocus | null) =>
     loading || !summary ? (
-      <p className="center muted">Loading…</p>
+      <p className="center muted">{t('Loading…')}</p>
     ) : view === 'summary' ? (
       <div className="stack">
         <PendingSms sms={sms} onAdd={setFromSms} onOpen={() => setTab('transactions')} />
@@ -439,19 +442,19 @@ export function MonthView({ backend, user, onSignOut }: Props) {
         <aside className="sidebar">
           <div className="brand">
             <img src="./favicon.svg" alt="" width={34} height={34} />
-            <span className="side-label">Monthly Budget</span>
+            <span className="side-label">{t('Monthly Budget')}</span>
           </div>
-          <button className="primary side-add" onClick={() => setEditing('new')} aria-label="Add transaction" title={leftOpen ? undefined : 'Add transaction'}>
+          <button className="primary side-add" onClick={() => setEditing('new')} aria-label={t('Add transaction')} title={leftOpen ? undefined : t('Add transaction')}>
             <span aria-hidden>+</span>
-            <span className="side-label">Add transaction</span>
+            <span className="side-label">{t('Add transaction')}</span>
           </button>
-          <nav className="side-nav" aria-label="Pages">
-            {TABS.filter((t) => !(withPanel && t.id === 'reports')).map((t) => (
-              <button key={t.id} className={t.id === view ? 'active' : ''} aria-current={t.id === view ? 'page' : undefined} onClick={() => openTab(t.id)} aria-label={t.label} title={leftOpen ? undefined : t.label}>
+          <nav className="side-nav" aria-label={t('Pages')}>
+            {TABS.filter((x) => !(withPanel && x.id === 'reports')).map((tab) => (
+              <button key={tab.id} className={tab.id === view ? 'active' : ''} aria-current={tab.id === view ? 'page' : undefined} onClick={() => openTab(tab.id)} aria-label={t(tab.label)} title={leftOpen ? undefined : t(tab.label)}>
                 <svg viewBox="0 0 24 24" aria-hidden>
-                  <path d={t.icon} />
+                  <path d={tab.icon} />
                 </svg>
-                <span className="side-label">{t.label}</span>
+                <span className="side-label">{t(tab.label)}</span>
               </button>
             ))}
           </nav>
@@ -463,31 +466,31 @@ export function MonthView({ backend, user, onSignOut }: Props) {
                   <strong>{user.displayName || user.email}</strong>
                   {onSignOut && (
                     <button className="link small" onClick={onSignOut}>
-                      Sign out
+                      {t('Sign out')}
                     </button>
                   )}
                 </span>
               </>
             ) : (
-              <span className="muted small side-label">Saved on this device</span>
+              <span className="muted small side-label">{t('Saved on this device')}</span>
             )}
           </div>
         </aside>
         <div className="desk-main" ref={scroller}>
           <div ref={content}>
             <header className="desk-top">
-              <button className="icon ghost panel-toggle" onClick={() => setLeftOpen(!leftOpen)} aria-pressed={!leftOpen} aria-label={leftOpen ? 'Hide sidebar' : 'Show sidebar'} title={leftOpen ? 'Hide sidebar' : 'Show sidebar'}>
+              <button className="icon ghost panel-toggle" onClick={() => setLeftOpen(!leftOpen)} aria-pressed={!leftOpen} aria-label={leftOpen ? t('Hide sidebar') : t('Show sidebar')} title={leftOpen ? t('Hide sidebar') : t('Show sidebar')}>
                 <svg viewBox="0 0 24 24" aria-hidden>
                   <rect x="3" y="4" width="18" height="16" rx="2" />
                   <path d="M9 4v16" />
                   {leftOpen ? <path d="M15.5 10l-2 2 2 2" /> : <path d="M13.5 10l2 2-2 2" />}
                 </svg>
               </button>
-              <h1>{current.label}</h1>
+              <h1>{t(current.label)}</h1>
               <span className="spacer" />
               {!monthless(view) && backToCurrent}
               {!monthless(view) && (
-                <button className="desk-month" onClick={() => setPicking(true)} aria-label={`${monthLabel(month)}, choose another month`}>
+                <button className="desk-month" onClick={() => setPicking(true)} aria-label={t('{month}, choose another month', { month: monthLabel(month) })}>
                   <svg viewBox="0 0 24 24" aria-hidden>
                     <rect x="3" y="5" width="18" height="16" rx="2" />
                     <path d="M3 10h18M8 3v4M16 3v4" />
@@ -497,7 +500,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
               )}
               {privacyButton}
               {wideDesk && (
-                <button className="icon ghost panel-toggle" onClick={() => setRightOpen(!rightOpen)} aria-pressed={!rightOpen} aria-label={rightOpen ? 'Hide Reports panel' : 'Show Reports panel'} title={rightOpen ? 'Hide Reports panel' : 'Show Reports panel'}>
+                <button className="icon ghost panel-toggle" onClick={() => setRightOpen(!rightOpen)} aria-pressed={!rightOpen} aria-label={rightOpen ? t('Hide Reports panel') : t('Show Reports panel')} title={rightOpen ? t('Hide Reports panel') : t('Show Reports panel')}>
                   <svg viewBox="0 0 24 24" aria-hidden>
                     <rect x="3" y="4" width="18" height="16" rx="2" />
                     <path d="M15 4v16" />
@@ -511,9 +514,9 @@ export function MonthView({ backend, user, onSignOut }: Props) {
         </div>
         {hasPanel && settings && (
           // Stays on the page while hidden, so it can slide out and back in.
-          <aside className="report-panel" aria-label="Reports" aria-hidden={!rightOpen} inert={!rightOpen}>
+          <aside className="report-panel" aria-label={t('Reports')} aria-hidden={!rightOpen} inert={!rightOpen}>
             <div className="report-panel-inner">
-              <h2 className="report-panel-title">Reports</h2>
+              <h2 className="report-panel-title">{t('Reports')}</h2>
               <ReportsView backend={backend} settings={settings} month={nowMonth} hidden={hidden} onSelectMonth={setMonth} />
             </div>
           </aside>
@@ -528,9 +531,9 @@ export function MonthView({ backend, user, onSignOut }: Props) {
       <div className="pull" ref={content}>
       <header className="topbar">
         {monthless(tab) ? (
-          <h1 className="month page-title">{TABS.find((t) => t.id === tab)?.label}</h1>
+          <h1 className="month page-title">{t(TABS.find((x) => x.id === tab)?.label ?? '')}</h1>
         ) : (
-          <button className="month" onClick={() => setPicking(true)} aria-label={`${monthLabel(month)}, choose another month`}>
+          <button className="month" onClick={() => setPicking(true)} aria-label={t('{month}, choose another month', { month: monthLabel(month) })}>
             <span>
               {monthLabel(month)} <span className="caret" aria-hidden>▾</span>
             </span>
@@ -550,22 +553,22 @@ export function MonthView({ backend, user, onSignOut }: Props) {
       </div>
 
       {(tab === 'summary' || tab === 'transactions') && (
-        <button className="fab" aria-label="Add transaction" onClick={() => setEditing('new')}>
+        <button className="fab" aria-label={t('Add transaction')} onClick={() => setEditing('new')}>
           +
         </button>
       )}
 
       <nav className="tabbar">
-        {TABS.map((t) => (
-          <button key={t.id} className={t.id === tab ? 'active' : ''} onClick={() => {
+        {TABS.map((x) => (
+          <button key={x.id} className={x.id === tab ? 'active' : ''} onClick={() => {
               setSlide(0)
-              setTab(t.id)
+              setTab(x.id)
               setFocus(null)
             }}>
             <svg viewBox="0 0 24 24" aria-hidden>
-              <path d={t.icon} />
+              <path d={x.icon} />
             </svg>
-            {t.label}
+            {t(x.label)}
           </button>
         ))}
       </nav>
@@ -608,13 +611,13 @@ function parseLink(url: string): 'summary' | { startOn?: StartOn } | null {
 function widgetLines(s: MonthSummary, currency: string, hidden: boolean) {
   const money = (n: number) => formatWhole(n, currency)
   const budget = s.planned.expense
-  if (budget <= 0) return { label: 'Cash + bank', value: hidden ? '•••••' : money(s.liquidityEnd), sub: 'No budget set this month', pct: 0, over: false }
+  if (budget <= 0) return { label: t('Cash + bank'), value: hidden ? '•••••' : money(s.liquidityEnd), sub: t('No budget set this month'), pct: 0, over: false }
   const left = budget - s.actual.expense
   const pct = (s.actual.expense / budget) * 100
   return {
-    label: left >= 0 ? 'Left to spend' : 'Over budget by',
+    label: left >= 0 ? t('Left to spend') : t('Over budget by'),
     value: money(Math.abs(left)),
-    sub: hidden ? `${Math.round(pct)}% of budget spent` : `${money(s.actual.expense)} spent of ${money(budget)}`,
+    sub: hidden ? t('{pct}% of budget spent', { pct: Math.round(pct) }) : t('{spent} spent of {budget}', { spent: money(s.actual.expense), budget: money(budget) }),
     pct: Math.min(100, Math.round(pct)),
     over: left < 0,
   }
@@ -640,9 +643,9 @@ function alertOnce(month: string, s: MonthSummary, pct: number, currency: string
   }
   const money = (n: number) => formatWhole(n, currency)
   const line = (a: (typeof fresh)[number]) =>
-    `${a.category ?? 'Whole budget'}: ${a.level === 'over' ? `over by ${money(a.actual - a.planned)}` : `${Math.round((a.actual / a.planned) * 100)}% used, ${money(a.planned - a.actual)} left`}`
+    `${a.category ?? t('Whole budget')}: ${a.level === 'over' ? t('over by {amount}', { amount: money(a.actual - a.planned) }) : t('{pct}% used, {amount} left', { pct: Math.round((a.actual / a.planned) * 100), amount: money(a.planned - a.actual) })}`
   const over = fresh.some((a) => a.level === 'over')
-  notifyNow(over ? 'Over budget' : `Budget ${pct}% used`, fresh.map(line).join('\n')).catch(() => {})
+  notifyNow(over ? t('Over budget') : t('Budget {pct}% used', { pct }), fresh.map(line).join('\n')).catch(() => {})
 }
 
 /** Saves the category picked for this merchant and the account picked for this card, for next time. */

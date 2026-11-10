@@ -15,14 +15,6 @@ export const BUILT_IN_FEES: FeeTemplate[] = [
 export const feeTemplates = (settings: Settings) => [...BUILT_IN_FEES, ...(settings.feeTemplates ?? [])]
 
 const round2 = (n: number) => Math.round(n * 100) / 100
-const num = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 2 })
-
-/** How a template works it out, like "0.1%, at least 0.5 and at most 20". */
-export function feeHint(t: FeeTemplate): string {
-  const limits = [t.min != null && `at least ${num(t.min)}`, t.max != null && `at most ${num(t.max)}`].filter(Boolean)
-  return `${num(t.pct)}%${limits.length ? `, ${limits.join(' and ')}` : ''}`
-}
-
 /** The fee for sending `amount` with a template. */
 export function feeFor(t: FeeTemplate | undefined, amount: number): number {
   if (!t || !(amount > 0)) return 0

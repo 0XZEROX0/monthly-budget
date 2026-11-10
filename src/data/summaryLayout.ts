@@ -1,18 +1,19 @@
+import { msg } from '../i18n'
 import type { Settings } from './types'
 
 /** The Summary page's cards, in their default order. */
 export const SUMMARY_SECTIONS = [
-  { key: 'hero', label: 'Left to spend', icon: '🎯' },
-  { key: 'alerts', label: 'Budget alerts', icon: '⚠️' },
-  { key: 'bills', label: 'Bills', icon: '📆' },
-  { key: 'accounts', label: 'Accounts', icon: '🏦' },
-  { key: 'goals', label: 'Savings goals', icon: '🐷' },
-  { key: 'pace', label: 'Spending this month', icon: '📉' },
-  { key: 'categories', label: 'Where your money went', icon: '🧾' },
-  { key: 'debts', label: 'Debts', icon: '💳' },
-  { key: 'saved', label: 'Saved each month', icon: '💰' },
-  { key: 'trend', label: 'Income vs spending', icon: '📊' },
-  { key: 'income', label: 'Income', icon: '💼' },
+  { key: 'hero', label: msg('Left to spend'), icon: '🎯' },
+  { key: 'alerts', label: msg('Budget alerts'), icon: '⚠️' },
+  { key: 'bills', label: msg('Bills'), icon: '📆' },
+  { key: 'accounts', label: msg('Accounts'), icon: '🏦' },
+  { key: 'goals', label: msg('Savings goals'), icon: '🐷' },
+  { key: 'pace', label: msg('Spending this month'), icon: '📉' },
+  { key: 'categories', label: msg('Where your money went'), icon: '🧾' },
+  { key: 'debts', label: msg('Debts'), icon: '💳' },
+  { key: 'saved', label: msg('Saved each month'), icon: '💰' },
+  { key: 'trend', label: msg('Income vs spending'), icon: '📊' },
+  { key: 'income', label: msg('Income'), icon: '💼' },
 ] as const
 
 export type SectionKey = (typeof SUMMARY_SECTIONS)[number]['key']

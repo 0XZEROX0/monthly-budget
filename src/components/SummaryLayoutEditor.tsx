@@ -1,5 +1,6 @@
 import { SUMMARY_SECTIONS, type SectionKey, type SummaryLayout } from '../data/summaryLayout'
 import { useReorder } from './useReorder'
+import { t } from '../i18n'
 
 /** Reorder the Summary cards by holding and dragging, and hide the ones you don't need. */
 export function LayoutEditor({ layout, onChange, onDone }: { layout: SummaryLayout; onChange: (l: SummaryLayout) => void; onDone: () => void }) {
@@ -10,12 +11,12 @@ export function LayoutEditor({ layout, onChange, onDone }: { layout: SummaryLayo
     <div className="stack">
       <section className="card">
         <div className="card-head">
-          <h2>Edit Summary layout</h2>
+          <h2>{t('Edit Summary layout')}</h2>
           <button className="primary small-btn" onClick={onDone}>
-            Done
+            {t('Done')}
           </button>
         </div>
-        <p className="muted small">Hold a card and drag it to move it. Tap the eye to show or hide it. Changes save as you go.</p>
+        <p className="muted small">{t('Hold a card and drag it to move it. Tap the eye to show or hide it. Changes save as you go.')}</p>
         <ul className="layout-list">
           {reorder.order.map((k) => {
             const shown = !layout.hidden.includes(k as SectionKey)
@@ -25,8 +26,8 @@ export function LayoutEditor({ layout, onChange, onDone }: { layout: SummaryLayo
                   ⠿
                 </span>
                 <span className="cat-icon plan-icon">{info(k).icon}</span>
-                <span className="grow">{info(k).label}</span>
-                <button className="icon ghost" aria-label={`${shown ? 'Hide' : 'Show'} ${info(k).label}`} aria-pressed={shown} onClick={() => toggle(k as SectionKey)}>
+                <span className="grow">{t(info(k).label)}</span>
+                <button className="icon ghost" aria-label={shown ? t('Hide {name}', { name: t(info(k).label) }) : t('Show {name}', { name: t(info(k).label) })} aria-pressed={shown} onClick={() => toggle(k as SectionKey)}>
                   {shown ? '👁' : '🚫'}
                 </button>
               </li>
@@ -34,7 +35,7 @@ export function LayoutEditor({ layout, onChange, onDone }: { layout: SummaryLayo
           })}
         </ul>
         <button className="link" onClick={() => onChange({ order: SUMMARY_SECTIONS.map((s) => s.key), hidden: [] })}>
-          Reset to the default layout
+          {t('Reset to the default layout')}
         </button>
       </section>
     </div>

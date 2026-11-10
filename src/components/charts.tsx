@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { t } from '../i18n'
 
 // Hand-drawn SVG charts. Colors come from CSS tokens (--income, --expense, ...) so
 // light and dark mode swap in one place. Marks: 2px lines, columns <= 24px with
@@ -106,7 +107,7 @@ export function PaceChart({ points, format, axisFormat, dayName }: {
   return (
     <div className="chart" ref={ref}>
       {width > 0 && (
-        <svg width={width} height={height} role="img" aria-label="Cumulative spending this month compared with budget pace">
+        <svg width={width} height={height} role="img" aria-label={t('Cumulative spending this month compared with budget pace')}>
           {ticks.map((t) => (
             <g key={t}>
               <line className="grid" x1={PAD.left} x2={width - PAD.right} y1={y(t)} y2={y(t)} />
@@ -193,7 +194,7 @@ export function MonthsChart({ bars, current, format, axisFormat, onSelect }: {
   return (
     <div className="chart" ref={ref}>
       {width > 0 && (
-        <svg width={width} height={height} role="img" aria-label="Income and expenses by month">
+        <svg width={width} height={height} role="img" aria-label={t('Income and expenses by month')}>
           {ticks.map((t) => (
             <g key={t}>
               <line className="grid" x1={PAD.left} x2={width - PAD.right} y1={y(t)} y2={y(t)} />
@@ -240,7 +241,7 @@ export function MonthsChart({ bars, current, format, axisFormat, onSelect }: {
             <i className="key-dot" style={{ background: 'var(--expense)' }} />
             Expenses {format(h.expense)}
           </span>
-          <span className="muted">Net {format(h.income - h.expense)}</span>
+          <span className="muted">{t('Net {amount}', { amount: format(h.income - h.expense) })}</span>
         </Tooltip>
       )}
     </div>
@@ -305,7 +306,7 @@ export function SavedChart({ bars, current, format, axisFormat, onSelect }: {
   return (
     <div className="chart" ref={ref}>
       {width > 0 && (
-        <svg width={width} height={height} role="img" aria-label="Saved each month">
+        <svg width={width} height={height} role="img" aria-label={t('Saved each month')}>
           {ticks.map((t) => (
             <g key={t}>
               <line className={t === 0 ? 'baseline' : 'grid'} x1={PAD.left} x2={width - PAD.right} y1={y(t)} y2={y(t)} />
@@ -347,7 +348,7 @@ export function SavedChart({ bars, current, format, axisFormat, onSelect }: {
           <strong>{h.label}</strong>
           <span>
             <i className="key-dot" style={{ background: h.saved >= 0 ? 'var(--income)' : 'var(--expense)' }} />
-            {h.saved >= 0 ? 'Saved' : 'Overspent'} {format(Math.abs(h.saved))}
+            {h.saved >= 0 ? t('Saved') : t('Overspent')} {format(Math.abs(h.saved))}
           </span>
         </Tooltip>
       )}

@@ -67,6 +67,8 @@ export interface Settings {
   debts: Debt[]
   /** Show times as 8:30 PM instead of 20:30. */
   clock12?: boolean
+  /** App language: English (the default) or Arabic, shown right to left. */
+  lang?: 'en' | 'ar'
   /** Show amounts with two decimals; whole numbers otherwise. */
   decimals?: boolean
   /** Icons the user picked, by category or account name. */

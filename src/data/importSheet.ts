@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import { withDefaults } from './defaults'
 import { effects } from './summary'
 import type { Account, Debt, ImportData, MonthPlan, Settings, Transaction } from './types'
@@ -166,7 +167,7 @@ export function importGrids(sheets: { name: string; grid: Grid }[], current?: Se
     .map((s) => parseMonth(s.name, s.grid))
     .filter((m): m is MonthSheet => m !== null)
     .sort((a, b) => a.month.localeCompare(b.month))
-  if (!months.length) throw new Error('No month tabs (named like 10/2026) were found in this file.')
+  if (!months.length) throw new Error(t('No month tabs (named like 10/2026) were found in this file.'))
 
   const latest = months[months.length - 1]
   const expenseCats = [...latest.categories]

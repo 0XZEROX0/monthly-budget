@@ -3,6 +3,8 @@ import { categoryIcon } from '../data/icons'
 import { formatWhole, monthLabel, shiftDay, showTime, today } from '../data/month'
 import { countsAsSpending, newestFirst, type MonthSummary } from '../data/summary'
 import type { Settings, Transaction } from '../data/types'
+import { t as tr } from '../i18n'
+import { formatDateWith, signedMoney } from '../data/month'
 
 /**
  * What the home screen widgets show, already formatted. The native side
@@ -46,7 +48,7 @@ const HIDDEN = '•••••'
 /** How a date reads on a widget: Today, Yesterday, or Mon 3 Nov. */
 function when(t: Transaction, clock12?: boolean) {
   const now = today()
-  const day = t.date === now ? 'Today' : t.date === shiftDay(now, -1) ? 'Yesterday' : new Date(t.date + 'T00:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
+  const day = t.date === now ? tr('Today') : t.date === shiftDay(now, -1) ? tr('Yesterday') : formatDateWith(new Date(t.date + 'T00:00'), { weekday: 'short', day: 'numeric', month: 'short' })
   return t.time ? `${day}, ${showTime(t.time, clock12)}` : day
 }
 
@@ -62,7 +64,7 @@ export function widgetData(month: string, s: MonthSummary, settings: Settings, t
       icon: categoryIcon(r.category),
       name: r.category,
       spent: money(r.actual),
-      budget: r.planned > 0 ? money(r.planned) : 'No budget',
+      budget: r.planned > 0 ? money(r.planned) : tr('No budget'),
       pct: r.planned > 0 ? pct(r.actual, r.planned) : 100,
       over: r.planned > 0 ? r.actual > r.planned : r.actual > 0,
     }))
@@ -74,9 +76,9 @@ export function widgetData(month: string, s: MonthSummary, settings: Settings, t
     .slice(0, 20)
     .map((t) => ({
       icon: categoryIcon(t.category || t.debt || ''),
-      title: t.description || t.category || t.debt || 'Expense',
+      title: t.description || t.category || t.debt || tr('Expense'),
       sub: [t.category || t.debt, when(t, settings.clock12)].filter(Boolean).join(' · '),
-      amount: hidden ? HIDDEN : `−${formatWhole(t.amount, settings.currency)}`,
+      amount: hidden ? HIDDEN : signedMoney('−', t.amount, settings.currency),
       where: t.category || t.debt || '',
       date: t.date,
       time: t.time ? showTime(t.time, settings.clock12) : '',
@@ -87,18 +89,18 @@ export function widgetData(month: string, s: MonthSummary, settings: Settings, t
     const interest = a.type === 'investment' ? (end * (a.interestPct ?? 0)) / 100 : 0
     return { icon: categoryIcon(a.name), name: a.name, value: money(end + interest) }
   })
-  const dateLabel = (iso: string) => new Date(iso + 'T00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+  const dateLabel = (iso: string) => formatDateWith(new Date(iso + 'T00:00'), { day: 'numeric', month: 'short', year: 'numeric' })
   const goals = (settings.goals ?? []).map((g) => {
     const p = goalProgress(g, s.end)
     const done = p.left <= 0
     const late = !done && p.daysLeft !== null && p.daysLeft < 0
     const status = done
-      ? 'Reached!'
+      ? tr('Reached!')
       : late
-        ? `Deadline passed ${dateLabel(g.deadline!)}`
+        ? tr('Deadline passed {date}', { date: dateLabel(g.deadline!) })
         : p.perMonth !== null
-          ? `${money(p.perMonth)}/month to reach it by ${dateLabel(g.deadline!)}`
-          : `${money(p.left)} to go`
+          ? tr('{amount}/month to reach it by {date}', { amount: money(p.perMonth), date: dateLabel(g.deadline!) })
+          : tr('{amount} to go', { amount: money(p.left) })
     return {
       icon: done ? '🎉' : categoryIcon(g.accounts[0] ?? 'saving'),
       name: g.name,
@@ -123,7 +125,7 @@ export function widgetData(month: string, s: MonthSummary, settings: Settings, t
       spentPlanned: budget > 0 ? money(budget) : '',
       spentPct: pct(s.actual.expense, budget),
       over: budget > 0 && left < 0,
-      leftLabel: budget <= 0 ? 'No budget set' : left >= 0 ? 'Left to spend' : 'Over budget by',
+      leftLabel: budget <= 0 ? tr('No budget set') : left >= 0 ? tr('Left to spend') : tr('Over budget by'),
       left: budget <= 0 ? '' : money(Math.abs(left)),
       saved: money(s.saved),
       savedPct: s.savingsPct == null || hidden ? '' : `${Math.round(s.savingsPct)}%`,

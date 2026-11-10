@@ -8,7 +8,6 @@ import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import java.util.Locale
 import kotlinx.coroutines.tasks.await
 import org.json.JSONArray
 import org.json.JSONObject
@@ -150,7 +149,7 @@ object Sms {
             } else defaultTarget()
         val type = target.substringBefore(":")
         val name = target.substringAfter(":")
-        val title = p.merchant.ifEmpty { if (p.transfer) (if (p.direction == "credit") "Transfer in" else "Transfer out") else p.sender }
+        val title = p.merchant.ifEmpty { if (p.transfer) (if (p.direction == "credit") tr("Transfer in", "تحويل وارد") else tr("Transfer out", "تحويل صادر")) else p.sender }
         val category = rules.optJSONObject("merchants")?.optString(title.lowercase()).orEmpty()
         val foreign = if (p.currency != rules.optString("currency", "EGP")) " (${p.currency} ${plain(p.amount)})" else ""
         val (kind, account, debt) = when {
@@ -168,7 +167,7 @@ object Sms {
 
     /** "Thu, Nov 5", like dayLabel in src/data/month.ts. */
     private fun dayLabel(date: String): String =
-        runCatching { LocalDate.parse(date).format(DateTimeFormatter.ofPattern("EEE, MMM d", Locale.getDefault())) }.getOrDefault(date)
+        runCatching { LocalDate.parse(date).format(DateTimeFormatter.ofPattern(if (arabic) "EEE d MMM" else "EEE, MMM d", watchLocale())) }.getOrDefault(date)
 
     /** Added from the watch: hidden here until the phone's next list leaves it out. */
     fun markAdded(context: Context, smsId: String) {

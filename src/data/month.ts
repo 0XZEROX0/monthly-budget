@@ -1,3 +1,5 @@
+import { currentLang, locale, t } from '../i18n'
+
 export const currentMonth = () => today().slice(0, 7)
 
 export const today = () => {
@@ -24,16 +26,16 @@ export function shiftMonth(month: string, delta: number): string {
 // hundreds of amounts and dates on every draw, so each kind is built once and kept.
 const dateFormats = new Map<string, Intl.DateTimeFormat>()
 function formatDate(d: Date, opts: Intl.DateTimeFormatOptions): string {
-  const key = JSON.stringify(opts)
+  const key = currentLang() + JSON.stringify(opts)
   let f = dateFormats.get(key)
-  if (!f) dateFormats.set(key, (f = new Intl.DateTimeFormat(undefined, opts)))
+  if (!f) dateFormats.set(key, (f = new Intl.DateTimeFormat(locale(), opts)))
   return f.format(d)
 }
 const numberFormats = new Map<string, Intl.NumberFormat>()
 function numberFormat(opts: Intl.NumberFormatOptions): Intl.NumberFormat {
-  const key = JSON.stringify(opts)
+  const key = currentLang() + JSON.stringify(opts)
   let f = numberFormats.get(key)
-  if (!f) numberFormats.set(key, (f = new Intl.NumberFormat(undefined, opts)))
+  if (!f) numberFormats.set(key, (f = new Intl.NumberFormat(locale(), opts)))
   return f
 }
 
@@ -58,6 +60,15 @@ export function formatMoney(amount: number, currency: string, opts: Intl.NumberF
   }
 }
 
+/**
+ * An amount with a + or − in front, like −EGP 250. In Arabic the sign goes where Intl puts
+ * it, since a sign typed before right-to-left text would show on the wrong side.
+ */
+export function signedMoney(sign: '+' | '−' | '', amount: number, currency: string): string {
+  if (currentLang() !== 'ar' || !sign) return sign + formatMoney(amount, currency)
+  return formatMoney(sign === '−' ? -amount : amount, currency, sign === '+' ? { signDisplay: 'exceptZero' } : {})
+}
+
 /** A bare number for tight tiles: 1,284, or 1,284.50 with decimals on. */
 export const formatPlain = (amount: number) => {
   const digits = decimals ? 2 : 0
@@ -69,7 +80,10 @@ export const formatWhole = (amount: number, currency: string) => formatMoney(amo
 
 /** Compact, for chart axes: $1.2K */
 export const formatCompact = (amount: number, currency: string) =>
-  formatMoney(amount, currency, { notation: 'compact', maximumFractionDigits: 1, minimumFractionDigits: 0 })
+  // Arabic spells the thousands out (30 ألف), so the currency is left off to keep it short.
+  currentLang() === 'ar'
+    ? numberFormat({ notation: 'compact', maximumFractionDigits: 1 }).format(amount)
+    : formatMoney(amount, currency, { notation: 'compact', maximumFractionDigits: 1, minimumFractionDigits: 0 })
 
 export const daysInMonth = (month: string) => {
   const [y, m] = month.split('-').map(Number)
@@ -92,7 +106,7 @@ export const shortDay = (date: string, withDay = true) =>
 export function showTime(time: string, clock12?: boolean): string {
   if (!clock12) return time
   const [h, m] = time.split(':').map(Number)
-  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? t('AM') : t('PM')}`
 }
 
 /**
@@ -108,3 +122,9 @@ export function parseAmount(text: string): number {
     .replace(/[٫,]/g, '.')
   return s ? Number(s) : NaN
 }
+
+/** A date as text in the app's language, like 10 Nov 2026 (for one-off labels). */
+export const formatDateWith = (date: Date, opts: Intl.DateTimeFormatOptions) => formatDate(date, opts)
+
+/** A plain number with up to two decimals, in the app's language: 1,234.5 */
+export const formatNumber = (n: number, maxDigits = 2) => numberFormat({ maximumFractionDigits: maxDigits }).format(n)

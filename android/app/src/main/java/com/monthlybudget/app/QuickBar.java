@@ -49,8 +49,8 @@ final class QuickBar {
     static void show(Context ctx) {
         if (!enabled(ctx) || !allowed(ctx)) return;
         if (Build.VERSION.SDK_INT >= 26) {
-            NotificationChannel ch = new NotificationChannel(CHANNEL, "Quick add bar", NotificationManager.IMPORTANCE_LOW);
-            ch.setDescription("Buttons to add an expense, income or transfer, or see your summary");
+            NotificationChannel ch = new NotificationChannel(CHANNEL, L.t(ctx, "Quick add bar", "شريط الإضافة السريعة"), NotificationManager.IMPORTANCE_LOW);
+            ch.setDescription(L.t(ctx, "Buttons to add an expense, income or transfer, or see your summary", "أزرار لإضافة مصروف أو دخل أو تحويل، أو لعرض الملخص"));
             ch.setShowBadge(false);
             ch.setSound(null, null);
             ctx.getSystemService(NotificationManager.class).createNotificationChannel(ch);
@@ -65,7 +65,8 @@ final class QuickBar {
         // The same line the home screen widget shows, e.g. "Left to spend EGP 3,250".
         SharedPreferences w = WidgetPlugin.prefs(ctx);
         String value = WidgetPlugin.stale(ctx) ? "" : w.getString("value", "");
-        String line = value.isEmpty() ? "Quick add" : w.getString("label", "") + " " + value;
+        String quick = L.t(ctx, "Quick add", "إضافة سريعة");
+        String line = value.isEmpty() ? quick : w.getString("label", "") + " " + value;
 
         NotificationCompat.Builder b = new NotificationCompat.Builder(ctx, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_budget)
@@ -89,7 +90,7 @@ final class QuickBar {
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setPublicVersion(new NotificationCompat.Builder(ctx, CHANNEL)
                 .setSmallIcon(R.drawable.ic_stat_budget)
-                .setContentTitle("Quick add")
+                .setContentTitle(quick)
                 .setStyle(new NotificationCompat.DecoratedCustomViewStyle())
                 .setCustomContentView(v)
                 .setCustomBigContentView(v)

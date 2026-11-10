@@ -6,9 +6,11 @@ import type { Balances } from '../data/summary'
 import type { Goal, Settings } from '../data/types'
 import { NumberInput } from './NumberInput'
 import { ask, showAlert } from './dialog'
+import { t } from '../i18n'
+import { formatDateWith } from '../data/month'
 
 const MASK = '•••••'
-const dateLabel = (iso: string) => new Date(iso + 'T00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+const dateLabel = (iso: string) => formatDateWith(new Date(iso + 'T00:00'), { day: 'numeric', month: 'short', year: 'numeric' })
 
 /** Summary: progress toward each savings goal from its accounts' balances. */
 export function GoalsCard({ settings, balances, hidden, onEdit }: { settings: Settings; balances: Balances; hidden: boolean; onEdit: () => void }) {
@@ -18,9 +20,9 @@ export function GoalsCard({ settings, balances, hidden, onEdit }: { settings: Se
   return (
     <section className="card">
       <div className="card-head">
-        <h2>Savings goals</h2>
+        <h2>{t('Savings goals')}</h2>
         <button className="link small" onClick={onEdit}>
-          Edit
+          {t('Edit')}
         </button>
       </div>
       {goals.map((g) => {
@@ -44,12 +46,12 @@ export function GoalsCard({ settings, balances, hidden, onEdit }: { settings: Se
               <span className={`small ${late ? 'status-critical' : 'muted'}`}>
                 {Math.round(p.pct)}% · {g.accounts.join(' + ')}
                 {done
-                  ? ' · Reached!'
+                  ? ' · ' + t('Reached!')
                   : late
-                    ? ` · Deadline passed ${dateLabel(g.deadline!)}`
+                    ? ' · ' + t('Deadline passed {date}', { date: dateLabel(g.deadline!) })
                     : p.perMonth !== null
-                      ? ` · ${money(p.perMonth)}/month to reach it by ${dateLabel(g.deadline!)}`
-                      : ` · ${money(p.left)} to go`}
+                      ? ' · ' + t('{amount}/month to reach it by {date}', { amount: money(p.perMonth), date: dateLabel(g.deadline!) })
+                      : ' · ' + t('{amount} to go', { amount: money(p.left) })}
               </span>
             </div>
           </div>
@@ -68,16 +70,16 @@ export function GoalsEditor({ settings, onSave }: { settings: Settings; onSave: 
   const money = (n: number) => formatWhole(n, settings.currency)
   return (
     <section className="card" id="goals">
-      <h2>Savings goals</h2>
-      <p className="muted small">A target for any of your accounts, like Thndr by the end of the year or cash at home. Progress is their balance; the deadline is up to you.</p>
+      <h2>{t('Savings goals')}</h2>
+      <p className="muted small">{t('A target for any of your accounts, like Thndr by the end of the year or cash at home. Progress is their balance; the deadline is up to you.')}</p>
       {goals.map((g) => (
         <button className="edit-row row-link" key={g.id} onClick={() => setEditing(g)}>
           <span className="cat-icon plan-icon">{categoryIcon(g.accounts[0] ?? 'saving')}</span>
           <span className="grow list-main">
             <strong>{g.name}</strong>
             <span className="muted small">
-              {money(g.target)} in {g.accounts.join(' + ')}
-              {g.deadline ? ` by ${dateLabel(g.deadline)}` : ', no deadline'}
+              {t('{amount} in {accounts}', { amount: money(g.target), accounts: g.accounts.join(' + ') })}
+              {g.deadline ? ' ' + t('by {date}', { date: dateLabel(g.deadline) }) : t(', no deadline')}
             </span>
           </span>
           <span className="chevron" aria-hidden>›</span>
@@ -87,9 +89,9 @@ export function GoalsEditor({ settings, onSave }: { settings: Settings; onSave: 
         disabled={!savers.length}
         onClick={() => setEditing({ id: crypto.randomUUID().slice(0, 8), name: '', accounts: savers.slice(0, 1), target: 0, deadline: endOfYear() })}
       >
-        + New goal
+        + {t('New goal')}
       </button>
-      {!savers.length && <p className="muted small">Add an account first.</p>}
+      {!savers.length && <p className="muted small">{t('Add an account first.')}</p>}
       {editing && (
         <GoalForm
           goal={editing}
@@ -109,9 +111,9 @@ function GoalForm({ goal, accounts, currency, onSave, onRemove, onClose }: { goa
   const up = (p: Partial<Goal>) => setG((x) => ({ ...x, ...p }))
   const toggle = (a: string) => up({ accounts: g.accounts.includes(a) ? g.accounts.filter((x) => x !== a) : [...g.accounts, a] })
   const save = () => {
-    if (!g.accounts.length) return void showAlert('Pick at least one account.')
-    if (g.target <= 0) return void showAlert('Set how much you want to reach.')
-    const name = g.name.trim() || `${g.accounts.join(' + ')} goal`
+    if (!g.accounts.length) return void showAlert(t('Pick at least one account.'))
+    if (g.target <= 0) return void showAlert(t('Set how much you want to reach.'))
+    const name = g.name.trim() || t('{accounts} goal', { accounts: g.accounts.join(' + ') })
     onSave({ ...g, name, ...(g.deadline ? {} : { deadline: undefined }) })
     onClose()
   }
@@ -120,17 +122,17 @@ function GoalForm({ goal, accounts, currency, onSave, onRemove, onClose }: { goa
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
         <div className="sheet-grab" aria-hidden />
         <div className="sheet-head">
-          <h2>{onRemove ? `Edit ${goal.name}` : 'New savings goal'}</h2>
-          <button className="icon ghost" aria-label="Close" onClick={onClose}>
+          <h2>{onRemove ? t('Edit {name}', { name: goal.name }) : t('New savings goal')}</h2>
+          <button className="icon ghost" aria-label={t('Close')} onClick={onClose}>
             ✕
           </button>
         </div>
         <label className="field">
-          <span className="field-label">Name</span>
-          <input value={g.name} onChange={(e) => up({ name: e.target.value })} placeholder="Emergency fund, Thndr 2026…" />
+          <span className="field-label">{t('Name')}</span>
+          <input value={g.name} onChange={(e) => up({ name: e.target.value })} placeholder={t('Emergency fund, Thndr 2026…')} />
         </label>
         <div className="field">
-          <span className="field-label">Counts the balance of</span>
+          <span className="field-label">{t('Counts the balance of')}</span>
           <div className="row wrap">
             {accounts.map((a) => (
               <button key={a} className={`chip ${g.accounts.includes(a) ? 'active' : ''}`} aria-pressed={g.accounts.includes(a)} onClick={() => toggle(a)}>
@@ -140,31 +142,31 @@ function GoalForm({ goal, accounts, currency, onSave, onRemove, onClose }: { goa
           </div>
         </div>
         <label className="edit-row">
-          <span className="grow">Target ({currency})</span>
+          <span className="grow">{t('Target ({currency})', { currency })}</span>
           <span className="mini">
             <NumberInput value={g.target} onChange={(n) => up({ target: n })} />
           </span>
         </label>
         <div className="field">
-          <span className="field-label">Deadline</span>
+          <span className="field-label">{t('Deadline')}</span>
           <div className="segmented">
             <button className={g.deadline ? 'active' : ''} onClick={() => up({ deadline: g.deadline || endOfYear() })}>
-              By a date
+              {t('By a date')}
             </button>
             <button className={!g.deadline ? 'active' : ''} onClick={() => up({ deadline: undefined })}>
-              No deadline
+              {t('No deadline')}
             </button>
           </div>
-          {g.deadline && <input type="date" value={g.deadline} onChange={(e) => e.target.value && up({ deadline: e.target.value })} aria-label="Deadline" />}
+          {g.deadline && <input type="date" value={g.deadline} onChange={(e) => e.target.value && up({ deadline: e.target.value })} aria-label={t('Deadline')} />}
         </div>
         <div className="row">
           {onRemove && (
-            <button className="danger" onClick={() => ask(`Remove the goal ${goal.name}?`, { ok: 'Remove', danger: true }).then((ok) => ok && (onRemove(), onClose()))}>
-              Remove
+            <button className="danger" onClick={() => ask(t('Remove the goal {name}?', { name: goal.name }), { ok: t('Remove'), danger: true }).then((ok) => ok && (onRemove(), onClose()))}>
+              {t('Remove')}
             </button>
           )}
           <button className="primary grow" onClick={save}>
-            {onRemove ? 'Save' : 'Add goal'}
+            {onRemove ? t('Save') : t('Add goal')}
           </button>
         </div>
       </div>

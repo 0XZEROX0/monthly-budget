@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { describe, type BankSms } from '../data/bankSms'
-import { dayLabel, formatMoney } from '../data/month'
+import { dayLabel, signedMoney } from '../data/month'
 import type { ParsedSms } from '../data/smsParser'
+import { t } from '../i18n'
 
 interface Props {
   sms: BankSms
@@ -20,10 +21,8 @@ export function PendingSms({ sms, onAdd, onOpen }: Props) {
       <button className="card hint sms-hint" onClick={onOpen}>
         <span className="cat-icon plan-icon">✉️</span>
         <span>
-          <strong>
-            {sms.pending.length} bank {sms.pending.length === 1 ? 'message' : 'messages'} to review
-          </strong>
-          <span className="muted small">Pick a category to add {sms.pending.length === 1 ? 'it' : 'them'} to your budget</span>
+          <strong>{sms.pending.length === 1 ? t('1 bank message to review') : t('{n} bank messages to review', { n: sms.pending.length })}</strong>
+          <span className="muted small">{sms.pending.length === 1 ? t('Pick a category to add it to your budget') : t('Pick a category to add them to your budget')}</span>
         </span>
       </button>
     )
@@ -31,7 +30,7 @@ export function PendingSms({ sms, onAdd, onOpen }: Props) {
   return (
     <section className="stack sms-pending">
       <div className="day-head">
-        <span>Pending from bank SMS</span>
+        <span>{t('Pending from bank SMS')}</span>
         <span className="muted">{sms.pending.length}</span>
       </div>
       <ul className="card list">
@@ -47,17 +46,16 @@ export function PendingSms({ sms, onAdd, onOpen }: Props) {
                   </span>
                 </span>
                 <strong className={p.direction === 'credit' ? 'amount-in' : ''}>
-                  {p.direction === 'credit' ? '+' : '−'}
-                  {formatMoney(p.amount, p.currency)}
+                  {signedMoney(p.direction === 'credit' ? '+' : '−', p.amount, p.currency)}
                 </strong>
               </button>
               {open === p.smsId && <p className="sms-body small muted">{p.body}</p>}
               <div className="row sms-actions">
                 <button className="ghost small" onClick={() => sms.skip(p)}>
-                  Skip
+                  {t('Skip')}
                 </button>
                 <button className="primary small grow" onClick={() => onAdd(p)}>
-                  Review and add
+                  {t('Review and add')}
                 </button>
               </div>
             </div>

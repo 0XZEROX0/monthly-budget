@@ -22,6 +22,8 @@ data class WatchSettings(
     val decimals: Boolean = false,
     /** The phone user's own fee templates (InstaPay and E-wallet are built in). */
     val fees: List<FeeTemplate> = emptyList(),
+    /** Arabic text, right to left, like the phone's Settings › Language. */
+    val arabic: Boolean = false,
 ) {
     fun categories(kind: String) = if (kind == "income") income else expense
 
@@ -322,7 +324,11 @@ object Store {
                     FeeTemplate(it.getString("id"), it.getString("name"), it.getDouble("pct"), it.optDouble("min").takeIf { v -> !v.isNaN() }, it.optDouble("max").takeIf { v -> !v.isNaN() })
                 }
             } ?: emptyList(),
-        ).also { showDecimals = it.decimals }
+            o.optBoolean("arabic"),
+        ).also {
+            showDecimals = it.decimals
+            arabic = it.arabic
+        }
     }
 
     fun saveSettings(context: Context, s: WatchSettings) {
@@ -336,9 +342,11 @@ object Store {
             .put("allAccounts", JSONArray(s.allAccounts))
             .put("debts", JSONArray(s.debts))
             .put("decimals", s.decimals)
+            .put("arabic", s.arabic)
             .put("fees", JSONArray().also { a -> for (f in s.fees) a.put(JSONObject().put("id", f.id).put("name", f.name).put("pct", f.pct).put("min", f.min ?: JSONObject.NULL).put("max", f.max ?: JSONObject.NULL)) })
         prefs(context).edit().putString("settings", o.toString()).apply()
         showDecimals = s.decimals
+        arabic = s.arabic
     }
 
     fun queue(context: Context): List<Entry> {

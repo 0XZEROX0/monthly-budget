@@ -50,7 +50,7 @@ fun feeEntry(main: Entry, t: FeeTemplate, s: WatchSettings): Entry? {
         account = main.account,
         date = main.date,
         time = main.time,
-        description = "${t.name} fee" + if (main.description.isNotEmpty()) " · ${main.description}" else "",
+        description = feeLabel(t.name) + if (main.description.isNotEmpty()) " · ${main.description}" else "",
     )
 }
 

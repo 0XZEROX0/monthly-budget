@@ -10,6 +10,8 @@ import { LayoutEditor } from './SummaryLayoutEditor'
 import { BillsCard } from './Bills'
 import { GoalsCard } from './Goals'
 import type { ListFocus } from './TransactionList'
+import { t } from '../i18n'
+import { formatDateWith, signedMoney } from '../data/month'
 import { BudgetRing, Legend, MonthsChart, PaceChart, SavedChart, type MonthBar, type PacePoint, type SavedBar } from './charts'
 
 interface Props {
@@ -85,22 +87,22 @@ export const SummaryView = memo(function SummaryView({ backend, month, summary: 
       <section className="hero">
         <div className="hero-main">
           <div>
-            <span className="hero-label">{plannedSpend > 0 ? (left >= 0 ? 'Left to spend' : 'Over budget by') : 'Cash + bank'}</span>
+            <span className="hero-label">{plannedSpend > 0 ? (left >= 0 ? t('Left to spend') : t('Over budget by')) : t('Cash + bank')}</span>
             <div className="hero-value">{plannedSpend > 0 ? money(Math.abs(left)) : secret(s.liquidityEnd)}</div>
             <span className="hero-sub">
-              {plannedSpend > 0 ? `${secret(s.actual.expense)} spent of ${money(plannedSpend)} budget` : `Capital ${secret(s.capital)}`}
+              {plannedSpend > 0 ? t('{spent} spent of {budget} budget', { spent: secret(s.actual.expense), budget: money(plannedSpend) }) : t('Capital {amount}', { amount: secret(s.capital) })}
             </span>
           </div>
           {plannedSpend > 0 && <BudgetRing pct={pctSpent} />}
         </div>
         <div className="stats">
-          <Stat label="Income" value={plain(s.actual.income)} color="var(--income)" />
-          <Stat label="Spent" value={plain(s.spent)} color="var(--expense)" />
+          <Stat label={t('Income')} value={plain(s.actual.income)} color="var(--income)" />
+          <Stat label={t('Spent')} value={plain(s.spent)} color="var(--expense)" />
           <Stat
-            label={s.saved >= 0 ? 'Saved' : 'Overspent'}
+            label={s.saved >= 0 ? t('Saved') : t('Overspent')}
             value={formatPlain(Math.abs(s.saved))}
             tone={s.saved >= 0 ? 'good' : 'bad'}
-            sub={s.savingsPct !== null ? `${s.savingsPct >= 0 ? '+' : ''}${s.savingsPct.toFixed(0)}% of income` : undefined}
+            sub={s.savingsPct !== null ? t('{pct}% of income', { pct: `${s.savingsPct >= 0 ? '+' : ''}${s.savingsPct.toFixed(0)}` }) : undefined}
           />
         </div>
       </section>
@@ -111,7 +113,7 @@ export const SummaryView = memo(function SummaryView({ backend, month, summary: 
       {alerts.length > 0 && (
         <section className="card alerts">
           <div className="card-head">
-            <h2>Budget alerts</h2>
+            <h2>{t('Budget alerts')}</h2>
           </div>
           <ul className="plain-list">
             {alerts.map((a) => (
@@ -119,9 +121,9 @@ export const SummaryView = memo(function SummaryView({ backend, month, summary: 
                 <button className="row-link grow" onClick={() => (a.category ? onOpen({ kind: 'category', value: a.category }) : onPlan())}>
                   <span className="cat-icon">{a.level === 'over' ? '⚠️' : a.category ? categoryIcon(a.category) : '📊'}</span>
                   <span className="grow list-main">
-                    <span>{a.category ?? 'Whole budget'}</span>
+                    <span>{a.category ?? t('Whole budget')}</span>
                     <span className={`small ${a.level === 'over' ? 'status-critical' : 'status-warning'}`}>
-                      {a.level === 'over' ? `Over by ${money(a.actual - a.planned)}` : `${Math.round((a.actual / a.planned) * 100)}% used · ${money(a.planned - a.actual)} left`}
+                      {a.level === 'over' ? t('Over by {amount}', { amount: money(a.actual - a.planned) }) : t('{pct}% used · {amount} left', { pct: Math.round((a.actual / a.planned) * 100), amount: money(a.planned - a.actual) })}
                     </span>
                   </span>
                   <span className="chevron" aria-hidden>›</span>
@@ -142,8 +144,8 @@ export const SummaryView = memo(function SummaryView({ backend, month, summary: 
       <>
       <section className="card">
         <div className="card-head">
-          <h2>Accounts</h2>
-          <span className="muted small">Capital {secret(s.capital)}</span>
+          <h2>{t('Accounts')}</h2>
+          <span className="muted small">{t('Capital {amount}', { amount: secret(s.capital) })}</span>
         </div>
         <ul className="plain-list accounts">
           {settings.accounts.map((a) => {
@@ -157,8 +159,8 @@ export const SummaryView = memo(function SummaryView({ backend, month, summary: 
                 <span className="grow list-main">
                   <span>{a.name}</span>
                   <span className="muted small">
-                    {hidden ? 'Amount hidden' : delta === 0 ? 'No change' : `${delta > 0 ? '+' : '−'}${money(Math.abs(delta))} this month`}
-                    {interest > 0 && !hidden && ` · includes ~${money(interest)} interest (${a.interestPct}%)`}
+                    {hidden ? t('Amount hidden') : delta === 0 ? t('No change') : t('{amount} this month', { amount: signedMoney(delta > 0 ? '+' : '−', Math.abs(delta), currency) })}
+                    {interest > 0 && !hidden && ' · ' + t('includes ~{amount} interest ({pct}%)', { amount: money(interest), pct: a.interestPct ?? 0 })}
                   </span>
                 </span>
                 </button>
@@ -167,7 +169,7 @@ export const SummaryView = memo(function SummaryView({ backend, month, summary: 
                   <strong>{secret(end + interest)}</strong>
                   {a.type === 'investment' && (
                     <button className="link small" onClick={() => setUpdating(a)}>
-                      Update value
+                      {t('Update value')}
                     </button>
                   )}
                 </span>
@@ -176,7 +178,7 @@ export const SummaryView = memo(function SummaryView({ backend, month, summary: 
           })}
         </ul>
         <div className="liquidity">
-          <span className="muted small">Cash + bank</span>
+          <span className="muted small">{t('Cash + bank')}</span>
           <span>
             <span className="muted">{secret(s.liquidityStart)}</span> → <strong>{secret(s.liquidityEnd)}</strong>
           </span>
@@ -193,20 +195,20 @@ export const SummaryView = memo(function SummaryView({ backend, month, summary: 
       <>
       <section className="card">
         <div className="card-head">
-          <h2>Spending this month</h2>
+          <h2>{t('Spending this month')}</h2>
           <span className="muted small">{secret(s.spent)}</span>
         </div>
         <Legend
           items={[
-            { label: 'Spent so far', color: 'var(--expense)' },
-            ...(plannedSpend > 0 ? [{ label: 'Budget pace', color: 'var(--pace)', line: true }] : []),
+            { label: t('Spent so far'), color: 'var(--expense)' },
+            ...(plannedSpend > 0 ? [{ label: t('Budget pace'), color: 'var(--pace)', line: true }] : []),
           ]}
         />
         <PaceChart
           points={pace}
           format={money}
           axisFormat={compact}
-          dayName={(d) => new Date(`${month}-${String(d).padStart(2, '0')}T00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+          dayName={(d) => formatDateWith(new Date(`${month}-${String(d).padStart(2, '0')}T00:00`), { day: 'numeric', month: 'short' })}
         />
       </section>
       </>
@@ -215,17 +217,17 @@ export const SummaryView = memo(function SummaryView({ backend, month, summary: 
       <>
       <section className="card">
         <div className="card-head">
-          <h2>Where your money went</h2>
-          <span className="muted small">vs budget</span>
+          <h2>{t('Where your money went')}</h2>
+          <span className="muted small">{t('vs budget')}</span>
         </div>
         {spending.length === 0 && !s.debtPayments ? (
-          <p className="muted small">No expenses yet. Tap + to add one.</p>
+          <p className="muted small">{t('No expenses yet. Tap + to add one.')}</p>
         ) : (
           <>
             {spending.map((r) => (
               <CategoryBar key={r.category} row={r} money={money} onOpen={() => onOpen({ kind: 'category', value: r.category })} />
             ))}
-            {s.debtPayments > 0 && !settings.categories.expense.includes(settings.debtCategory ?? '') && <CategoryBar row={{ category: 'Debt payments', planned: 0, actual: s.debtPayments, diff: 0 }} money={money} note="Paid back on your debts" onOpen={() => onOpen({ kind: 'debtPayments' })} />}
+            {s.debtPayments > 0 && !settings.categories.expense.includes(settings.debtCategory ?? '') && <CategoryBar row={{ category: t('Debt payments'), planned: 0, actual: s.debtPayments, diff: 0 }} money={money} note={t('Paid back on your debts')} onOpen={() => onOpen({ kind: 'debtPayments' })} />}
           </>
         )}
       </section>
@@ -236,8 +238,8 @@ export const SummaryView = memo(function SummaryView({ backend, month, summary: 
       {debts.length > 0 && (
         <section className="card">
           <div className="card-head">
-            <h2>Debts</h2>
-            <span className="muted small">{secret(totalDebt)} owed</span>
+            <h2>{t('Debts')}</h2>
+            <span className="muted small">{t('{amount} owed', { amount: secret(totalDebt) })}</span>
           </div>
           {debts.map((d) => {
             const owed = s.end.debts[d.name] ?? 0
@@ -259,8 +261,8 @@ export const SummaryView = memo(function SummaryView({ backend, month, summary: 
                     <div className="meter-fill debt-fill" style={{ width: `${(owed / scale) * 100}%` }} />
                   </div>
                   <span className="small muted">
-                    {paid > 0 ? `Paid ${money(paid)} this month` : 'No payment this month'}
-                    {d.limit > 0 && ` · ${secret(Math.max(0, d.limit - owed))} available`}
+                    {paid > 0 ? t('Paid {amount} this month', { amount: money(paid) }) : t('No payment this month')}
+                    {d.limit > 0 && ' · ' + t('{amount} available', { amount: secret(Math.max(0, d.limit - owed)) })}
                   </span>
                 </div>
               </button>
@@ -275,13 +277,13 @@ export const SummaryView = memo(function SummaryView({ backend, month, summary: 
       {hasTrend && (
         <section className="card">
           <div className="card-head">
-            <h2>Saved each month</h2>
-            <span className="muted small">Tap a month to open it</span>
+            <h2>{t('Saved each month')}</h2>
+            <span className="muted small">{t('Tap a month to open it')}</span>
           </div>
           <Legend
             items={[
-              { label: 'Saved', color: 'var(--income)' },
-              { label: 'Overspent', color: 'var(--expense)' },
+              { label: t('Saved'), color: 'var(--income)' },
+              { label: t('Overspent'), color: 'var(--expense)' },
             ]}
           />
           <SavedChart bars={trend as SavedBar[]} current={month} format={money} axisFormat={compact} onSelect={onSelectMonth} />
@@ -294,17 +296,17 @@ export const SummaryView = memo(function SummaryView({ backend, month, summary: 
       {hasTrend && (
         <section className="card">
           <div className="card-head">
-            <h2>Income vs spending</h2>
-            <span className="muted small">Last {TREND_MONTHS} months</span>
+            <h2>{t('Income vs spending')}</h2>
+            <span className="muted small">{t('Last {n} months', { n: TREND_MONTHS })}</span>
           </div>
           <Legend
             items={[
-              { label: 'Income', color: 'var(--income)' },
-              { label: 'Spent', color: 'var(--expense)' },
+              { label: t('Income'), color: 'var(--income)' },
+              { label: t('Spent'), color: 'var(--expense)' },
             ]}
           />
           {hidden ? (
-            <p className="muted small">Hidden in privacy mode.</p>
+            <p className="muted small">{t('Hidden in privacy mode.')}</p>
           ) : (
             <MonthsChart bars={trend as MonthBar[]} current={month} format={money} axisFormat={compact} onSelect={onSelectMonth} />
           )}
@@ -317,7 +319,7 @@ export const SummaryView = memo(function SummaryView({ backend, month, summary: 
       {income.length > 0 && (
         <section className="card">
           <div className="card-head">
-            <h2>Income</h2>
+            <h2>{t('Income')}</h2>
             <span className="muted small">{secret(s.actual.income)}</span>
           </div>
           <ul className="plain-list">
@@ -326,7 +328,7 @@ export const SummaryView = memo(function SummaryView({ backend, month, summary: 
                 <button className="row-link grow" onClick={() => onOpen({ kind: 'category', value: r.category })}>
                   <span className="cat-icon">{categoryIcon(r.category)}</span>
                   <span className="grow">{r.category}</span>
-                  <span className="muted small">{r.planned ? `of ${money(r.planned)}` : ''}</span>
+                  <span className="muted small">{r.planned ? t('of {amount}', { amount: money(r.planned) }) : ''}</span>
                   <strong>{secret(r.actual)}</strong>
                 </button>
               </li>
@@ -339,7 +341,7 @@ export const SummaryView = memo(function SummaryView({ backend, month, summary: 
   }
   const layout = summaryLayout(settings)
   const shown = layout.order.filter((k) => !layout.hidden.includes(k))
-  const saveLayout = (l: SummaryLayout) => backend.saveSettings({ ...settings, summaryLayout: l }).catch((e: Error) => showAlert(`Could not save: ${e.message}`))
+  const saveLayout = (l: SummaryLayout) => backend.saveSettings({ ...settings, summaryLayout: l }).catch((e: Error) => showAlert(t('Could not save: {error}', { error: e.message })))
 
   if (editing) return <LayoutEditor layout={layout} onChange={saveLayout} onDone={() => setEditing(false)} />
 
@@ -347,15 +349,15 @@ export const SummaryView = memo(function SummaryView({ backend, month, summary: 
     <div className="stack">
       <div className="summary-tools">
         <button className="link small" onClick={() => setEditing(true)}>
-          ✎ Edit layout
+          ✎ {t('Edit layout')}
         </button>
       </div>
       {!hasPlan && (
         <button className="card hint" onClick={onPlan}>
           <span className="hint-icon">✎</span>
           <span>
-            <strong>Set a budget for this month</strong>
-            <span className="muted small">Choose how much you plan to spend per category, or copy last month's.</span>
+            <strong>{t('Set a budget for this month')}</strong>
+            <span className="muted small">{t("Choose how much you plan to spend per category, or copy last month's.")}</span>
           </span>
         </button>
       )}
@@ -449,7 +451,7 @@ function CategoryBar({ row, money, note, onOpen }: { row: CategoryRow; money: (n
   const scale = Math.max(row.planned, row.actual, 1)
   const over = row.planned > 0 && row.actual > row.planned
   return (
-    <button className="cat-row row-link" onClick={onOpen} aria-label={`${row.category}: see transactions`}>
+    <button className="cat-row row-link" onClick={onOpen} aria-label={t('{name}: see transactions', { name: row.category })}>
       <span className="cat-icon">{categoryIcon(row.category)}</span>
       <div className="cat-body">
         <div className="cat-line">
@@ -459,18 +461,18 @@ function CategoryBar({ row, money, note, onOpen }: { row: CategoryRow; money: (n
             {row.planned > 0 && <span className="muted"> / {money(row.planned)}</span>}
           </span>
         </div>
-        <div className="meter" title={`${money(row.actual)} of ${money(row.planned)}`}>
+        <div className="meter" title={t('{amount} of {total}', { amount: money(row.actual), total: money(row.planned) })}>
           {row.planned > 0 && <div className="meter-plan" style={{ width: `${(row.planned / scale) * 100}%` }} />}
           <div className={`meter-fill ${over ? 'over' : ''}`} style={{ width: `${(row.actual / scale) * 100}%` }} />
         </div>
         {note ? (
           <span className="small muted">{note}</span>
         ) : over ? (
-          <span className="small status-critical">⚠ Over by {money(row.actual - row.planned)}</span>
+          <span className="small status-critical">⚠ {t('Over by {amount}', { amount: money(row.actual - row.planned) })}</span>
         ) : row.planned > 0 ? (
-          <span className="small muted">{money(row.planned - row.actual)} left</span>
+          <span className="small muted">{t('{amount} left', { amount: money(row.planned - row.actual) })}</span>
         ) : (
-          <span className="small muted">No budget set</span>
+          <span className="small muted">{t('No budget set')}</span>
         )}
       </div>
       <span className="chevron" aria-hidden>›</span>

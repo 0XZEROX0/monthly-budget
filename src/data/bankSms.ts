@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import { App } from '@capacitor/app'
 import type { PermissionState } from '@capacitor/core'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -36,7 +37,7 @@ export const splitTarget = (t: SmsTarget) => {
 }
 
 export const describe = (p: ParsedSms) =>
-  p.merchant || (p.transfer ? (p.direction === 'credit' ? 'Transfer in' : 'Transfer out') : p.sender)
+  p.merchant || (p.transfer ? (p.direction === 'credit' ? t('Transfer in') : t('Transfer out')) : p.sender)
 
 /** A transaction to review in the form. Category is left empty unless this merchant has one saved. */
 export function draftFor(p: ParsedSms, settings: Settings): NewTransaction {

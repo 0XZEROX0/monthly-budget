@@ -32,8 +32,9 @@ private fun data(context: Context, type: ComplicationType, g: Glance, hidden: Bo
         hidden -> "$pctLeft%"
         else -> compact(g.left)
     }
-    val title = if (g.left < 0) "over" else "left"
-    val description = plain(if (g.planned > 0) "${leftLabel(g)}: $value" else "No plan this month")
+    Store.settings(context) // loads the language for the words below
+    val title = if (g.left < 0) tr("over", "تجاوز") else tr("left", "متبقي")
+    val description = plain(if (g.planned > 0) "${leftLabel(g)}: $value" else tr("No plan this month", "لا خطة هذا الشهر"))
     val tap = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
     return when (type) {
         ComplicationType.SHORT_TEXT ->

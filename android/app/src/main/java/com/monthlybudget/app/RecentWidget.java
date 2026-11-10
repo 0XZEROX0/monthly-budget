@@ -9,6 +9,6 @@ import org.json.JSONObject;
 public class RecentWidget extends BoardWidget {
     @Override
     RemoteViews views(Context ctx, int id, JSONObject data, Bundle size) {
-        return WidgetViews.card(ctx, id, "recent", "Latest expenses", data, null, 40, true);
+        return WidgetViews.card(ctx, id, "recent", L.t(ctx, "Latest expenses", "آخر المصروفات"), data, null, 40, true);
     }
 }

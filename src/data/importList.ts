@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import { findAccount, guessType } from './accounts'
 import type { Settings, Transaction } from './types'
 
@@ -153,7 +154,7 @@ export function importList(grid: Grid, cols: Columns, current: Settings, existin
     ids.set(baseId, n + 1)
     out.push({ ...t, id: n ? `${baseId}-${n}` : baseId })
   }
-  if (!out.length && !skipped) throw new Error('No entries were found in this file.')
+  if (!out.length && !skipped) throw new Error(t('No entries were found in this file.'))
   const dates = out.map((t) => t.date).sort()
   return { settings, transactions: out, skipped, first: dates[0] ?? '', last: dates[dates.length - 1] ?? '', newAccounts, newCategories }
 }

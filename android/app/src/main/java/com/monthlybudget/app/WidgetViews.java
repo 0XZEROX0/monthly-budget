@@ -45,7 +45,7 @@ final class WidgetViews {
         v.setPendingIntentTemplate(R.id.widget_list, PendingIntent.getActivity(ctx, code + 2,
             tapIntent(ctx, tapLink), PendingIntent.FLAG_MUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
         v.setEmptyView(R.id.widget_list, R.id.widget_empty);
-        v.setTextViewText(R.id.widget_empty, data != null ? emptyNote(kind) : WidgetPlugin.stale(ctx) ? WidgetPlugin.STALE_NOTE : "Open the app to load your numbers");
+        v.setTextViewText(R.id.widget_empty, data != null ? emptyNote(ctx, kind) : WidgetPlugin.stale(ctx) ? WidgetPlugin.staleNote(ctx) : L.t(ctx, "Open the app to load your numbers", "افتح التطبيق لعرض أرقامك"));
         return v;
     }
 
@@ -56,12 +56,12 @@ final class WidgetViews {
         return i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
     }
 
-    private static String emptyNote(String kind) {
+    private static String emptyNote(Context ctx, String kind) {
         switch (kind) {
-            case "categories": return "No spending or budget this month yet";
-            case "recent": return "No expenses this month yet";
-            case "goals": return "No savings goals yet. Add one in Settings.";
-            default: return "No accounts yet";
+            case "categories": return L.t(ctx, "No spending or budget this month yet", "لا مصروفات ولا ميزانية هذا الشهر بعد");
+            case "recent": return L.t(ctx, "No expenses this month yet", "لا مصروفات هذا الشهر بعد");
+            case "goals": return L.t(ctx, "No savings goals yet. Add one in Settings.", "لا أهداف ادخار بعد. أضف هدفًا من الإعدادات.");
+            default: return L.t(ctx, "No accounts yet", "لا حسابات بعد");
         }
     }
 
@@ -112,7 +112,7 @@ final class WidgetViews {
      * An expense's second line, "Food · Today, 8:30 PM". The day is worded here from the entry's
      * date, so it reads Yesterday once midnight passes, without the app being opened.
      */
-    static String recentSub(JSONObject o) {
+    static String recentSub(Context ctx, JSONObject o) {
         String date = o.optString("date");
         if (date.isEmpty()) return o.optString("sub");
         String day;
@@ -124,9 +124,10 @@ final class WidgetViews {
             String today = iso.format(c.getTime());
             c.add(java.util.Calendar.DAY_OF_MONTH, -1);
             String yesterday = iso.format(c.getTime());
-            day = date.equals(today) ? "Today"
-                : date.equals(yesterday) ? "Yesterday"
-                : new java.text.SimpleDateFormat("EEE d MMM", java.util.Locale.getDefault()).format(d);
+            boolean ar = L.ar(ctx);
+            day = date.equals(today) ? (ar ? "اليوم" : "Today")
+                : date.equals(yesterday) ? (ar ? "أمس" : "Yesterday")
+                : new java.text.SimpleDateFormat("EEE d MMM", ar ? java.util.Locale.forLanguageTag("ar-EG-u-nu-latn") : java.util.Locale.getDefault()).format(d);
         } catch (Exception e) {
             return o.optString("sub");
         }
@@ -144,7 +145,7 @@ final class WidgetViews {
         switch (kind) {
             case "categories": r = category(ctx, o); break;
             case "goals": r = goal(ctx, o); break;
-            case "recent": r = item(ctx, o.optString("icon"), o.optString("title"), recentSub(o), o.optString("amount")); break;
+            case "recent": r = item(ctx, o.optString("icon"), o.optString("title"), recentSub(ctx, o), o.optString("amount")); break;
             default: r = item(ctx, o.optString("icon"), o.optString("name"), null, o.optString("value"));
         }
         // Rows open the app through the list's PendingIntent template.

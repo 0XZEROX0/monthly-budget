@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { currentMonth } from '../data/month'
+import { currentMonth, formatDateWith } from '../data/month'
+import { t } from '../i18n'
 
 interface Props {
   month: string
@@ -7,7 +8,7 @@ interface Props {
   onClose: () => void
 }
 
-const MONTHS = Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleDateString(undefined, { month: 'short' }))
+const months = () => Array.from({ length: 12 }, (_, i) => formatDateWith(new Date(2000, i, 1), { month: 'short' }))
 
 /** A year of months to jump to; the year arrows only change the year shown. */
 export function MonthPicker({ month, onPick, onClose }: Props) {
@@ -15,18 +16,18 @@ export function MonthPicker({ month, onPick, onClose }: Props) {
   const now = currentMonth()
   return (
     <div className="sheet-backdrop picker-backdrop" onClick={onClose}>
-      <div className="sheet picker" role="dialog" aria-label="Choose a month" onClick={(e) => e.stopPropagation()}>
+      <div className="sheet picker" role="dialog" aria-label={t('Choose a month')} onClick={(e) => e.stopPropagation()}>
         <div className="picker-head">
-          <button className="icon ghost" aria-label="Previous year" onClick={() => setYear((y) => y - 1)}>
+          <button className="icon ghost" aria-label={t('Previous year')} onClick={() => setYear((y) => y - 1)}>
             ‹
           </button>
           <strong>{year}</strong>
-          <button className="icon ghost" aria-label="Next year" onClick={() => setYear((y) => y + 1)}>
+          <button className="icon ghost" aria-label={t('Next year')} onClick={() => setYear((y) => y + 1)}>
             ›
           </button>
         </div>
         <div className="picker-grid">
-          {MONTHS.map((label, i) => {
+          {months().map((label, i) => {
             const m = `${year}-${String(i + 1).padStart(2, '0')}`
             return (
               <button
@@ -51,7 +52,7 @@ export function MonthPicker({ month, onPick, onClose }: Props) {
               onClose()
             }}
           >
-            Go to current month
+            {t('Go to current month')}
           </button>
         )}
       </div>

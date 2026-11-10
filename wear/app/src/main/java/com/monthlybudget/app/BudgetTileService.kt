@@ -119,13 +119,13 @@ private fun budget(context: Context, device: DeviceParameters, g: Glance, hidden
         .addContent(LayoutElementBuilders.Spacer.Builder().setHeight(dp(6f)).build())
         .addContent(
             LayoutElementBuilders.Row.Builder()
-                .addContent(button("−", "expense", "Add expense", EXPENSE))
+                .addContent(button("−", "expense", tr("Add expense", "إضافة مصروف"), EXPENSE))
                 .addContent(gap())
-                .addContent(button("+", "income", "Add income", INCOME))
+                .addContent(button("+", "income", tr("Add income", "إضافة دخل"), INCOME))
                 .addContent(gap())
-                .addContent(button("⇄", "transfer", "Add transfer", TRANSFER))
+                .addContent(button("⇄", "transfer", tr("Add transfer", "إضافة تحويل"), TRANSFER))
                 .addContent(gap())
-                .addContent(button("💳", "debt", "Add debt payment or borrowing", DEBT))
+                .addContent(button("💳", "debt", tr("Add debt payment or borrowing", "سداد دين أو اقتراض"), DEBT))
                 .build(),
         )
         .build()
@@ -144,6 +144,6 @@ private fun budget(context: Context, device: DeviceParameters, g: Glance, hidden
 
 private fun unlinked(context: Context, device: DeviceParameters): LayoutElementBuilders.LayoutElement =
     PrimaryLayout.Builder(device)
-        .setContent(text(context, "Open Monthly Budget on your phone to link this watch", Typography.TYPOGRAPHY_BODY2, Colors.DEFAULT.onSurface))
-        .setPrimaryChipContent(CompactChip.Builder(context, "Open", open(context, "open", null), device).build())
+        .setContent(text(context, tr("Open Monthly Budget on your phone to link this watch", "افتح تطبيق الميزانية الشهرية على هاتفك لربط هذه الساعة"), Typography.TYPOGRAPHY_BODY2, Colors.DEFAULT.onSurface))
+        .setPrimaryChipContent(CompactChip.Builder(context, tr("Open", "فتح"), open(context, "open", null), device).build())
         .build()

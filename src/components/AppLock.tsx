@@ -2,6 +2,7 @@ import { App } from '@capacitor/app'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AppLock, lockSupported } from '../native/appLock'
 import { showAlert } from './dialog'
+import { t } from '../i18n'
 
 // Fingerprint (or the phone's own PIN or pattern) to open the app. A setting of this
 // phone only, so it doesn't follow you to the website or another device.
@@ -24,7 +25,7 @@ export function useAppLock() {
 
   const unlock = useCallback(async () => {
     try {
-      const { ok } = await AppLock.unlock({ title: 'Unlock Monthly Budget', subtitle: 'Use your fingerprint or phone PIN' })
+      const { ok } = await AppLock.unlock({ title: t('Unlock Monthly Budget'), subtitle: t('Use your fingerprint or phone PIN') })
       if (ok) setLocked(false)
     } catch {
       // Cancelled; the lock screen stays with its Unlock button.
@@ -60,8 +61,8 @@ export function useAppLock() {
   const setEnabled = async (on: boolean) => {
     if (on) {
       const { available } = await AppLock.available()
-      if (!available) return showAlert('Set up a fingerprint or a screen lock (PIN, pattern or password) in your phone settings first.')
-      const { ok } = await AppLock.unlock({ title: 'Turn on app lock', subtitle: 'Confirm with your fingerprint or phone PIN' }).catch(() => ({ ok: false }))
+      if (!available) return showAlert(t('Set up a fingerprint or a screen lock (PIN, pattern or password) in your phone settings first.'))
+      const { ok } = await AppLock.unlock({ title: t('Turn on app lock'), subtitle: t('Confirm with your fingerprint or phone PIN') }).catch(() => ({ ok: false }))
       if (!ok) return
     }
     try {
@@ -79,10 +80,10 @@ export function LockScreen({ onUnlock }: { onUnlock: () => void }) {
   return (
     <div className="center signin lock-screen">
       <img src="./favicon.svg" alt="" width={72} height={72} />
-      <h1>Monthly Budget is locked</h1>
-      <p className="muted">Use your fingerprint or your phone's PIN to open it.</p>
+      <h1>{t('Monthly Budget is locked')}</h1>
+      <p className="muted">{t("Use your fingerprint or your phone's PIN to open it.")}</p>
       <button className="primary" onClick={onUnlock}>
-        Unlock
+        {t('Unlock')}
       </button>
     </div>
   )
@@ -92,11 +93,11 @@ export function SecurityCard({ enabled, onChange }: { enabled: boolean; onChange
   if (!lockSupported) return null
   return (
     <section className="card">
-      <h2>App lock</h2>
+      <h2>{t('App lock')}</h2>
       <label className="edit-row toggle-row">
         <span className="grow">
-          Lock with fingerprint or PIN
-          <span className="muted small block">Asks when you open the app, and after it's been in the background for 30 seconds.</span>
+          {t('Lock with fingerprint or PIN')}
+          <span className="muted small block">{t("Asks when you open the app, and after it's been in the background for 30 seconds.")}</span>
         </span>
         <input type="checkbox" role="switch" checked={enabled} onChange={(e) => onChange(e.target.checked)} />
       </label>

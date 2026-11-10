@@ -15,10 +15,10 @@ public class AccountsWidget extends BoardWidget {
 
     @Override
     RemoteViews views(Context ctx, int id, JSONObject data, Bundle size) {
-        RemoteViews v = WidgetViews.card(ctx, id, "accounts", "Accounts", data, "monthlybudget://summary", 50, false);
+        RemoteViews v = WidgetViews.card(ctx, id, "accounts", L.t(ctx, "Accounts", "الحسابات"), data, "monthlybudget://summary", 50, false);
         if (data == null) return v;
         String debts = data.optString("debts");
-        WidgetViews.footer(v, "Cash + bank " + data.optString("liquidity") + (debts.isEmpty() ? "" : " · Debts " + debts));
+        WidgetViews.footer(v, L.t(ctx, "Cash + bank ", "كاش + بنك ") + data.optString("liquidity") + (debts.isEmpty() ? "" : L.t(ctx, " · Debts ", " · الديون ") + debts));
         return v;
     }
 }

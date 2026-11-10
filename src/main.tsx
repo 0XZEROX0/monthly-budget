@@ -5,9 +5,11 @@ import './index.css'
 import App from './App.tsx'
 import { startUpdates } from './data/appUpdate'
 import { applyTheme, cachedTheme } from './data/theme'
+import { applyLang, cachedLang } from './i18n'
 import { DialogHost } from './components/dialog'
 
 applyTheme(cachedTheme())
+applyLang(cachedLang())
 
 startUpdates()
 if (!Capacitor.isNativePlatform())
