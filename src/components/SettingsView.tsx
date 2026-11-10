@@ -15,6 +15,7 @@ import { SmsSettingsCard } from './SmsSettingsCard'
 import { QuickBarCard } from './QuickBarCard'
 import { quickBarSupported } from '../native/quickBar'
 import { UpdateCard } from './UpdateCard'
+import { FeedbackCard } from './FeedbackCard'
 import { useReorder } from './useReorder'
 import { ask, askText, showAlert } from './dialog'
 import { askEditCategory, askEditHolder, askNewCategory } from './categoryRename'
@@ -154,6 +155,8 @@ export function SettingsView({ backend, settings, sms, user, onSignOut, lock, in
           <ImportCard backend={backend} settings={settings} />
         </>,
       )}
+
+      {group('feedback', 'Feedback', 'Suggest a feature or report a problem', '💬', <FeedbackCard user={backend.mode === 'cloud' ? user : null} />)}
 
       {group(
         'app',
