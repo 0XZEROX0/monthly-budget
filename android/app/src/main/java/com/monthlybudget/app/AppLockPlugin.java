@@ -26,6 +26,16 @@ public class AppLockPlugin extends Plugin {
         call.resolve(ret);
     }
 
+    /** Hides the app's preview on the recent apps screen while the lock is on (Android 13+). */
+    @PluginMethod
+    public void setPrivate(PluginCall call) {
+        boolean on = Boolean.TRUE.equals(call.getBoolean("on", false));
+        getActivity().runOnUiThread(() -> {
+            if (android.os.Build.VERSION.SDK_INT >= 33) getActivity().setRecentsScreenshotEnabled(!on);
+            call.resolve();
+        });
+    }
+
     @PluginMethod
     public void unlock(PluginCall call) {
         BiometricPrompt.PromptInfo info = new BiometricPrompt.PromptInfo.Builder()

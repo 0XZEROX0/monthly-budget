@@ -54,12 +54,21 @@ jobs:
       - name: Zip the web files
         run: cd dist && zip -qr "$RUNNER_TEMP/web.zip" .
 
-      # Optional private signing key; without it the committed debug key is used.
+      # The private signing key from repository secrets. Without it the committed debug key
+      # (public, so anyone could sign a look-alike update with it) is used, which is only
+      # allowed off main: a release must never go out signed with it.
       - name: Load signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-        if: env.KEYSTORE_BASE64 != ''
         run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            if [ "$GITHUB_REF" = "refs/heads/main" ]; then
+              echo "::error::The ANDROID_KEYSTORE_BASE64 secret is missing; refusing to release with the public debug key"
+              exit 1
+            fi
+            echo "::warning::No private signing key; this test build uses the public debug key"
+            exit 0
+          fi
           echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
           echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
 

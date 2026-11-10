@@ -25,11 +25,19 @@ jobs:
           cache: gradle
 
       # Same optional private key as the phone app; the two must be signed alike to link.
+      # Without the private key the public debug key would be used; never for a release.
       - name: Load signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-        if: env.KEYSTORE_BASE64 != ''
         run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            if [ "$GITHUB_REF" = "refs/heads/main" ]; then
+              echo "::error::The ANDROID_KEYSTORE_BASE64 secret is missing; refusing to release with the public debug key"
+              exit 1
+            fi
+            echo "::warning::No private signing key; this test build uses the public debug key"
+            exit 0
+          fi
           echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
           echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
 

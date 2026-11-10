@@ -95,7 +95,7 @@ function useUpdater() {
         const h = await AppUpdater.addListener('downloadProgress', (p) =>
           setStatus({ state: 'downloading', pct: p.total > 0 ? Math.round((p.downloaded * 100) / p.total) : null }),
         )
-        const r = await AppUpdater.downloadAndInstall({ url: update.url }).finally(() => h.remove())
+        const r = await AppUpdater.downloadAndInstall({ url: update.url, checksum: update.checksum }).finally(() => h.remove())
         setStatus(r.needsPermission ? { state: 'allow' } : { state: 'idle' })
       }
     } catch (e) {

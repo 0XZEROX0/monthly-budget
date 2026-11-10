@@ -2,8 +2,11 @@ import { registerPlugin, type PluginListenerHandle } from '@capacitor/core'
 
 /** The native side is android/app/src/main/java/com/monthlybudget/app/AppUpdaterPlugin.java. */
 interface AppUpdaterPlugin {
-  /** Downloads the APK and opens Android's installer. needsPermission: Android's "install unknown apps" screen opened instead. */
-  downloadAndInstall(opts: { url: string }): Promise<{ needsPermission: boolean }>
+  /**
+   * Downloads the APK and opens Android's installer. needsPermission: Android's "install unknown apps" screen opened instead.
+   * Only from the app's GitHub releases; with `checksum` (SHA-256, hex) a file that doesn't match is refused.
+   */
+  downloadAndInstall(opts: { url: string; checksum?: string }): Promise<{ needsPermission: boolean }>
   /** Opens the installer for the APK already downloaded. */
   installDownloaded(): Promise<{ needsPermission: boolean }>
   /** Checks GitHub for a newer build every few hours in the background and notifies when there is one. */

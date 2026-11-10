@@ -85,6 +85,18 @@ final class QuickBar {
             .setShowWhen(false)
             .setLocalOnly(true)
             .setCategory(NotificationCompat.CATEGORY_STATUS)
+            // On the lock screen: the same buttons, but not how much is left.
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(new NotificationCompat.Builder(ctx, CHANNEL)
+                .setSmallIcon(R.drawable.ic_stat_budget)
+                .setContentTitle("Quick add")
+                .setStyle(new NotificationCompat.DecoratedCustomViewStyle())
+                .setCustomContentView(v)
+                .setCustomBigContentView(v)
+                .setContentIntent(link(ctx, "monthlybudget://summary", 14))
+                .setSilent(true)
+                .setShowWhen(false)
+                .build())
             .setPriority(NotificationCompat.PRIORITY_LOW);
         try {
             NotificationManagerCompat.from(ctx).notify(ID, b.build());

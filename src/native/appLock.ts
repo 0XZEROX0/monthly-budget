@@ -6,6 +6,8 @@ interface AppLockPlugin {
   available(): Promise<{ available: boolean }>
   /** Shows Android's prompt: fingerprint, or the phone's PIN/pattern instead. */
   unlock(opts: { title: string; subtitle?: string }): Promise<{ ok: boolean }>
+  /** While on, Android's recent apps screen shows a blank card instead of your numbers (Android 13 and later). */
+  setPrivate(opts: { on: boolean }): Promise<void>
 }
 
 export const AppLock = registerPlugin<AppLockPlugin>('AppLock')
