@@ -87,7 +87,7 @@ export function SettingsView({ backend, settings, sms, user, onSignOut, lock, in
       <LanguageCard settings={settings} onSave={save} />
 
       {onShowGuide && (
-        <button className="card hint guide-again" onClick={onShowGuide}>
+        <button className="card hint guide-again" data-guide="again" onClick={onShowGuide}>
           <span className="setup-icon" aria-hidden>
             🧭
           </span>
@@ -222,7 +222,7 @@ const readGroup = () => {
 function SettingsGroup({ id, title, hint, icon, open, onToggle, children }: { id: string; title: string; hint: string; icon: string; open: boolean; onToggle: () => void; children: ReactNode }) {
   return (
     <div className={`settings-group ${open ? 'open' : ''}`} id={`settings-${id}`}>
-      <button className="card settings-group-head" aria-expanded={open} onClick={onToggle}>
+      <button className="card settings-group-head" data-guide={`group-${id}`} aria-expanded={open} onClick={onToggle}>
         <span className="cat-icon plan-icon">{icon}</span>
         <span className="grow list-main">
           <strong>{title}</strong>
