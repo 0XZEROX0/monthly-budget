@@ -46,6 +46,12 @@ export function useAppLock() {
     }
   }, [enabled])
 
+  // With the lock on, the recent apps screen shouldn't show the budget either.
+  // (Older app versions don't have this; they just keep the preview.)
+  useEffect(() => {
+    if (lockSupported) AppLock.setPrivate({ on: enabled }).catch(() => {})
+  }, [enabled])
+
   // Ask straight away whenever it locks.
   useEffect(() => {
     if (locked) unlock()

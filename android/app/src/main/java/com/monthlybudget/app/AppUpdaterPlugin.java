@@ -17,6 +17,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.security.MessageDigest;
 
 /**
  * Downloads a new APK inside the app and hands it to Android's installer, so updating
@@ -25,6 +26,14 @@ import java.net.URL;
  */
 @CapacitorPlugin(name = "AppUpdater")
 public class AppUpdaterPlugin extends Plugin {
+    private static final String RELEASES = "https://github.com/0xzerox0/monthly-budget/releases/";
+
+    private static String hex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) sb.append(String.format("%02x", b));
+        return sb.toString();
+    }
+
 
     private File apkFile() {
         File dir = new File(getContext().getCacheDir(), "updates");
@@ -32,14 +41,20 @@ public class AppUpdaterPlugin extends Plugin {
         return new File(dir, "update.apk");
     }
 
-    /** Downloads `url`, reporting "downloadProgress" events, then opens the installer. */
+    /**
+     * Downloads `url`, reporting "downloadProgress" events, then opens the installer. Only
+     * from this app's GitHub releases over HTTPS, and when `checksum` (SHA-256, hex, as GitHub
+     * lists it) is given the file must match it, or it is thrown away.
+     */
     @PluginMethod
     public void downloadAndInstall(PluginCall call) {
         String url = call.getString("url");
-        if (url == null) {
-            call.reject("url is required");
+        if (url == null || !url.toLowerCase(java.util.Locale.ROOT).startsWith(RELEASES)) {
+            call.reject("Updates only come from the app's GitHub releases");
             return;
         }
+        String checksum = call.getString("checksum", "");
+        String want = checksum == null ? "" : checksum.trim().toLowerCase(java.util.Locale.ROOT);
         new Thread(() -> {
             File apk = apkFile();
             File part = new File(apk.getPath() + ".part");
@@ -50,12 +65,14 @@ public class AppUpdaterPlugin extends Plugin {
                 c.setReadTimeout(30000);
                 if (c.getResponseCode() != 200) throw new Exception("Download failed (" + c.getResponseCode() + ")");
                 long total = c.getContentLengthLong();
+                MessageDigest sha = MessageDigest.getInstance("SHA-256");
                 try (InputStream in = c.getInputStream(); OutputStream out = new FileOutputStream(part)) {
                     byte[] buf = new byte[64 * 1024];
                     long done = 0;
                     int lastPct = -1;
                     for (int n; (n = in.read(buf)) > 0; ) {
                         out.write(buf, 0, n);
+                        sha.update(buf, 0, n);
                         done += n;
                         int pct = total > 0 ? (int) (done * 100 / total) : -1;
                         if (pct != lastPct) {
@@ -69,6 +86,7 @@ public class AppUpdaterPlugin extends Plugin {
                 } finally {
                     c.disconnect();
                 }
+                if (!want.isEmpty() && !want.equals(hex(sha.digest()))) throw new Exception("The download was damaged. Please try again.");
                 if (!part.renameTo(apk)) throw new Exception("Could not save the update");
                 call.resolve(install());
             } catch (Exception e) {

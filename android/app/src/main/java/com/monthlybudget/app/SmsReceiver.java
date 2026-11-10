@@ -75,6 +75,13 @@ public class SmsReceiver extends BroadcastReceiver {
             .setContentText("Tap to add it to your budget")
             .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
             .setContentIntent(tap)
+            // On the lock screen: no bank message text.
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(new NotificationCompat.Builder(context, CHANNEL)
+                .setSmallIcon(R.drawable.ic_stat_budget)
+                .setContentTitle("New bank payment")
+                .setContentText("Unlock to add it to your budget")
+                .build())
             .setAutoCancel(true);
         try {
             nm.notify((int) (System.currentTimeMillis() % Integer.MAX_VALUE), n.build());
