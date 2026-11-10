@@ -35,7 +35,7 @@ public abstract class BoardWidget extends AppWidgetProvider {
 
     @SuppressWarnings("unchecked")
     private static final Class<? extends BoardWidget>[] ALL = new Class[] {
-        PlanWidget.class, CategoriesWidget.class, RecentWidget.class, AccountsWidget.class,
+        PlanWidget.class, CategoriesWidget.class, RecentWidget.class, AccountsWidget.class, GoalsWidget.class,
     };
 
     static void refreshAll(Context ctx) {

@@ -1,3 +1,4 @@
+import { goalProgress } from '../data/goals'
 import { categoryIcon } from '../data/icons'
 import { formatWhole, monthLabel, shiftDay, showTime, today } from '../data/month'
 import { countsAsSpending, newestFirst, type MonthSummary } from '../data/summary'
@@ -28,6 +29,8 @@ export interface WidgetData {
   }
   categories: { icon: string; name: string; spent: string; budget: string; pct: number; over: boolean }[]
   recent: { icon: string; title: string; sub: string; amount: string }[]
+  /** Savings goals: saved / target, and a line like "40% · EGP 2,000/month to reach it by 31 Dec 2026". */
+  goals: { icon: string; name: string; saved: string; target: string; pct: number; sub: string; late: boolean }[]
   accounts: { icon: string; name: string; value: string }[]
   /** Cash + bank */
   liquidity: string
@@ -78,6 +81,28 @@ export function widgetData(month: string, s: MonthSummary, settings: Settings, t
     const interest = a.type === 'investment' ? (end * (a.interestPct ?? 0)) / 100 : 0
     return { icon: categoryIcon(a.name), name: a.name, value: money(end + interest) }
   })
+  const dateLabel = (iso: string) => new Date(iso + 'T00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+  const goals = (settings.goals ?? []).map((g) => {
+    const p = goalProgress(g, s.end)
+    const done = p.left <= 0
+    const late = !done && p.daysLeft !== null && p.daysLeft < 0
+    const status = done
+      ? 'Reached!'
+      : late
+        ? `Deadline passed ${dateLabel(g.deadline!)}`
+        : p.perMonth !== null
+          ? `${money(p.perMonth)}/month to reach it by ${dateLabel(g.deadline!)}`
+          : `${money(p.left)} to go`
+    return {
+      icon: done ? '🎉' : categoryIcon(g.accounts[0] ?? 'saving'),
+      name: g.name,
+      saved: money(p.saved),
+      target: money(g.target),
+      pct: Math.round(p.pct),
+      sub: `${Math.round(p.pct)}% · ${status}`,
+      late,
+    }
+  })
   const owed = Object.values(s.end.debts).reduce((a, b) => a + Math.max(0, b), 0)
 
   return {
@@ -98,6 +123,7 @@ export function widgetData(month: string, s: MonthSummary, settings: Settings, t
     },
     categories,
     recent,
+    goals,
     accounts,
     liquidity: money(s.liquidityEnd),
     capital: money(s.capital),

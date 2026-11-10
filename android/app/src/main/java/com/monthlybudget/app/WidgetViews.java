@@ -60,6 +60,7 @@ final class WidgetViews {
         switch (kind) {
             case "categories": return "No spending or budget this month yet";
             case "recent": return "No expenses this month yet";
+            case "goals": return "No savings goals yet. Add one in Settings.";
             default: return "No accounts yet";
         }
     }
@@ -95,6 +96,18 @@ final class WidgetViews {
         return r;
     }
 
+    /** A savings goal: name, saved / target, a green bar, and how it is going. */
+    static RemoteViews goal(Context ctx, JSONObject g) {
+        RemoteViews r = new RemoteViews(ctx.getPackageName(), R.layout.widget_row_goal);
+        r.setTextViewText(R.id.row_icon, g.optString("icon"));
+        r.setTextViewText(R.id.row_title, g.optString("name"));
+        r.setTextViewText(R.id.row_amount, g.optString("saved") + " / " + g.optString("target"));
+        r.setProgressBar(R.id.row_bar, 100, g.optInt("pct"), false);
+        r.setTextViewText(R.id.row_sub, g.optString("sub"));
+        r.setTextColor(R.id.row_sub, ctx.getColor(g.optBoolean("late") ? R.color.widget_over : R.color.widget_muted));
+        return r;
+    }
+
     /** The row for entry `i` of a list kind, or null when it is missing. */
     static RemoteViews row(Context ctx, String kind, JSONArray list, int i) {
         JSONObject o = list == null ? null : list.optJSONObject(i);
@@ -102,6 +115,7 @@ final class WidgetViews {
         RemoteViews r;
         switch (kind) {
             case "categories": r = category(ctx, o); break;
+            case "goals": r = goal(ctx, o); break;
             case "recent": r = item(ctx, o.optString("icon"), o.optString("title"), o.optString("sub"), o.optString("amount")); break;
             default: r = item(ctx, o.optString("icon"), o.optString("name"), null, o.optString("value"));
         }
