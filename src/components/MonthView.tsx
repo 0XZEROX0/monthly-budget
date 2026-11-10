@@ -1,12 +1,12 @@
 import { App as CapApp } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
 import type { User } from 'firebase/auth'
-import { useDeferredValue, useEffect, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { describe, draftFor, smsSettings, smsTxnId, useBankSms } from '../data/bankSms'
 import { smsFee } from '../data/fees'
 import { emptyPlan } from '../data/defaults'
-import { usePlan, useRange, useSettings, useTransactions } from '../data/hooks'
+import { usePlan, useRange, useSettings, useToday, useTransactions } from '../data/hooks'
 import { currentMonth, dayLabel, formatWhole, monthLabel, shiftMonth } from '../data/month'
 import { balancesBefore, budgetAlerts, summarize, type MonthSummary } from '../data/summary'
 import { applyTheme } from '../data/theme'
@@ -54,6 +54,14 @@ interface Props {
 
 export function MonthView({ backend, user, onSignOut }: Props) {
   const [month, setMonth] = useState(currentMonth)
+  // When a new month begins with the app still open on the current one, move on to it.
+  const day = useToday()
+  const nowMonth = day.slice(0, 7)
+  const [seenMonth, setSeenMonth] = useState(nowMonth)
+  if (seenMonth !== nowMonth) {
+    setSeenMonth(nowMonth)
+    if (month === seenMonth) setMonth(nowMonth)
+  }
   const [tab, setTab] = useState<Tab>('summary')
   const [picking, setPicking] = useState(false)
   // Privacy mode is per device, so hiding numbers on the phone doesn't hide them elsewhere.
@@ -83,20 +91,47 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   const [rightOpen, setRightOpen] = useStoredFlag('budget-app:desk-right')
   // Set when a Summary row is tapped: the Transactions tab then shows only its entries.
   const [focus, setFocus] = useState<ListFocus | null>(null)
-  const openFocus = (f: ListFocus) => {
-    setFocus(f)
-    setTab('transactions')
-    scroller.current?.scrollTo(0, 0)
-  }
+  // The Settings section to open on, when sent there from elsewhere.
+  const [settingsGroup, setSettingsGroup] = useState<string>()
+  // These are handed to the pages, which only redraw when something they show changes,
+  // so each keeps the same identity from one draw to the next.
+  const openFocus = useCallback(
+    (f: ListFocus) => {
+      setFocus(f)
+      setTab('transactions')
+      scroller.current?.scrollTo(0, 0)
+    },
+    [scroller],
+  )
+  const clearFocus = useCallback(() => setFocus(null), [])
+  const openPlan = useCallback(() => setTab('plan'), [])
+  const openGoals = useCallback(() => {
+    setSettingsGroup('planning')
+    setTab('settings')
+    setTimeout(() => document.getElementById('goals')?.scrollIntoView({ behavior: 'smooth' }), 50)
+  }, [])
+  const openMonthSummary = useCallback((m: string) => {
+    setMonth(m)
+    setTab('summary')
+  }, [])
   // null: form closed; 'new': adding; a transaction: editing it.
   const [editing, setEditing] = useState<Transaction | 'new' | null>(null)
+  const editEntry = useCallback(
+    (t: Transaction) => {
+      // Balance updates have no form; they can only be removed.
+      if (t.kind !== 'adjust') return setEditing(t)
+      ask('Delete this balance update?', { ok: 'Delete', danger: true }).then((ok) => {
+        if (ok) backend.deleteTransaction(t.id).catch((e: Error) => showAlert(e.message))
+      })
+    },
+    [backend],
+  )
   // The tab a new entry opens on (the notification bar has a button for each).
   const [startOn, setStartOn] = useState<StartOn>()
   // A bank SMS being reviewed in the add form.
   const [fromSms, setFromSms] = useState<ParsedSms | null>(null)
 
   const settings = useSettings(backend)
-  const [settingsGroup, setSettingsGroup] = useState<string>()
   // Apply the synced theme once settings arrive (main.tsx already applied this device's last one).
   const theme = settings?.theme
   useEffect(() => {
@@ -152,21 +187,26 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   const history = useRange(backend, opening < trendFrom ? opening : trendFrom, month)
 
   const loading = !settings || plan === undefined || !txns || !history
-  const summary = loading ? null : summarize(plan ?? emptyPlan(), settings, txns, balancesBefore(month, settings, history))
+  // Worked out only when the data changes, not on every draw: it walks the whole history.
+  const summary = useMemo(
+    () => (!settings || plan === undefined || !txns || !history ? null : summarize(plan ?? emptyPlan(), settings, txns, balancesBefore(month, settings, history))),
+    [settings, plan, txns, history, month],
+  )
 
   // Bill reminders follow this month's payments, whichever month is on screen.
-  const nowTxns = useTransactions(backend, currentMonth())
+  const nowTxns = useTransactions(backend, nowMonth)
   useEffect(() => {
     if (settings && nowTxns) scheduleBillReminders(settings, nowTxns)
   }, [settings, nowTxns])
 
   // The home screen widget and budget alerts follow the current month.
-  const isNow = month === currentMonth()
+  // `day` is listed so "Today" and "Yesterday" on the widgets turn over at midnight.
+  const isNow = month === nowMonth
   useEffect(() => {
     if (!summary || !settings || !isNow || !txns) return
     updateWidget({ ...widgetLines(summary, settings.currency, hidden), data: JSON.stringify(widgetData(month, summary, settings, txns, hidden)) })
     if (!settings.alerts?.off) alertOnce(month, summary, settings.alerts?.pct ?? 80, settings.currency)
-  })
+  }, [summary, settings, isNow, txns, month, hidden, day])
 
   // The widget's + button opens monthlybudget://add; the notification bar's buttons open
   // monthlybudget://add/expense, /income, /transfer and monthlybudget://summary.
@@ -292,8 +332,8 @@ export function MonthView({ backend, user, onSignOut }: Props) {
 
   // Reports and Settings don't depend on the month picked, so they show no month picker.
   const monthless = (t: Tab) => t === 'reports' || t === 'settings'
-  const backToCurrent = month !== currentMonth() && (
-    <button className="link back-current" onClick={() => setMonth(currentMonth())}>
+  const backToCurrent = month !== nowMonth && (
+    <button className="link back-current" onClick={() => setMonth(nowMonth)}>
       Back to current month
     </button>
   )
@@ -318,16 +358,13 @@ export function MonthView({ backend, user, onSignOut }: Props) {
           history={history}
           settings={settings}
           hasPlan={plan !== null}
-          onPlan={() => setTab('plan')}
+          onPlan={openPlan}
           onSelectMonth={setMonth}
           onOpen={openFocus}
           hidden={hidden}
           desktop={desktop}
-          onEditGoals={() => {
-            setSettingsGroup('planning')
-            setTab('settings')
-            setTimeout(() => document.getElementById('goals')?.scrollIntoView({ behavior: 'smooth' }), 50)
-          }}
+          onEditGoals={openGoals}
+          today={day}
         />
       </div>
     ) : view === 'transactions' ? (
@@ -337,23 +374,14 @@ export function MonthView({ backend, user, onSignOut }: Props) {
           txns={txns}
           settings={settings}
           focus={focus}
-          onClearFocus={() => setFocus(null)}
-          onEdit={(t) => {
-            // Balance updates have no form; they can only be removed.
-            if (t.kind !== 'adjust') return setEditing(t)
-            ask('Delete this balance update?', { ok: 'Delete', danger: true }).then((ok) => {
-              if (ok) backend.deleteTransaction(t.id).catch((e: Error) => showAlert(e.message))
-            })
-          }}
+          onClearFocus={clearFocus}
+          onEdit={editEntry}
         />
       </div>
     ) : view === 'plan' ? (
       <PlanEditor backend={backend} month={month} plan={plan} settings={settings} />
     ) : view === 'reports' ? (
-      <ReportsView backend={backend} settings={settings} month={currentMonth()} hidden={hidden} onSelectMonth={(m) => {
-        setMonth(m)
-        setTab('summary')
-      }} />
+      <ReportsView backend={backend} settings={settings} month={nowMonth} hidden={hidden} onSelectMonth={openMonthSummary} />
     ) : (
       <SettingsView backend={backend} settings={settings} sms={sms} user={user} onSignOut={onSignOut} lock={lock} initialGroup={settingsGroup} />
     )
@@ -485,7 +513,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
           <aside className="report-panel" aria-label="Reports" aria-hidden={!rightOpen} inert={!rightOpen}>
             <div className="report-panel-inner">
               <h2 className="report-panel-title">Reports</h2>
-              <ReportsView backend={backend} settings={settings} month={currentMonth()} hidden={hidden} onSelectMonth={setMonth} />
+              <ReportsView backend={backend} settings={settings} month={nowMonth} hidden={hidden} onSelectMonth={setMonth} />
             </div>
           </aside>
         )}

@@ -20,9 +20,26 @@ export function shiftMonth(month: string, delta: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
+// Building an Intl formatter is slow next to using one, and a page of entries formats
+// hundreds of amounts and dates on every draw, so each kind is built once and kept.
+const dateFormats = new Map<string, Intl.DateTimeFormat>()
+function formatDate(d: Date, opts: Intl.DateTimeFormatOptions): string {
+  const key = JSON.stringify(opts)
+  let f = dateFormats.get(key)
+  if (!f) dateFormats.set(key, (f = new Intl.DateTimeFormat(undefined, opts)))
+  return f.format(d)
+}
+const numberFormats = new Map<string, Intl.NumberFormat>()
+function numberFormat(opts: Intl.NumberFormatOptions): Intl.NumberFormat {
+  const key = JSON.stringify(opts)
+  let f = numberFormats.get(key)
+  if (!f) numberFormats.set(key, (f = new Intl.NumberFormat(undefined, opts)))
+  return f
+}
+
 export function monthLabel(month: string): string {
   const [y, m] = month.split('-').map(Number)
-  return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+  return formatDate(new Date(y, m - 1, 1), { month: 'long', year: 'numeric' })
 }
 
 let decimals = false
@@ -35,7 +52,7 @@ export function formatMoney(amount: number, currency: string, opts: Intl.NumberF
   const digits = decimals ? 2 : 0
   if (opts.notation !== 'compact') opts = { ...opts, minimumFractionDigits: digits, maximumFractionDigits: digits }
   try {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency, ...opts }).format(amount)
+    return numberFormat({ style: 'currency', currency, ...opts }).format(amount)
   } catch {
     return `${amount.toFixed(opts.maximumFractionDigits ?? 2)} ${currency}`
   }
@@ -44,7 +61,7 @@ export function formatMoney(amount: number, currency: string, opts: Intl.NumberF
 /** A bare number for tight tiles: 1,284, or 1,284.50 with decimals on. */
 export const formatPlain = (amount: number) => {
   const digits = decimals ? 2 : 0
-  return amount.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits })
+  return numberFormat({ minimumFractionDigits: digits, maximumFractionDigits: digits }).format(amount)
 }
 
 /** Headline figures: $1,284, or $1,284.50 with decimals on. */
@@ -61,19 +78,33 @@ export const daysInMonth = (month: string) => {
 
 export const shortMonth = (month: string) => {
   const [y, m] = month.split('-').map(Number)
-  return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: 'short' })
+  return formatDate(new Date(y, m - 1, 1), { month: 'short' })
 }
 
 export const dayLabel = (date: string) =>
-  new Date(date + 'T00:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
+  formatDate(new Date(date + 'T00:00'), { weekday: 'short', day: 'numeric', month: 'short' })
 
 /** Short date for chart axes: Fri 31, or just Fri where space is tight. */
 export const shortDay = (date: string, withDay = true) =>
-  new Date(date + 'T00:00').toLocaleDateString(undefined, withDay ? { weekday: 'short', day: 'numeric' } : { weekday: 'short' })
+  formatDate(new Date(date + 'T00:00'), withDay ? { weekday: 'short', day: 'numeric' } : { weekday: 'short' })
 
 /** A stored HH:MM time as the user likes to read it: 20:30, or 8:30 PM on a 12-hour clock. */
 export function showTime(time: string, clock12?: boolean): string {
   if (!clock12) return time
   const [h, m] = time.split(':').map(Number)
   return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`
+}
+
+/**
+ * A typed amount as a number, or NaN when it isn't one. Takes a comma for the decimal
+ * point and the digits an Arabic keyboard types (٠-٩, ۰-۹, ٫), which Number() alone rejects.
+ */
+export function parseAmount(text: string): number {
+  const s = text
+    .trim()
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
+    .replace(/[٬\s]/g, '')
+    .replace(/[٫,]/g, '.')
+  return s ? Number(s) : NaN
 }

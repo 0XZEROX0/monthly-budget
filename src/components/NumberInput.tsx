@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
+import { parseAmount } from '../data/month'
 
 const parse = (s: string) => {
-  const n = Number(s.replace(',', '.'))
+  const n = parseAmount(s)
   return Number.isFinite(n) ? n : 0
 }
 

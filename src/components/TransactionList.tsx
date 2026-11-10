@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import { categoryIcon } from '../data/icons'
 import { dayLabel, formatMoney, formatWhole, showTime } from '../data/month'
 import { countsAsIncome, countsAsSpending } from '../data/summary'
@@ -62,7 +62,7 @@ function describe(t: Transaction): { title: string; sub: string; icon: string; s
   }
 }
 
-export function TransactionList({ txns, settings, onEdit, focus, onClearFocus }: Props) {
+export const TransactionList = memo(function TransactionList({ txns, settings, onEdit, focus, onClearFocus }: Props) {
   const { currency } = settings
   const [filter, setFilter] = useState<Filter>('all')
   const [search, setSearch] = useState('')
@@ -155,4 +155,4 @@ export function TransactionList({ txns, settings, onEdit, focus, onClearFocus }:
       )}
     </div>
   )
-}
+})

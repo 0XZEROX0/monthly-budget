@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { billStatus, billTxnId, dueDay, ordinal, paymentFor, reminderDays, type BillStatus } from '../data/bills'
 import { categoryIcon } from '../data/icons'
-import { formatWhole } from '../data/month'
+import { formatWhole, parseAmount } from '../data/month'
 import type { Backend, Bill, BillType, Settings, Transaction } from '../data/types'
 import { notificationsAllowed } from '../native/notify'
 import { NumberInput } from './NumberInput'
@@ -24,7 +24,7 @@ export function BillsCard({ backend, settings, month, txns }: { backend: Backend
   const pay = async (b: Bill) => {
     let amount = b.amount
     if (!amount) {
-      const v = Number((await askText(`How much did you pay for ${b.name}?`, { placeholder: 'Amount', inputMode: 'decimal', ok: 'Paid' }))?.replace(',', '.'))
+      const v = parseAmount((await askText(`How much did you pay for ${b.name}?`, { placeholder: 'Amount', inputMode: 'decimal', ok: 'Paid' })) ?? '')
       if (!Number.isFinite(v) || v <= 0) return
       amount = v
     }

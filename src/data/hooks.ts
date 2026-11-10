@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { setCustomIcons } from './icons'
-import { setShowDecimals } from './month'
+import { setShowDecimals, today } from './month'
 import type { Backend, MonthPlan, Settings, Transaction } from './types'
 
 export function useSettings(backend: Backend) {
@@ -36,4 +36,19 @@ export function useTransactions(backend: Backend, month: string) {
   const [state, setState] = useState<{ month: string; txns: Transaction[] } | undefined>()
   useEffect(() => backend.watchTransactions(month, (txns) => setState({ month, txns })), [backend, month])
   return state?.month === month ? state.txns : undefined
+}
+
+/** Today's date (YYYY-MM-DD), kept right when the app stays open past midnight or comes back the next day. */
+export function useToday() {
+  const [day, setDay] = useState(today)
+  useEffect(() => {
+    const check = () => setDay(today())
+    const timer = window.setInterval(check, 60_000)
+    document.addEventListener('visibilitychange', check)
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', check)
+    }
+  }, [])
+  return day
 }

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Fragment, memo, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { categoryIcon } from '../data/icons'
 import { currentMonth, daysInMonth, formatCompact, formatPlain, formatWhole, shiftMonth, shortMonth, today } from '../data/month'
 import { budgetAlerts, countsAsIncome, countsAsSpending, savedIn, spentIn, type CategoryRow, type MonthSummary } from '../data/summary'
@@ -31,12 +31,14 @@ interface Props {
   onEditGoals: () => void
   /** The website's wide dashboard: the cards are laid out in columns. */
   desktop?: boolean
+  /** Today's date, so the page redraws (spending so far, bills due) when the day turns over. */
+  today: string
 }
 
 const TREND_MONTHS = 6
 const MASK = '•••••'
 
-export function SummaryView({ backend, month, summary: s, txns, history, settings, hasPlan, onPlan, onSelectMonth, onOpen, hidden, onEditGoals, desktop }: Props) {
+export const SummaryView = memo(function SummaryView({ backend, month, summary: s, txns, history, settings, hasPlan, onPlan, onSelectMonth, onOpen, hidden, onEditGoals, desktop, today: day }: Props) {
   const { currency } = settings
   const money = (n: number) => formatWhole(n, currency)
   const compact = (n: number) => formatCompact(n, currency)
@@ -50,7 +52,8 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
   const left = plannedSpend - s.actual.expense
   const pctSpent = plannedSpend > 0 ? (s.actual.expense / plannedSpend) * 100 : 0
 
-  const pace = useMemo(() => pacePoints(month, txns, plannedSpend), [month, txns, plannedSpend])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `day`: the line stops at today
+  const pace = useMemo(() => pacePoints(month, txns, plannedSpend), [month, txns, plannedSpend, day])
 
   const trend = useMemo(() => {
     const from = shiftMonth(month, -(TREND_MONTHS - 1))
@@ -379,7 +382,7 @@ export function SummaryView({ backend, month, summary: s, txns, history, setting
       )}
     </div>
   )
-}
+})
 
 // Rough card heights, in list rows, for balancing the desktop columns. Cards whose height
 // depends on the data are worked out in SummaryView.
