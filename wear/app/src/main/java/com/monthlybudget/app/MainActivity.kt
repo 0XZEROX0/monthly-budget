@@ -110,7 +110,8 @@ private sealed interface Screen {
     data class Category(val kind: String, val amount: Double, val preset: Entry? = null, val sms: SmsItem? = null) : Screen
     data object SmsList : Screen
     data class SmsReview(val item: SmsItem) : Screen
-    data class Transfer(val amount: Double) : Screen
+    /** With [sms]: a bank SMS saved as a move between accounts instead of income or an expense. */
+    data class Transfer(val amount: Double, val sms: SmsItem? = null) : Screen
     data class Debt(val amount: Double) : Screen
     /** A spoken entry, a bill payment or a bank SMS, shown before it's saved; [fee] is saved with it. */
     data class Confirm(val entry: Entry, val title: String, val fee: Entry? = null, val sms: SmsItem? = null) : Screen
@@ -207,15 +208,15 @@ private fun App(start: String?, onStarted: () -> Unit, finish: () -> Unit) {
             })
         }
         is Screen.Transfer -> {
-            BackHandler { screen = Screen.Amount("transfer") }
-            TransferScreen(s.amount, onSave = save)
+            BackHandler { screen = s.sms?.let { Screen.SmsReview(it) } ?: Screen.Amount("transfer") }
+            TransferScreen(s.amount, s.sms, onSave = save)
         }
         is Screen.Debt -> {
             BackHandler { screen = Screen.Amount("debt") }
             DebtScreen(s.amount, onSave = save)
         }
         is Screen.Category -> {
-            BackHandler { screen = Screen.Amount(s.kind) }
+            BackHandler { screen = s.sms?.let { Screen.SmsReview(it) } ?: Screen.Amount(s.kind) }
             CategoryScreen(s.kind, s.amount, s.preset, s.sms, onSave = save)
         }
         Screen.SmsList -> {
@@ -226,9 +227,11 @@ private fun App(start: String?, onStarted: () -> Unit, finish: () -> Unit) {
             BackHandler { screen = Screen.SmsList }
             SmsReviewScreen(
                 s.item,
-                onAdd = {
+                onAdd = { asTransfer ->
                     val entry = s.item.entry()
                     screen = when {
+                        // Money moved between their own accounts, e.g. cash deposited at the bank.
+                        asTransfer -> Screen.Transfer(entry.amount, s.item)
                         // No category remembered for this shop: pick one, as on the phone.
                         (entry.kind == "expense" || entry.kind == "income") && entry.category.isEmpty() -> Screen.Category(entry.kind, entry.amount, entry, s.item)
                         else -> Screen.Confirm(entry, s.item.title, smsFeeEntry(s.item, entry, Store.settings(context)), s.item)
@@ -1141,20 +1144,35 @@ private fun CategoryScreen(kind: String, amount: Double, preset: Entry?, sms: Sm
 
 /** Moves money between two accounts, investments included. Tap a chip to change the account. */
 @Composable
-private fun TransferScreen(amount: Double, onSave: (Entry, Entry?) -> Unit) {
+private fun TransferScreen(amount: Double, sms: SmsItem?, onSave: (Entry, Entry?) -> Unit) {
     val context = LocalContext.current
     val settings = remember { Store.settings(context) }
     val accounts = settings.allAccounts
+    // A bank SMS fixes its own side: money in lands in its account, money out leaves it.
+    val smsAccount = sms?.account?.takeIf { it in accounts }
+    val last = Store.lastAccount(context, "transfer")?.takeIf { it in accounts }
     var from by remember {
-        mutableStateOf(Store.lastAccount(context, "transfer")?.takeIf { it in accounts } ?: settings.accounts.firstOrNull { it in accounts } ?: accounts.first())
+        mutableStateOf(
+            when {
+                smsAccount != null && sms?.incoming == true -> last?.takeIf { it != smsAccount } ?: accounts.firstOrNull { it != smsAccount } ?: smsAccount
+                smsAccount != null -> smsAccount
+                else -> last ?: settings.accounts.firstOrNull { it in accounts } ?: accounts.first()
+            },
+        )
     }
-    var to by remember { mutableStateOf(accounts.firstOrNull { it != from } ?: "") }
-    val fee = remember { FeeChoice(settings, from) }
+    var to by remember {
+        mutableStateOf(smsAccount?.takeIf { sms?.incoming == true && it != from } ?: accounts.firstOrNull { it != from } ?: "")
+    }
+    // Only money going out can carry a fee, as the SMS states or the account's usual one.
+    val fee = remember { FeeChoice(settings, from, sms) }
     val others = accounts.filter { it != from }
     val listState = rememberScalingLazyListState()
     Scaffold(positionIndicator = { PositionIndicator(scalingLazyListState = listState) }) {
         ScalingLazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
             item { Text("${exact(amount)} ${settings.currency}", style = MaterialTheme.typography.title3, color = TransferColor) }
+            sms?.description?.takeIf { it.isNotEmpty() }?.let { note ->
+                item { Text(note, style = MaterialTheme.typography.caption2, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            }
             item {
                 Chip(
                     onClick = {
@@ -1181,7 +1199,10 @@ private fun TransferScreen(amount: Double, onSave: (Entry, Entry?) -> Unit) {
             item {
                 CompactChip(
                     onClick = {
-                        val entry = Entry(newId(), "transfer", amount, "", from, LocalDate.now().toString(), toAccount = to)
+                        val entry = Entry(
+                            sms?.id ?: newId(), "transfer", amount, "", from, sms?.date ?: LocalDate.now().toString(),
+                            toAccount = to, description = sms?.description ?: "",
+                        )
                         onSave(entry, fee.entry(entry))
                     },
                     enabled = to.isNotEmpty() && to != from,
@@ -1284,9 +1305,12 @@ private fun SmsListScreen(onOpen: (SmsItem) -> Unit, onEmpty: () -> Unit) {
     }
 }
 
-/** One bank message: what it says, then Add (pick a category if needed) or Skip. */
+/**
+ * One bank message: what it says, then add it as income or an expense (picking a category if
+ * needed), as a transfer between accounts, or skip it. [onAdd] gets true for a transfer.
+ */
 @Composable
-private fun SmsReviewScreen(item: SmsItem, onAdd: () -> Unit, onSkip: () -> Unit) {
+private fun SmsReviewScreen(item: SmsItem, onAdd: (Boolean) -> Unit, onSkip: () -> Unit) {
     val color = kindColor(item.kind)
     val listState = rememberScalingLazyListState()
     Scaffold(positionIndicator = { PositionIndicator(scalingLazyListState = listState) }) {
@@ -1297,10 +1321,34 @@ private fun SmsReviewScreen(item: SmsItem, onAdd: () -> Unit, onSkip: () -> Unit
             if (item.body.isNotEmpty()) {
                 item { Text(item.body, style = MaterialTheme.typography.caption3, color = MaterialTheme.colors.onSurfaceVariant, maxLines = 6, overflow = TextOverflow.Ellipsis) }
             }
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
-                    CompactChip(onClick = onSkip, label = { Text(tr("Skip", "تخطي")) }, colors = ChipDefaults.secondaryChipColors())
-                    CompactChip(onClick = onAdd, label = { Text(tr("Add", "إضافة")) }, colors = ChipDefaults.primaryChipColors(backgroundColor = color, contentColor = Color.Black))
+            if (item.kind == "income" || item.kind == "expense") {
+                // Like the phone's add form, which can switch an SMS to a transfer.
+                item {
+                    Chip(
+                        onClick = { onAdd(false) },
+                        label = { Text(if (item.kind == "income") tr("Add as income", "إضافة كدخل") else tr("Add as expense", "إضافة كمصروف"), maxLines = 1) },
+                        icon = { IconBadge(if (item.incoming) "↓" else "💳", Color.Black.copy(alpha = 0.5f)) },
+                        colors = ChipDefaults.primaryChipColors(backgroundColor = color, contentColor = Color.Black),
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    )
+                }
+                item {
+                    Chip(
+                        onClick = { onAdd(true) },
+                        label = { Text(tr("Transfer", "تحويل"), maxLines = 1) },
+                        secondaryLabel = { Text(tr("Between my accounts", "بين حساباتي"), maxLines = 1) },
+                        icon = { IconBadge("⇄", TransferColor) },
+                        colors = ChipDefaults.secondaryChipColors(),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                item { CompactChip(onClick = onSkip, label = { Text(tr("Skip", "تخطي")) }, colors = ChipDefaults.secondaryChipColors()) }
+            } else {
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
+                        CompactChip(onClick = onSkip, label = { Text(tr("Skip", "تخطي")) }, colors = ChipDefaults.secondaryChipColors())
+                        CompactChip(onClick = { onAdd(false) }, label = { Text(tr("Add", "إضافة")) }, colors = ChipDefaults.primaryChipColors(backgroundColor = color, contentColor = Color.Black))
+                    }
                 }
             }
         }
