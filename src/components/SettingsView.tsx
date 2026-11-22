@@ -22,6 +22,10 @@ import { askEditCategory, askEditHolder, askNewCategory } from './categoryRename
 import { Picker } from './Picker'
 import { applyLang, LANGS, msg, t, type Lang } from '../i18n'
 import { formatDateWith } from '../data/month'
+import { Browser } from '@capacitor/browser'
+import { Capacitor } from '@capacitor/core'
+import { firestore, WEB_URL } from '../data/firebase'
+import { deleteAccount } from '../data/deleteAccount'
 
 interface Props {
   backend: Backend
@@ -81,6 +85,16 @@ export function SettingsView({ backend, settings, sms, user, onSignOut, lock, in
           </div>
         ) : (
           <p className="muted small">{t('Local mode: data is saved in this browser only.')}</p>
+        )}
+        <p className="muted small">
+          <a href={pageUrl('privacy.html')} target="_blank" rel="noopener" onClick={openPage('privacy.html')}>
+            {t('Privacy policy and terms')}
+          </a>
+        </p>
+        {backend.mode === 'cloud' && user && firestore && (
+          <button className="danger" onClick={() => confirmDeleteAccount(user)}>
+            {t('Delete my account')}
+          </button>
         )}
       </section>
 
@@ -208,6 +222,32 @@ export function SettingsView({ backend, settings, sms, user, onSignOut, lock, in
       )}
     </div>
   )
+}
+
+/** A page of the website (like the privacy policy): beside the app on the web, on the website from the Android app. */
+const pageUrl = (page: string) => (Capacitor.isNativePlatform() ? new URL(page, WEB_URL).href : `./${page}`)
+const openPage = (page: string) => (e: { preventDefault(): void }) => {
+  if (!Capacitor.isNativePlatform()) return
+  e.preventDefault()
+  Browser.open({ url: pageUrl(page) }).catch(() => {})
+}
+
+/** Deletes every bit of the user's data and their sign-in, after they type DELETE. */
+async function confirmDeleteAccount(user: User) {
+  const typed = await askText(t('This deletes your account and all your budget data on every device, for good. It cannot be undone. Type DELETE to go on.'), {
+    title: t('Delete my account'),
+    ok: t('Delete'),
+    danger: true,
+    placeholder: 'DELETE',
+  })
+  if (typed?.trim() !== 'DELETE' || !firestore) return
+  try {
+    const result = await deleteAccount(firestore, user)
+    if (result === 'sign-in-again')
+      await showAlert(t('Your budget data is deleted. To remove the sign-in too, sign out, sign in again and choose Delete my account once more.'))
+  } catch (e) {
+    await showAlert(t('Could not delete your account: {error}', { error: (e as Error).message }))
+  }
 }
 
 const GROUP_KEY = 'budget-app:settings-group'

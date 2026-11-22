@@ -1,29 +1,31 @@
 import { currentMonth } from './month'
 import type { MonthPlan, Settings } from './types'
 
-// Matches Static's "Monthly budget" sheet. Everything here is editable in Settings.
+// Where a new user starts: common Egyptian spending categories and two simple accounts.
+// First-run setup (FirstRunSetup.tsx) replaces the accounts with the user's own, and everything
+// here is editable in Settings.
 export const DEFAULT_SETTINGS: Settings = {
   currency: 'EGP',
   categories: {
     expense: [
       'Food',
-      'Gifts',
-      'Health/medical',
-      'Home',
+      'Bills & utilities',
       'Transportation',
+      'Home',
+      'Health/medical',
       'Personal',
+      'Education',
+      'Gifts',
       'Bank Fees',
       'A loan to someone',
-      'Other',
-      'Car',
       'Instalment',
+      'Other',
     ],
     income: ['Salary', 'Other'],
   },
   accounts: [
     { name: 'Cash', type: 'cash' },
     { name: 'Bank', type: 'bank' },
-    { name: 'Thndr', type: 'investment', interestPct: 5.2 },
   ],
   // Everyone adds their own lenders, in Settings or under Opening balances.
   debts: [],
@@ -33,7 +35,7 @@ export const DEFAULT_SETTINGS: Settings = {
 
 /** The same starting categories in Arabic, for someone who sets the app up in Arabic. */
 export const ARABIC_CATEGORIES: Settings['categories'] = {
-  expense: ['طعام', 'هدايا', 'صحة وعلاج', 'البيت', 'مواصلات', 'شخصي', 'رسوم بنكية', 'سلفة لشخص', 'أخرى', 'السيارة', 'أقساط'],
+  expense: ['طعام', 'فواتير ومرافق', 'مواصلات', 'البيت', 'صحة وعلاج', 'شخصي', 'تعليم', 'هدايا', 'رسوم بنكية', 'سلفة لشخص', 'أقساط', 'أخرى'],
   income: ['الراتب', 'أخرى'],
 }
 

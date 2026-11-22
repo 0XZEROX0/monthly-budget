@@ -30,6 +30,8 @@ export default defineConfig({
       // Registered from main.tsx, and only on the website: the Android app ships its files inside the APK.
       injectRegister: false,
       includeAssets: ['favicon.svg'],
+      // Pages beside the app, like the privacy policy, open as themselves rather than as the app.
+      workbox: { navigateFallbackDenylist: [/privacy\.html$/] },
       manifest: {
         name: 'Monthly Budget',
         short_name: 'Budget',

@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Privacy policy and terms · Monthly Budget</title>
+<meta name="description" content="What Monthly Budget collects, where it is kept, how bank SMS are handled, and how to delete your account." />
+<link rel="icon" href="./favicon.svg" />
+<style>
+  :root { --bg: #f6f7f5; --card: #ffffff; --text: #1d2420; --muted: #5d6762; --accent: #1f6f5c; --line: #e1e5e2; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #121614; --card: #1b201d; --text: #e6ebe8; --muted: #a3ada8; --accent: #5fc2a6; --line: #2b322e; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans Arabic", sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 32px 16px 64px; }
+  article { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 8px 24px 24px; margin-bottom: 24px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  h2 { font-size: 1.15rem; margin: 28px 0 8px; }
+  p, li { color: var(--text); }
+  .muted { color: var(--muted); font-size: .95rem; }
+  a { color: var(--accent); }
+  nav { display: flex; gap: 16px; margin: 8px 0 24px; }
+  [dir="rtl"] { text-align: right; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Monthly Budget: privacy policy and terms</h1>
+  <p class="muted">Last updated 22 November 2026</p>
+  <nav><a href="#en">English</a><a href="#ar" lang="ar">العربية</a></nav>
+
+  <article id="en">
+    <h2>The short version</h2>
+    <p>Your budget is yours. We keep it so it can sync between your devices, nobody else can read it, we never sell it or show it to advertisers, and you can delete all of it at any time.</p>
+
+    <h2>What we keep</h2>
+    <ul>
+      <li><b>Your Google sign-in:</b> your name, email address and a user ID, through Google Firebase Authentication.</li>
+      <li><b>Your budget:</b> accounts, balances, debts, categories, plans, goals, bills and the transactions you add. It is stored in Google Firebase Firestore under your account, and security rules let only your signed-in account read or change it.</li>
+      <li><b>A copy on your devices,</b> so the app works offline.</li>
+      <li><b>Feedback you send</b> from Settings › Feedback: your message, the kind (idea or bug), the app version and platform, and your email if you choose to include it. It is emailed to the developer so they can reply.</li>
+    </ul>
+    <p>Without signing in (local mode on the website), everything stays in that browser only.</p>
+
+    <h2>Bank and wallet SMS (Android only)</h2>
+    <ul>
+      <li>The app reads SMS only if you allow it, and only from the bank and wallet senders you pick in Settings › Bank SMS.</li>
+      <li>Messages are read and understood on your phone. The message text is never uploaded.</li>
+      <li>Nothing is added on its own: each message waits in a Pending list until you confirm it. Only then are the amount, date, merchant, account and category you chose saved as a transaction.</li>
+      <li>To match messages to your accounts, your settings keep the last digits of cards you link and the merchants you've categorised.</li>
+      <li>Personal SMS and messages from other senders are never read, kept or shared.</li>
+    </ul>
+
+    <h2>Galaxy Watch</h2>
+    <p>The watch app signs in with your phone's account and reads and writes the same budget data in Firestore. Bank SMS reach the watch from your phone, not through our servers.</p>
+
+    <h2>What we don't do</h2>
+    <ul>
+      <li>No ads and no advertising trackers.</li>
+      <li>No analytics or crash-reporting services.</li>
+      <li>We don't sell, rent or share your data with anyone. The only service providers involved are Google Firebase (sign-in and storage) and GitHub Pages (hosting the website).</li>
+    </ul>
+
+    <h2>Backups and exports</h2>
+    <p>Backups and CSV exports are files you create and send where you choose, such as Google Drive. We don't receive them.</p>
+
+    <h2>Deleting your account</h2>
+    <p>In the app or on the website, open <b>Settings › Account › Delete my account</b> and type DELETE. This permanently removes your budget data from our servers and your sign-in. If Google asks you to sign in again first, the app tells you, and you repeat the step once. Feedback you sent earlier can be removed on request through the contact link below.</p>
+    <p>"Erase all data" in Settings › App clears your budget but keeps your account.</p>
+
+    <h2>Children</h2>
+    <p>The app is not meant for children under 13.</p>
+
+    <h2>Terms of use</h2>
+    <ul>
+      <li>Monthly Budget is a tool for tracking your own money. It is not financial, tax or legal advice.</li>
+      <li>Amounts read from SMS can be wrong. Check each entry before you confirm it; you are responsible for your own budget and decisions.</li>
+      <li>The app is provided as it is, without warranties. We aren't liable for losses arising from using it, as far as the law allows.</li>
+      <li>Don't misuse the service, such as trying to reach other people's data.</li>
+      <li>We may update this page; the date at the top shows the latest version. Significant changes will be announced in the app.</li>
+    </ul>
+
+    <h2>Contact</h2>
+    <p>Use Settings › Feedback in the app, or open an issue at <a href="https://github.com/0XZEROX0/monthly-budget/issues">github.com/0XZEROX0/monthly-budget/issues</a>.</p>
+  </article>
+
+  <article id="ar" lang="ar" dir="rtl">
+    <h2>باختصار</h2>
+    <p>ميزانيتك ملكك. نحفظها لتتزامن بين أجهزتك فقط، ولا يستطيع أحد غيرك قراءتها، ولا نبيعها ولا نعرضها على المعلنين، ويمكنك حذفها كلها في أي وقت.</p>
+
+    <h2>ما نحفظه</h2>
+    <ul>
+      <li><b>تسجيل الدخول بحساب Google:</b> اسمك وبريدك الإلكتروني ومعرّف المستخدم، عبر Google Firebase Authentication.</li>
+      <li><b>ميزانيتك:</b> الحسابات والأرصدة والديون والفئات والخطط والأهداف والفواتير والمعاملات التي تضيفها. تُحفظ في Google Firebase Firestore تحت حسابك، ولا يستطيع قراءتها أو تعديلها إلا حسابك بعد تسجيل الدخول.</li>
+      <li><b>نسخة على أجهزتك</b> ليعمل التطبيق بدون إنترنت.</li>
+      <li><b>الملاحظات التي ترسلها</b> من الإعدادات › الملاحظات: رسالتك ونوعها (فكرة أو مشكلة) وإصدار التطبيق والمنصة، وبريدك إن اخترت إضافته. تُرسل إلى المطوّر بالبريد ليتمكن من الرد.</li>
+    </ul>
+    <p>بدون تسجيل الدخول (الوضع المحلي على الموقع) تبقى البيانات في ذلك المتصفح فقط.</p>
+
+    <h2>رسائل البنوك والمحافظ (أندرويد فقط)</h2>
+    <ul>
+      <li>لا يقرأ التطبيق الرسائل إلا بإذنك، ومن البنوك والمحافظ التي تختارها في الإعدادات › رسائل البنك فقط.</li>
+      <li>تُقرأ الرسائل وتُفهم على هاتفك، ولا يُرفع نص الرسالة أبدًا.</li>
+      <li>لا يُضاف شيء تلقائيًا: كل رسالة تنتظر في قائمة المعلّقة حتى تؤكدها، وعندها فقط يُحفظ المبلغ والتاريخ والتاجر والحساب والفئة التي اخترتها كمعاملة.</li>
+      <li>لمطابقة الرسائل مع حساباتك، تحفظ إعداداتك آخر أرقام البطاقات التي تربطها والتجار الذين صنّفتهم.</li>
+      <li>لا تُقرأ الرسائل الشخصية ولا رسائل الجهات الأخرى، ولا تُحفظ ولا تُشارك.</li>
+    </ul>
+
+    <h2>ساعة Galaxy</h2>
+    <p>يسجّل تطبيق الساعة الدخول بحساب هاتفك ويقرأ ويكتب بيانات الميزانية نفسها في Firestore. تصل رسائل البنك إلى الساعة من هاتفك، لا عبر خوادمنا.</p>
+
+    <h2>ما لا نفعله</h2>
+    <ul>
+      <li>لا إعلانات ولا أدوات تتبّع إعلانية.</li>
+      <li>لا خدمات تحليلات أو تقارير أعطال.</li>
+      <li>لا نبيع بياناتك ولا نؤجرها ولا نشاركها مع أحد. مقدّمو الخدمة الوحيدون هم Google Firebase (تسجيل الدخول والتخزين) وGitHub Pages (استضافة الموقع).</li>
+    </ul>
+
+    <h2>النسخ الاحتياطية والتصدير</h2>
+    <p>النسخ الاحتياطية وملفات CSV ملفات تنشئها أنت وترسلها حيث تريد، مثل Google Drive، ولا تصل إلينا.</p>
+
+    <h2>حذف حسابك</h2>
+    <p>في التطبيق أو على الموقع، افتح <b>الإعدادات › الحساب › حذف حسابي</b> واكتب DELETE. يحذف هذا بيانات ميزانيتك من خوادمنا وتسجيل دخولك نهائيًا. إذا طلبت Google تسجيل الدخول مرة أخرى أولًا، سيخبرك التطبيق وتكرر الخطوة مرة واحدة. يمكن حذف الملاحظات التي أرسلتها سابقًا عند الطلب عبر رابط التواصل أدناه.</p>
+    <p>«مسح كل البيانات» في الإعدادات › التطبيق يمسح ميزانيتك ويُبقي حسابك.</p>
+
+    <h2>الأطفال</h2>
+    <p>التطبيق غير مخصص للأطفال دون 13 عامًا.</p>
+
+    <h2>شروط الاستخدام</h2>
+    <ul>
+      <li>تطبيق Monthly Budget أداة لتتبّع أموالك، وليس نصيحة مالية أو ضريبية أو قانونية.</li>
+      <li>قد تُقرأ المبالغ من الرسائل بشكل خاطئ. راجع كل معاملة قبل تأكيدها؛ أنت مسؤول عن ميزانيتك وقراراتك.</li>
+      <li>يُقدَّم التطبيق كما هو دون ضمانات، ولا نتحمل مسؤولية الخسائر الناتجة عن استخدامه في حدود ما يسمح به القانون.</li>
+      <li>لا تُسئ استخدام الخدمة، مثل محاولة الوصول إلى بيانات الآخرين.</li>
+      <li>قد نحدّث هذه الصفحة؛ التاريخ في أعلاها يوضح آخر نسخة، وسنعلن التغييرات المهمة داخل التطبيق.</li>
+    </ul>
+
+    <h2>التواصل</h2>
+    <p>استخدم الإعدادات › الملاحظات داخل التطبيق، أو افتح بلاغًا على <a href="https://github.com/0XZEROX0/monthly-budget/issues">github.com/0XZEROX0/monthly-budget/issues</a>.</p>
+  </article>
+</main>
+</body>
+</html>
