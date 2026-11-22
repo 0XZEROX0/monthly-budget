@@ -4,6 +4,7 @@ import type { User } from 'firebase/auth'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { describe, draftFor, smsSettings, smsTxnId, useBankSms } from '../data/bankSms'
+import type { Rates } from '../data/rates'
 import { feeIdFor, smsFee } from '../data/fees'
 import { emptyPlan } from '../data/defaults'
 import { usePlan, useRange, useSettings, useToday, useTransactions } from '../data/hooks'
@@ -186,9 +187,11 @@ export function MonthView({ backend, user, onSignOut }: Props) {
   useEffect(() => {
     if (!settings || !sms.available) return
     shareSmsWithWatch(
-      sms.pending.map((p) => {
-        const t = draftFor(p, settings)
-        return {
+      // A message in another currency with no rate yet has no amount to show; it waits for the phone.
+      sms.pending.flatMap((p) => {
+        const t = draftFor(p, settings, sms.rates)
+        if (!(t.amount > 0)) return []
+        return [{
           smsId: p.smsId,
           title: describe(p),
           sub: `${dayLabel(p.date)} · ${p.wallet ?? `${p.sender} ••${p.card}`}`,
@@ -205,11 +208,11 @@ export function MonthView({ backend, user, onSignOut }: Props) {
           transfer: p.transfer,
           instant: !!p.instant,
           wallet: p.wallet ?? '',
-        }
+        }]
       }),
       sms.newestId,
     )
-  }, [sms.pending, sms.newestId, sms.available, settings])
+  }, [sms.pending, sms.rates, sms.newestId, sms.available, settings])
   // And skips here what was skipped there, whenever the app comes back to the front.
   const skipIds = useRef(sms.skipIds)
   useEffect(() => {
@@ -474,7 +477,7 @@ export function MonthView({ backend, user, onSignOut }: Props) {
           settings={settings}
           month={month}
           existing={null}
-          draft={draftWithFee(fromSms, settings)}
+          draft={draftWithFee(fromSms, settings, sms.rates)}
           onSaved={(t) => remember(backend, settings, fromSms, t)}
           onClose={() => setFromSms(null)}
         />
@@ -698,8 +701,8 @@ function alertOnce(month: string, s: MonthSummary, pct: number, currency: string
 
 /** Saves the category picked for this merchant and the account picked for this card, for next time. */
 /** The add form's draft for a bank SMS, with the fee it should start on. */
-function draftWithFee(p: ParsedSms, settings: Settings) {
-  const txn = draftFor(p, settings)
+function draftWithFee(p: ParsedSms, settings: Settings, rates: Rates) {
+  const txn = draftFor(p, settings, rates)
   return { id: smsTxnId(p), txn, fee: smsFee(p, txn.account ?? '', settings) }
 }
 

@@ -635,4 +635,9 @@ export const AR: Record<string, string> = {
   "Which debt": "أي دين",
   "Pick the lender, like valU or TRU. Add more in Settings › Money › Debts.": "اختر الجهة، مثل valU أو TRU. أضف المزيد من الإعدادات › المال › الديون.",
   "The account you paid the instalment from.": "الحساب الذي دفعت منه القسط.",
+  "Privacy policy and terms": "سياسة الخصوصية والشروط",
+  "Delete my account": "حذف حسابي",
+  "This deletes your account and all your budget data on every device, for good. It cannot be undone. Type DELETE to go on.": "سيُحذف حسابك وكل بيانات ميزانيتك على كل أجهزتك نهائيًا، ولا يمكن التراجع عن ذلك. اكتب DELETE للمتابعة.",
+  "Your budget data is deleted. To remove the sign-in too, sign out, sign in again and choose Delete my account once more.": "حُذفت بيانات ميزانيتك. لحذف تسجيل الدخول أيضًا، سجّل الخروج ثم سجّل الدخول مرة أخرى واختر حذف حسابي مرة ثانية.",
+  "Could not delete your account: {error}": "تعذّر حذف حسابك: {error}",
 }

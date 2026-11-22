@@ -93,6 +93,7 @@ debts and categories of a real "Monthly budget" Google Sheet.
 | **Privacy mode** | One tap on the eye hides balances and totals, handy in public. |
 | **App lock** | Fingerprint or the phone's PIN to open the Android app. |
 | **Sync and offline** | Sign in with Google to sync phone, watch and web through Firebase. Works offline too. |
+| **Delete your account** | Settings › Account › Delete my account removes all your data and your sign-in for good. See the [privacy policy and terms](https://0xzerox0.github.io/monthly-budget/privacy.html). |
 | **Backup and export** | Back up everything to Google Drive (through Android's share menu), export transactions as CSV, and restore from a backup. |
 | **Import** | Past months from the "Monthly budget" Google Sheet (.xlsx), or one-row-per-entry exports from other apps like Money Manager. |
 
@@ -201,10 +202,12 @@ replaces the `android` release, so the latest APK is always at
 - **Sign-in.** Google blocks its sign-in page inside app WebViews, so the app opens the
   website at `?app-signin` in the browser, which signs in and returns the Google ID token
   through `monthlybudget://signin`.
-- **Signing.** Builds use the committed `android/app/shared-debug.keystore` so each APK
-  installs over the last. To use a private key instead, add the repository secrets
+- **Signing.** Releases from `main` are signed with the private key in the repository secrets
   `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and
-  `ANDROID_KEY_PASSWORD` (the app must then be reinstalled once).
+  `ANDROID_KEY_PASSWORD`; the workflows refuse to release without them. Test builds on other
+  branches fall back to the public `android/app/shared-debug.keystore`, which can't install over
+  a released app because the signatures differ. Keep a safe copy of the private key: without it,
+  updates can't install over the app.
 
 </details>
 

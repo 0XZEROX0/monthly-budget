@@ -95,7 +95,8 @@ export function TransactionForm({ backend, settings: saved, month, existing, exi
   const init = existing ?? draft?.txn
   const [tab, setTab] = useState<Tab>(init ? tabOf(init.kind) : startOn ?? 'expense')
   const [debtMode, setDebtMode] = useState<'repay' | 'borrow'>(init?.kind === 'borrow' ? 'borrow' : 'repay')
-  const [amount, setAmount] = useState(init ? String(init.amount) : '')
+  // A draft with no amount yet (a bank SMS in another currency, with no rate) starts empty.
+  const [amount, setAmount] = useState(init && init.amount ? String(init.amount) : '')
   const [date, setDate] = useState(init?.date ?? defaultDate)
   const [description, setDescription] = useState(init?.description ?? '')
   const [notSpending, setNotSpending] = useState(!!init?.notSpending)

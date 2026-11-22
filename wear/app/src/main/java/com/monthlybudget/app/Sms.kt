@@ -48,7 +48,8 @@ data class SmsItem(
     val instant: Boolean = false,
     val wallet: String = "",
 ) {
-    val id get() = "sms-$smsId"
+    // sms-{smsId}-{YYYYMMDD}, as smsTxnId in src/data/bankSms.ts: inbox ids repeat on a new phone.
+    val id get() = "sms-$smsId-${date.replace("-", "")}"
     val incoming get() = kind == "income" || kind == "borrow"
 
     fun entry() = Entry(id, kind, amount, category, account, date, debt = debt, description = description)
@@ -120,7 +121,9 @@ object Sms {
             .map { RawSms(it.getString("id"), it.optString("address"), it.optString("body"), it.optLong("date")) }
             .filter { (it.id.toLongOrNull() ?: 0L) > seen && it.id !in skip }
         if (raw.isEmpty()) return emptyList()
-        val parsed = raw.mapNotNull { SmsParser.parse(it) }
+        // In the budget's currency only: the phone converts the others at today's rate.
+        val currency = prefs(context).getString("smsRules", null)?.let { runCatching { JSONObject(it).optString("currency", "EGP") }.getOrNull() } ?: "EGP"
+        val parsed = SmsParser.dropDuplicates(raw.mapNotNull { SmsParser.parse(it) }).filter { it.currency == currency }
         if (parsed.isEmpty()) return emptyList()
         // Not ones already in the budget: added from this message, or entered another way.
         val entries = Ledger.rows(context).mapNotNull { r ->
@@ -128,7 +131,12 @@ object Sms {
             SmsParser.Txn4(id, r["kind"] as? String ?: "", (r["amount"] as? Double) ?: 0.0, r["date"] as? String ?: "")
         } + Store.queue(context).map { SmsParser.Txn4(it.id, it.kind, it.amount, it.date) }
         val ids = entries.map { it.id }.toSet()
-        val notAdded = parsed.filter { "sms-${it.smsId}" !in ids }
+        val byId = entries.associateBy { it.id }
+        // Saved under its id, or the old bare sms-{smsId} with a date close to it (savedFromSms in bankSms.ts).
+        val notAdded = parsed.filter { p ->
+            val old = byId["sms-${p.smsId}"]
+            "sms-${p.smsId}-${p.date.replace("-", "")}" !in ids && (old == null || !SmsParser.withinDays(old.date, p.date, 31))
+        }
         val recorded = SmsParser.alreadyRecorded(notAdded, entries.filter { !it.id.startsWith("sms-") })
         val rules = prefs(context).getString("smsRules", null)?.let { runCatching { JSONObject(it) }.getOrNull() } ?: JSONObject()
         return notAdded.filter { it.smsId !in recorded }.map { item(it, rules) }

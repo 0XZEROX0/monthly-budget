@@ -43,8 +43,8 @@ public class AppUpdaterPlugin extends Plugin {
 
     /**
      * Downloads `url`, reporting "downloadProgress" events, then opens the installer. Only
-     * from this app's GitHub releases over HTTPS, and when `checksum` (SHA-256, hex, as GitHub
-     * lists it) is given the file must match it, or it is thrown away.
+     * from this app's GitHub releases over HTTPS, and only with `checksum` (SHA-256, hex, as GitHub
+     * lists it): the file must match it, or it is thrown away.
      */
     @PluginMethod
     public void downloadAndInstall(PluginCall call) {
@@ -55,6 +55,11 @@ public class AppUpdaterPlugin extends Plugin {
         }
         String checksum = call.getString("checksum", "");
         String want = checksum == null ? "" : checksum.trim().toLowerCase(java.util.Locale.ROOT);
+        // Without the release's SHA-256 there is nothing to check the file against, so no install.
+        if (!want.matches("[0-9a-f]{64}")) {
+            call.reject("This update has no checksum, so it can't be checked. Please try again later.");
+            return;
+        }
         new Thread(() -> {
             File apk = apkFile();
             File part = new File(apk.getPath() + ".part");
@@ -86,7 +91,7 @@ public class AppUpdaterPlugin extends Plugin {
                 } finally {
                     c.disconnect();
                 }
-                if (!want.isEmpty() && !want.equals(hex(sha.digest()))) throw new Exception("The download was damaged. Please try again.");
+                if (!want.equals(hex(sha.digest()))) throw new Exception("The download was damaged. Please try again.");
                 if (!part.renameTo(apk)) throw new Exception("Could not save the update");
                 call.resolve(install());
             } catch (Exception e) {
