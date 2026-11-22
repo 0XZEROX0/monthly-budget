@@ -1,9 +1,59 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Each user can read and write only their own budget data.
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+    function optString(d, k, max) {
+      return !(k in d) || (d[k] is string && d[k].size() <= max);
+    }
+
+    // Each user can read and delete only their own budget data, and write only documents
+    // shaped the way the app and the watch write them, so a modified client can't fill the
+    // database with junk. Writes the app doesn't make (other collections, odd ids) are refused.
     match /users/{uid}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read, delete: if isOwner(uid);
+    }
+
+    // settings/main: the whole settings object (src/data/types.ts Settings).
+    match /users/{uid}/settings/{doc} {
+      allow create, update: if isOwner(uid) && doc == 'main'
+        && request.resource.data.keys().size() <= 40
+        && request.resource.data.currency is string
+        && request.resource.data.currency.size() <= 10;
+    }
+
+    // plans/YYYY-MM (MonthPlan).
+    match /users/{uid}/plans/{month} {
+      allow create, update: if isOwner(uid)
+        && month.matches('^[0-9]{4}-[0-9]{2}$')
+        && request.resource.data.keys().hasOnly(['planned', 'startingBalance', 'updatedAt'])
+        && request.resource.data.planned is map
+        && (!('startingBalance' in request.resource.data) || request.resource.data.startingBalance is number);
+    }
+
+    // transactions/{id}: an entry, or the `deleted` marker a delete leaves (firestoreBackend.ts).
+    match /users/{uid}/transactions/{id} {
+      function isEntry(d) {
+        return d.keys().hasOnly(['kind', 'date', 'month', 'amount', 'description', 'category', 'account', 'toAccount', 'debt', 'time', 'notSpending', 'updatedAt'])
+          && d.kind in ['expense', 'income', 'transfer', 'repay', 'borrow', 'adjust']
+          && d.date is string && d.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && d.month is string && d.month.matches('^[0-9]{4}-[0-9]{2}$')
+          && d.amount is number && d.amount > -1000000000000 && d.amount < 1000000000000
+          && optString(d, 'description', 2000)
+          && optString(d, 'category', 200)
+          && optString(d, 'account', 200)
+          && optString(d, 'toAccount', 200)
+          && optString(d, 'debt', 200)
+          && optString(d, 'time', 5)
+          && (!('notSpending' in d) || d.notSpending is bool);
+      }
+      function isDeletedMarker(d) {
+        return d.keys().hasOnly(['deleted', 'updatedAt']) && d.deleted == true;
+      }
+      allow create, update: if isOwner(uid) && id.size() <= 200
+        && (isEntry(request.resource.data) || isDeletedMarker(request.resource.data))
+        && (!('updatedAt' in request.resource.data) || request.resource.data.updatedAt is timestamp);
     }
 
     // Feedback from Settings › Feedback (src/data/feedback.ts). Signed-in users can only

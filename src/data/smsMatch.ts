@@ -40,3 +40,26 @@ export function alreadyRecorded(parsed: ParsedSms[], txns: Transaction[]): Set<s
   }
   return found
 }
+
+/**
+ * One payment can bring two messages: the bank's and InstaPay's, or the same SMS delivered
+ * twice. A message is dropped when an earlier one has the same amount, currency and
+ * direction within 10 minutes, and comes from another sender or reads exactly the same.
+ * Two real payments of the same amount from the same sender both stay.
+ */
+export function dropDuplicates(parsed: ParsedSms[]): ParsedSms[] {
+  const kept: ParsedSms[] = []
+  for (const p of [...parsed].sort((a, b) => a.at - b.at)) {
+    const twin = kept.some(
+      (q) =>
+        q.amount === p.amount &&
+        q.currency === p.currency &&
+        q.direction === p.direction &&
+        Math.abs(p.at - q.at) <= 10 * 60_000 &&
+        (q.sender !== p.sender || q.body === p.body),
+    )
+    if (!twin) kept.push(p)
+  }
+  const ids = new Set(kept.map((p) => p.smsId))
+  return parsed.filter((p) => ids.has(p.smsId))
+}

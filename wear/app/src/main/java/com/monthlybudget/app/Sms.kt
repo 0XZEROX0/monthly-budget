@@ -121,7 +121,9 @@ object Sms {
             .map { RawSms(it.getString("id"), it.optString("address"), it.optString("body"), it.optLong("date")) }
             .filter { (it.id.toLongOrNull() ?: 0L) > seen && it.id !in skip }
         if (raw.isEmpty()) return emptyList()
-        val parsed = raw.mapNotNull { SmsParser.parse(it) }
+        // In the budget's currency only: the phone converts the others at today's rate.
+        val currency = prefs(context).getString("smsRules", null)?.let { runCatching { JSONObject(it).optString("currency", "EGP") }.getOrNull() } ?: "EGP"
+        val parsed = SmsParser.dropDuplicates(raw.mapNotNull { SmsParser.parse(it) }).filter { it.currency == currency }
         if (parsed.isEmpty()) return emptyList()
         // Not ones already in the budget: added from this message, or entered another way.
         val entries = Ledger.rows(context).mapNotNull { r ->

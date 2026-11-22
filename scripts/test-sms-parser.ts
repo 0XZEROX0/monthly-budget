@@ -92,6 +92,12 @@ const cases: [string, Partial<ParsedSms> | null][] = [
   // Reminders and impossible amounts aren't payments.
   ['Your available limit on card xx1234 is EGP 20,000. Payment due EGP 3,000 by 25/11', null],
   ['Your card ending 2244 was charged for EGP 99999999999999999999 at UBER', null],
+  // Paying off a credit card is money into the card; paying a bill from an account is money out.
+  ['تم سداد مبلغ 2000 جنيه لبطاقتك الائتمانية المنتهية 1234', { direction: 'credit', amount: 2000, card: '1234' }],
+  ['تم سداد فاتورة الكهرباء بمبلغ 350 جنيه من حسابك رقم ****4275', { direction: 'spend', amount: 350, card: '4275' }],
+  // معرض (showroom) is not عرض (offer).
+  ['تم دفع 200 جنيه لـ معرض السيارات بنجاح من محفظتك', { direction: 'spend', amount: 200, card: 'E-wallet' }],
+  ['تم تحويل 100 جنيه بنجاح من محفظتك. استمتع بالعرض الجديد', null],
 ]
 
 let failed = 0

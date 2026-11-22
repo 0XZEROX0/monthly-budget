@@ -30,6 +30,8 @@ data class ParsedSms(
     val fee: Double = 0.0,
     /** An InstaPay (instant) transfer, which InstaPay charges a fee on. */
     val instant: Boolean = false,
+    /** When the SMS arrived, ms since epoch. */
+    val at: Long = 0,
 )
 
 object SmsParser {
@@ -59,13 +61,13 @@ object SmsParser {
 
     // Not a finished payment: codes for approving one, or one that failed.
     private val IGNORE = Regex("$I\\b(otp|one[- ]time|passcode|password|verification|pin|payment due|due date|amount due|due amount|minimum (?:payment|amount|due)|statement balance)\\b|مستحق|تاريخ الاستحقاق|الحد الأدنى للسداد|كود|رمز|كلمة (?:السر|المرور)|declined|failed|unsuccessful|insufficient|rejected|مرفوض|رفض|لم تتم|غير ناجح")
-    private val CREDIT = Regex("$I\\b(credited|refund(?:ed)?|reversal|reversed|deposit(?:ed)?|received|salary)\\b|إيداع|ايداع|إضافة|اضافة|استرداد|استلام|تحويل وارد|راتب")
+    private val CREDIT = Regex("$I\\b(credited|refund(?:ed)?|reversal|reversed|deposit(?:ed)?|received|salary)\\b|إيداع|ايداع|إضافة|اضافة|استرداد|استلام|تحويل وارد|راتب|سداد[^\\n]{0,40}(?:لبطاقت|للبطاقة|بطاقتك الائتمانية|البطاقة الائتمانية)")
     // A purchase that mentions cashback earned is still a purchase.
     private val CASHBACK = Regex("$I\\bcash ?back\\b|كاش ?باك")
     private val SPENT = Regex("$I\\b(purchase[ds]?|charged|debited|spent|withdrawal|withdrawn|deducted)\\b|خصم|شراء|سحب")
     private val INTO_ACCOUNT = Regex("$I(?:إلى|الى|ل)\\s*حسابك|to your (?:account|card)")
     private val TRANSFER = Regex("$I\\btransfer|تحويل")
-    private val SPEND = Regex("$I\\b(purchase[ds]?|charged|debited|spent|paid|payment|pos|withdrawal|withdrawn|deducted|transaction|trx|txn|transfer(?:red)?|bought|sent|used|recharged?|top[- ]?up)\\b|خصم|شراء|سحب|عملية|مشتريات|دفع|تحويل|شحن")
+    private val SPEND = Regex("$I\\b(purchase[ds]?|charged|debited|spent|paid|payment|pos|withdrawal|withdrawn|deducted|transaction|trx|txn|transfer(?:red)?|bought|sent|used|recharged?|top[- ]?up)\\b|خصم|شراء|سحب|عملية|مشتريات|دفع|تحويل|شحن|سداد")
     // An amount right after these words is a balance or limit, not what was paid.
     private val BALANCE_BEFORE = Regex("$I(balance|bal|limit|available|avl|avail|remaining|رصيد|المتاح|متاح|الحد)[^\\d\\n]{0,20}$")
     // Words for a fee. "charges" but not "charged", which is what was paid.
@@ -92,8 +94,10 @@ object SmsParser {
         "\\bwallet\\b|\\be-?wallet\\b|محفظ" to "E-wallet",
     ).map { (re, name) -> Regex(I + re) to name }
     private val DONE = Regex("$I(?:^|\\s)تم\\s|\\byou have\\b|\\bha(?:s|ve) been\\b|\\bsuccessful(?:ly)?\\b|بنجاح|رقم العملية|\\btransaction (?:id|no|number|ref)")
-    private val PROMO = Regex("$I\\b(get|win|offer|enjoy|up to|discount)\\b|احصل|اكسب|استمتع|عرض|%")
-    private val AD_LINE = Regex("${I}https?://|www\\.|\\b(get|win|offer|enjoy|up to|subscribe|download)\\b|احصل|اكسب|استمتع|عرض|اشترك|اشتراك|%")
+    // "عرض" (offer) as a word of its own, not inside one like معرض (showroom).
+    private const val OFFER_AR = "(?:^|[^\\u0600-\\u06ff])(?:و?ب?ال)?(?:عرض|عروض)(?![\\u0600-\\u06ff])"
+    private val PROMO = Regex("$I\\b(get|win|offer|enjoy|up to|discount)\\b|احصل|اكسب|استمتع|$OFFER_AR|%")
+    private val AD_LINE = Regex("${I}https?://|www\\.|\\b(get|win|offer|enjoy|up to|subscribe|download)\\b|احصل|اكسب|استمتع|$OFFER_AR|اشترك|اشتراك|%")
     private val RECHARGE = Regex("${I}شحن|\\brecharged?\\b|\\btop[- ]?up\\b")
     private val CARRIERS = mapOf("010" to "Vodafone", "011" to "Etisalat", "012" to "Orange", "015" to "WE")
     private val NAMED = listOf(
@@ -219,9 +223,9 @@ object SmsParser {
         if (card == null) {
             val wallet = walletSender ?: WALLET_WORDS.firstOrNull { (re, _) -> re.containsMatchIn(full) }?.second
             if (wallet == null || !DONE.containsMatchIn(body) || PROMO.containsMatchIn(body)) return null
-            return ParsedSms(sms.id, sms.address, direction, transfer, amount, currency, findPerson(body).ifEmpty { findMerchant(body) }, wallet, wallet, date, sms.body, fee, instant)
+            return ParsedSms(sms.id, sms.address, direction, transfer, amount, currency, findPerson(body).ifEmpty { findMerchant(body) }, wallet, wallet, date, sms.body, fee, instant, sms.date)
         }
-        return ParsedSms(sms.id, sms.address, direction, transfer, amount, currency, findMerchant(body), card, null, date, sms.body, fee, instant)
+        return ParsedSms(sms.id, sms.address, direction, transfer, amount, currency, findMerchant(body), card, null, date, sms.body, fee, instant, sms.date)
     }
 
     private val OUT = setOf("expense", "repay", "transfer", "borrow")
@@ -256,6 +260,20 @@ object SmsParser {
             }
         }
         return found
+    }
+
+    /** Two messages for one payment keep only the first (dropDuplicates in src/data/smsMatch.ts). */
+    fun dropDuplicates(parsed: List<ParsedSms>): List<ParsedSms> {
+        val kept = mutableListOf<ParsedSms>()
+        for (p in parsed.sortedBy { it.at }) {
+            val twin = kept.any { q ->
+                q.amount == p.amount && q.currency == p.currency && q.direction == p.direction &&
+                    kotlin.math.abs(p.at - q.at) <= 10 * 60_000L && (q.sender != p.sender || q.body == p.body)
+            }
+            if (!twin) kept.add(p)
+        }
+        val ids = kept.map { it.smsId }.toSet()
+        return parsed.filter { it.smsId in ids }
     }
 
     /** Whether two YYYY-MM-DD dates are at most `days` apart. */

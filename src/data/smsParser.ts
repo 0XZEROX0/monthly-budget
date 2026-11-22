@@ -32,6 +32,8 @@ export interface ParsedSms {
   instant?: boolean
   /** YYYY-MM-DD, from when the SMS arrived. */
   date: string
+  /** When the SMS arrived, ms since epoch. */
+  at: number
   body: string
 }
 
@@ -63,14 +65,14 @@ const AMOUNT_WORD = new RegExp(String.raw`(?:بقيمة|قيمة|بمبلغ|مب
 // Not a finished payment: codes for approving one, or one that failed.
 // Also reminders of a bill or statement, which name an amount that wasn't paid yet.
 const IGNORE = /\b(otp|one[- ]time|passcode|password|verification|pin|payment due|due date|amount due|due amount|minimum (?:payment|amount|due)|statement balance)\b|مستحق|تاريخ الاستحقاق|الحد الأدنى للسداد|كود|رمز|كلمة (?:السر|المرور)|declined|failed|unsuccessful|insufficient|rejected|مرفوض|رفض|لم تتم|غير ناجح/i
-const CREDIT = /\b(credited|refund(?:ed)?|reversal|reversed|deposit(?:ed)?|received|salary)\b|إيداع|ايداع|إضافة|اضافة|استرداد|استلام|تحويل وارد|راتب/i
+const CREDIT = /\b(credited|refund(?:ed)?|reversal|reversed|deposit(?:ed)?|received|salary)\b|إيداع|ايداع|إضافة|اضافة|استرداد|استلام|تحويل وارد|راتب|سداد[^\n]{0,40}(?:لبطاقت|للبطاقة|بطاقتك الائتمانية|البطاقة الائتمانية)/i
 // Cashback is money in on its own, but a purchase that mentions cashback earned is still a purchase.
 const CASHBACK = /\bcash ?back\b|كاش ?باك/i
 const SPENT = /\b(purchase[ds]?|charged|debited|spent|withdrawal|withdrawn|deducted)\b|خصم|شراء|سحب/i
 // "...to your account" (إلى حسابك) is money coming in.
 const INTO_ACCOUNT = /(?:إلى|الى|ل)\s*حسابك|to your (?:account|card)/i
 const TRANSFER = /\btransfer|تحويل/i
-const SPEND = /\b(purchase[ds]?|charged|debited|spent|paid|payment|pos|withdrawal|withdrawn|deducted|transaction|trx|txn|transfer(?:red)?|bought|sent|used|recharged?|top[- ]?up)\b|خصم|شراء|سحب|عملية|مشتريات|دفع|تحويل|شحن/i
+const SPEND = /\b(purchase[ds]?|charged|debited|spent|paid|payment|pos|withdrawal|withdrawn|deducted|transaction|trx|txn|transfer(?:red)?|bought|sent|used|recharged?|top[- ]?up)\b|خصم|شراء|سحب|عملية|مشتريات|دفع|تحويل|شحن|سداد/i
 // An amount right after these words is a balance or limit, not what was paid.
 const BALANCE_BEFORE = /(balance|bal|limit|available|avl|avail|remaining|رصيد|المتاح|متاح|الحد)[^\d\n]{0,20}$/i
 // Words for a fee. "charges" but not "charged", which is what was paid.
@@ -102,9 +104,11 @@ const WALLET_WORDS: [RegExp, string][] = [
 ]
 // A wallet message reports something done. Without a card number, this tells it apart from an ad.
 const DONE = /(?:^|\s)تم\s|\byou have\b|\bha(?:s|ve) been\b|\bsuccessful(?:ly)?\b|بنجاح|رقم العملية|\btransaction (?:id|no|number|ref)/i
-const PROMO = /\b(get|win|offer|enjoy|up to|discount)\b|احصل|اكسب|استمتع|عرض|%/i
+// "عرض" (offer) as a word of its own, not inside one like معرض (showroom).
+const OFFER_AR = String.raw`(?:^|[^\u0600-\u06ff])(?:و?ب?ال)?(?:عرض|عروض)(?![\u0600-\u06ff])`
+const PROMO = new RegExp(String.raw`\b(get|win|offer|enjoy|up to|discount)\b|احصل|اكسب|استمتع|${OFFER_AR}|%`, 'i')
 // Wallets add ads and links after the receipt. The receipt ends at the first blank line, link or ad line.
-const AD_LINE = /https?:\/\/|www\.|\b(get|win|offer|enjoy|up to|subscribe|download)\b|احصل|اكسب|استمتع|عرض|اشترك|اشتراك|%/i
+const AD_LINE = new RegExp(String.raw`https?:\/\/|www\.|\b(get|win|offer|enjoy|up to|subscribe|download)\b|احصل|اكسب|استمتع|${OFFER_AR}|اشترك|اشتراك|%`, 'i')
 // A mobile recharge: name the carrier from the number's prefix.
 const RECHARGE = /شحن|\brecharged?\b|\btop[- ]?up\b/i
 const CARRIERS: Record<string, string> = { '010': 'Vodafone', '011': 'Etisalat', '012': 'Orange', '015': 'WE' }
@@ -222,6 +226,7 @@ export function parseBankSms(sms: SmsMessage, walletSender?: string | null): Par
       wallet,
       ...extra,
       date: isoDate(sms.date),
+      at: sms.date,
       body: sms.body,
     }
   }
@@ -235,6 +240,7 @@ export function parseBankSms(sms: SmsMessage, walletSender?: string | null): Par
     card,
     ...extra,
     date: isoDate(sms.date),
+    at: sms.date,
     body: sms.body,
   }
 }

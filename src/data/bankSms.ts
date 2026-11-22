@@ -6,7 +6,8 @@ import { SmsReader, smsAvailable } from '../native/smsReader'
 import { bankName, KNOWN_BANK_SENDERS, notABank, senderKey, walletName } from './egyptBanks'
 import { shiftMonth, today } from './month'
 import { parseBankSms, type ParsedSms, type SmsMessage } from './smsParser'
-import { alreadyRecorded } from './smsMatch'
+import { convert, getRates, type Rates } from './rates'
+import { alreadyRecorded, dropDuplicates } from './smsMatch'
 import type { Backend, NewTransaction, Settings, SmsSettings, SmsTarget, Transaction } from './types'
 
 // Android numbers inbox messages from 1 again on a new phone or after a reset, so an id alone
@@ -52,11 +53,17 @@ export const describe = (p: ParsedSms) =>
   p.merchant || (p.transfer ? (p.direction === 'credit' ? t('Transfer in') : t('Transfer out')) : p.sender)
 
 /** A transaction to review in the form. Category is left empty unless this merchant has one saved. */
-export function draftFor(p: ParsedSms, settings: Settings): NewTransaction {
+/**
+ * An amount in another currency is converted at today's rate when there is one. Without a
+ * rate it is left at 0, so the form asks for it, rather than starting at the foreign figure.
+ */
+export function draftFor(p: ParsedSms, settings: Settings, rates?: Rates): NewTransaction {
   const target = splitTarget(targetFor(p.card, settings))
   const category = smsSettings(settings).merchants[describe(p).toLowerCase()] ?? ''
-  const foreign = p.currency !== settings.currency ? ` (${p.currency} ${p.amount})` : ''
-  const base = { amount: p.amount, date: p.date, description: describe(p) + foreign, category }
+  const isForeign = p.currency !== settings.currency
+  const foreign = isForeign ? ` (${p.currency} ${p.amount})` : ''
+  const amount = isForeign ? (convert(p.amount, p.currency, rates) ?? 0) : p.amount
+  const base = { amount, date: p.date, description: describe(p) + foreign, category }
   if (target.type === 'debt') {
     // A credit card is a debt: spending grows it, money coming back pays it down.
     const bank = settings.accounts.find((a) => a.type === 'bank')?.name
@@ -86,6 +93,8 @@ export interface BankSms {
   isWatched: (sender: string) => boolean
   /** Messages from the chosen senders that aren't added or skipped yet, newest first. */
   pending: ParsedSms[]
+  /** Today's rates into the budget's currency, for messages in another currency. */
+  rates: Rates
   skip: (p: ParsedSms) => void
   /** The newest inbox message id read, so the watch knows which messages this list covers. */
   newestId: number
@@ -139,9 +148,21 @@ export function useBankSms(backend: Backend, settings: Settings | null): BankSms
   }, [backend, since])
 
   const parsed = useMemo(
-    () => messages.map((m) => parseBankSms(m, walletName(m.address))).filter((p): p is ParsedSms => p !== null),
+    () => dropDuplicates(messages.map((m) => parseBankSms(m, walletName(m.address))).filter((p): p is ParsedSms => p !== null)),
     [messages],
   )
+  // Rates only when a message is in another currency.
+  const [rates, setRates] = useState<Rates>({})
+  const base = settings?.currency ?? 'EGP'
+  const needRates = parsed.some((p) => p.currency !== base)
+  useEffect(() => {
+    if (!needRates) return
+    let stop = false
+    getRates(base).then((r) => !stop && setRates(r))
+    return () => {
+      stop = true
+    }
+  }, [needRates, base])
   const newestId = useMemo(() => messages.reduce((n, m) => Math.max(n, Number(m.id) || 0), 0), [messages])
   const detectedSenders = useMemo(() => [...new Set(parsed.map((p) => p.sender))].sort(), [parsed])
   const on = (sms?.senders ?? []).map(senderKey).join('\n')
@@ -175,7 +196,8 @@ export function useBankSms(backend: Backend, settings: Settings | null): BankSms
   const skip = (p: ParsedSms) => skipIds([p.smsId])
   const skipIds = (ids: string[]) => {
     if (ids.every((id) => skipped.has(id))) return
-    const next = new Set([...skipped, ...ids])
+    // The newest 500 are plenty: older messages are before the start date anyway.
+    const next = new Set([...skipped, ...ids].slice(-500))
     setSkipped(next)
     try {
       localStorage.setItem(SKIPPED_KEY, JSON.stringify([...next]))
@@ -201,5 +223,5 @@ export function useBankSms(backend: Backend, settings: Settings | null): BankSms
     }
   }
 
-  return { available: smsAvailable, permission, requestPermission, detectedSenders, isWatched, pending, newestId, skip, skipIds, refresh, error }
+  return { available: smsAvailable, permission, requestPermission, detectedSenders, isWatched, pending, rates, newestId, skip, skipIds, refresh, error }
 }

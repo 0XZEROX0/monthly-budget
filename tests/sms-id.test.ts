@@ -4,7 +4,7 @@ import type { ParsedSms } from '../src/data/smsParser'
 import type { Transaction } from '../src/data/types'
 
 const sms = (smsId: string, date: string): ParsedSms =>
-  ({ smsId, sender: 'CIB', direction: 'spend', transfer: false, amount: 100, currency: 'EGP', merchant: '', card: '2244', date, body: '' })
+  ({ smsId, sender: 'CIB', direction: 'spend', transfer: false, amount: 100, currency: 'EGP', merchant: '', card: '2244', date, at: 0, body: '' })
 const txn = (id: string, date: string): Transaction => ({ id, kind: 'expense', amount: 100, date, month: date.slice(0, 7), description: '', category: '' })
 const byId = (...t: Transaction[]) => new Map(t.map((x) => [x.id, x]))
 
