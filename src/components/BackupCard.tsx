@@ -3,7 +3,8 @@ import { Directory, Encoding, Filesystem } from '@capacitor/filesystem'
 import { Share } from '@capacitor/share'
 import { useRef, useState } from 'react'
 import { today } from '../data/month'
-import type { Backend, ImportData, Settings, Transaction } from '../data/types'
+import { checkBackup } from '../data/backup'
+import type { Backend, Settings, Transaction } from '../data/types'
 import { ask } from './dialog'
 import { t } from '../i18n'
 
@@ -24,7 +25,10 @@ async function saveFile(name: string, text: string, mime: string, title: string)
 }
 
 const cell = (v: unknown) => {
-  const s = v === undefined || v === null ? '' : String(v)
+  let s = v === undefined || v === null ? '' : String(v)
+  // A note that starts like a formula (=, +, -, @) would run as one in Excel or Sheets, and
+  // notes can come from bank SMS text. A leading ' keeps it text. Numbers are left alone.
+  if (typeof v === 'string' && /^[=+\-@\t\r]/.test(s)) s = `'${s}`
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 
@@ -72,10 +76,18 @@ export function BackupCard({ backend, settings }: { backend: Backend; settings: 
 
   const restore = (f: File) =>
     run(t('Reading the backup…'), async () => {
-      const data = JSON.parse(await f.text()) as Partial<ImportData> & { app?: string }
-      if (data.app !== 'monthly-budget' || !data.settings || !Array.isArray(data.transactions)) throw new Error(t('This is not a Monthly Budget backup file.'))
+      let raw: unknown
+      try {
+        raw = JSON.parse(await f.text())
+      } catch {
+        raw = null
+      }
+      // Every entry is checked first: a broken one is left out rather than saved.
+      const checked = checkBackup(raw)
+      if (!checked) throw new Error(t('This is not a Monthly Budget backup file.'))
+      const { data } = checked
       if (!(await ask(t('Restore {n} entries and your settings from this backup? Entries in it replace the same entries here; newer ones stay.', { n: data.transactions.length }), { title: t('Restore backup'), ok: t('Restore') }))) return
-      await backend.importAll({ settings: { ...data.settings, sms: settings.sms ?? data.settings.sms }, plans: data.plans ?? {}, transactions: data.transactions })
+      await backend.importAll({ settings: { ...data.settings, sms: settings.sms ?? data.settings.sms }, plans: data.plans, transactions: data.transactions })
       return t('Restored {n} entries.', { n: data.transactions.length })
     }).finally(() => {
       if (input.current) input.current.value = ''

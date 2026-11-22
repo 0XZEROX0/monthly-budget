@@ -9,7 +9,19 @@ import { parseBankSms, type ParsedSms, type SmsMessage } from './smsParser'
 import { alreadyRecorded } from './smsMatch'
 import type { Backend, NewTransaction, Settings, SmsSettings, SmsTarget, Transaction } from './types'
 
-export const smsTxnId = (p: ParsedSms) => `sms-${p.smsId}`
+// Android numbers inbox messages from 1 again on a new phone or after a reset, so an id alone
+// can repeat: saving a new message as sms-{id} would overwrite an old entry with that id. The
+// day the message arrived makes the id unique. Entries saved before carry the bare sms-{id}.
+export const smsTxnId = (p: ParsedSms) => `sms-${p.smsId}-${p.date.replace(/-/g, '')}`
+const legacySmsTxnId = (p: ParsedSms) => `sms-${p.smsId}`
+const DAY_MS = 86_400_000
+
+/** Whether this message was already saved: under its id, or the old bare id with a date close to it. */
+export function savedFromSms(p: ParsedSms, byId: Map<string, Transaction>): boolean {
+  if (byId.has(smsTxnId(p))) return true
+  const old = byId.get(legacySmsTxnId(p))
+  return !!old && Math.abs(new Date(old.date + 'T00:00').getTime() - new Date(p.date + 'T00:00').getTime()) <= 31 * DAY_MS
+}
 
 export const smsSettings = (s: Settings): SmsSettings => ({ senders: [], cards: {}, merchants: {}, since: today(), ...s.sms })
 
@@ -153,8 +165,8 @@ export function useBankSms(backend: Backend, settings: Settings | null): BankSms
   }, [on, off, found, permission])
 
   const pending = useMemo(() => {
-    const ids = new Set(txns.map((t) => t.id))
-    const fresh = parsed.filter((p) => isWatched(p.sender) && !skipped.has(p.smsId) && !ids.has(smsTxnId(p)))
+    const byId = new Map(txns.map((t) => [t.id, t]))
+    const fresh = parsed.filter((p) => isWatched(p.sender) && !skipped.has(p.smsId) && !savedFromSms(p, byId))
     // Entries saved from SMS already matched their own message by id, so they can't match another.
     const recorded = alreadyRecorded(fresh, txns.filter((t) => !t.id.startsWith('sms-')))
     return fresh.filter((p) => !recorded.has(p.smsId))

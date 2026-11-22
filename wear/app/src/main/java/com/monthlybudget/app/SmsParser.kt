@@ -36,7 +36,7 @@ object SmsParser {
     private const val I = "(?i)"
 
     private val CURRENCIES: List<Pair<Regex, String>> = listOf(
-        "^(egp|le|l\\.e\\.?|جنيه|جنيها|جنيهًا|ج\\.م\\.?|جم)$" to "EGP",
+        "^(egp|le|l\\.e\\.?|جنيه|جنيها|جنيهًا|جنيهات|ج\\.م\\.?|جم)$" to "EGP",
         "^(usd|\\$|دولار)$" to "USD",
         "^(eur|€|يورو)$" to "EUR",
         "^gbp$" to "GBP",
@@ -47,15 +47,22 @@ object SmsParser {
         "^try$" to "TRY",
     ).map { (re, code) -> Regex(I + re) to code }
 
-    private const val CUR = "EGP|L\\.E\\.?|LE|USD|EUR|GBP|SAR|AED|KWD|QAR|TRY|\\$|€|جنيها|جنيهًا|جنيه|ج\\.م\\.?|جم|دولار|يورو|ريال"
+    private const val CUR = "EGP|L\\.E\\.?|LE|USD|EUR|GBP|SAR|AED|KWD|QAR|TRY|\\$|€|جنيهات|جنيها|جنيهًا|جنيه|ج\\.م\\.?|جم|دولار|يورو|ريال"
     private const val NUM = "\\d[\\d,]*(?:\\.\\d+)?"
-    private val AMOUNT = Regex("$I(?:($CUR)\\s*($NUM))|(?:($NUM)\\s*($CUR))(?![a-z])")
+    // A currency code inside a word isn't one ("STYLE 24" is not LE 24), and a number right before
+    // a currency that is followed by an amount belongs to something else: "card 2244 EGP 500",
+    // "on 05/11/2026 EGP 1,500". As AMOUNT in src/data/smsParser.ts.
+    private const val NEXT_AMOUNT = "(?!\\s*\\d[\\d,]*(?:\\.\\d+)?(?![\\d/:\\-]|\\.\\d))"
+    private val AMOUNT = Regex("$I(?:(?<![a-z])($CUR)\\s*($NUM))|(?:(?<![a-z\\d.,*•])($NUM)\\s*($CUR)(?![a-z\\u0600-\\u06ff])$NEXT_AMOUNT)")
     // Some wallets leave out the currency: "بقيمة 270.00".
     private val AMOUNT_WORD = Regex("$I(?:بقيمة|قيمة|بمبلغ|مبلغ|amount(?: of)?|value(?: of)?)\\s*:?\\s*($NUM)")
 
     // Not a finished payment: codes for approving one, or one that failed.
-    private val IGNORE = Regex("$I\\b(otp|one[- ]time|passcode|password|verification|pin)\\b|كود|رمز|كلمة (?:السر|المرور)|declined|failed|unsuccessful|insufficient|rejected|مرفوض|رفض|لم تتم|غير ناجح")
-    private val CREDIT = Regex("$I\\b(credited|refund(?:ed)?|reversal|reversed|deposit(?:ed)?|received|cash ?back|salary)\\b|إيداع|ايداع|إضافة|اضافة|استرداد|استلام|تحويل وارد|راتب")
+    private val IGNORE = Regex("$I\\b(otp|one[- ]time|passcode|password|verification|pin|payment due|due date|amount due|due amount|minimum (?:payment|amount|due)|statement balance)\\b|مستحق|تاريخ الاستحقاق|الحد الأدنى للسداد|كود|رمز|كلمة (?:السر|المرور)|declined|failed|unsuccessful|insufficient|rejected|مرفوض|رفض|لم تتم|غير ناجح")
+    private val CREDIT = Regex("$I\\b(credited|refund(?:ed)?|reversal|reversed|deposit(?:ed)?|received|salary)\\b|إيداع|ايداع|إضافة|اضافة|استرداد|استلام|تحويل وارد|راتب")
+    // A purchase that mentions cashback earned is still a purchase.
+    private val CASHBACK = Regex("$I\\bcash ?back\\b|كاش ?باك")
+    private val SPENT = Regex("$I\\b(purchase[ds]?|charged|debited|spent|withdrawal|withdrawn|deducted)\\b|خصم|شراء|سحب")
     private val INTO_ACCOUNT = Regex("$I(?:إلى|الى|ل)\\s*حسابك|to your (?:account|card)")
     private val TRANSFER = Regex("$I\\btransfer|تحويل")
     private val SPEND = Regex("$I\\b(purchase[ds]?|charged|debited|spent|paid|payment|pos|withdrawal|withdrawn|deducted|transaction|trx|txn|transfer(?:red)?|bought|sent|used|recharged?|top[- ]?up)\\b|خصم|شراء|سحب|عملية|مشتريات|دفع|تحويل|شحن")
@@ -95,8 +102,8 @@ object SmsParser {
     )
     private val PHONE = Regex("$I(?:من|إلى|الى|لرقم|لـ|ل|to|from)\\s*(?:رقم|number|mobile|wallet)?\\s*:?\\s*(\\+?2?01\\d{9})\\b")
 
-    private val MERCHANT_EN = Regex("$I\\b(?:at|@|from|to|with|in)\\s+([^\\n]+?)(?=\\s+(?:on|at|dated|date|for|via|using|is|was|has|card|with|ref|available|avl|bal|balance|total)\\b|[,;]|\\.\\s|\\.?$|\\s+\\d{1,2}[/-]\\d{1,2}|\\n)")
-    private val MERCHANT_AR = Regex("(?:^|\\s)(?:لدى|لدي|عند|في|من|إلى|الى)\\s+([^\\n]+?)(?=\\s+(?:بتاريخ|برقم|يوم|في|الساعة|رصيد|الرصيد|المتاح|للمزيد)(?:\\s|$)|[.,،;]|$|\\n)")
+    private val MERCHANT_EN = Regex("$I\\b(?:at|@|from|to|with|in)\\s+([^\\n]+?)(?=\\s+(?:on|at|dated|date|for|via|using|is|was|has|card|with|ref|available|avl|bal|balance|total|egp|usd|eur|to\\s+your)\\b|[,;]|\\.\\s|\\.?$|\\s+\\d{1,2}[/-]\\d{1,2}|\\n)")
+    private val MERCHANT_AR = Regex("(?:^|\\s)(?:لدى|لدي|عند|في|من|إلى|الى)\\s+([^\\n]+?)(?=\\s+(?:بتاريخ|برقم|يوم|في|الساعة|رصيد|الرصيد|المتاح|للمزيد|بنجاح)(?:\\s|$|[.,،])|[.,،;]|$|\\n)")
     private val NOT_MERCHANT = Regex("$I^(\\d|your|the|card|account|egp|usd|le\\b|time|date|بطاق|حساب|رصيد|تاريخ|مبلغ|بمبلغ)")
     private val STARTS_WITH_CURRENCY = Regex("$I^($CUR)(\\s|$)")
     private val ARABIC = Regex("[\\u0600-\\u06ff]")
@@ -138,14 +145,20 @@ object SmsParser {
     private fun currencyCode(token: String) = CURRENCIES.firstOrNull { (re, _) -> re.containsMatchIn(token) }?.second ?: "EGP"
 
     private fun findAmount(body: String): Pair<Double, String>? {
+        var first: Pair<Double, String>? = null
         for (m in AMOUNT.findAll(body)) {
             val start = m.range.first
             val before = body.substring(maxOf(0, start - 30), start)
             if (BALANCE_BEFORE.containsMatchIn(before) || FEE_BEFORE.containsMatchIn(before)) continue
             val g = m.groups
             val amount = ((g[2] ?: g[3])!!.value).replace(",", "").toDoubleOrNull() ?: continue
-            if (amount > 0) return amount to currencyCode((g[1] ?: g[4])!!.value)
+            if (amount <= 0 || amount >= 1e9) continue
+            val found = amount to currencyCode((g[1] ?: g[4])!!.value)
+            // "USD 20.00 (EGP 1,000.00)": the bank's own EGP amount is what left the account.
+            if (found.second == "EGP") return found
+            if (first == null) first = found
         }
+        if (first != null) return first
         val amount = AMOUNT_WORD.find(body)?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull() ?: return null
         return if (amount > 0) amount to "EGP" else null
     }
@@ -158,7 +171,8 @@ object SmsParser {
     private fun receipt(body: String): String {
         val lines = mutableListOf<String>()
         for (line in body.split("\n")) {
-            if (lines.isNotEmpty() && (line.isBlank() || AD_LINE.containsMatchIn(line))) break
+            // An ad line only ends the receipt once the receipt has its amount.
+            if (lines.isNotEmpty() && (line.isBlank() || (AD_LINE.containsMatchIn(line) && findAmount(lines.joinToString("\n")) != null))) break
             if (line.isNotBlank()) lines.add(line)
         }
         return lines.joinToString("\n")
@@ -192,7 +206,7 @@ object SmsParser {
         val full = normalize(sms.body)
         val body = receipt(full)
         if (IGNORE.containsMatchIn(body)) return null
-        val credit = CREDIT.containsMatchIn(body) || INTO_ACCOUNT.containsMatchIn(body)
+        val credit = CREDIT.containsMatchIn(body) || INTO_ACCOUNT.containsMatchIn(body) || (CASHBACK.containsMatchIn(body) && !SPENT.containsMatchIn(body))
         if (!credit && !SPEND.containsMatchIn(body)) return null
         val (amount, currency) = findAmount(body) ?: return null
         val direction = if (credit) "credit" else "spend"
@@ -242,6 +256,13 @@ object SmsParser {
             }
         }
         return found
+    }
+
+    /** Whether two YYYY-MM-DD dates are at most `days` apart. */
+    fun withinDays(a: String, b: String, days: Long): Boolean {
+        val x = runCatching { java.time.LocalDate.parse(a).toEpochDay() }.getOrNull() ?: return false
+        val y = runCatching { java.time.LocalDate.parse(b).toEpochDay() }.getOrNull() ?: return false
+        return kotlin.math.abs(x - y) <= days
     }
 
     data class Txn4(val id: String, val kind: String, val amount: Double, val date: String)

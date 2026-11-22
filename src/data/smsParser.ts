@@ -36,7 +36,7 @@ export interface ParsedSms {
 }
 
 const CURRENCIES: [RegExp, string][] = [
-  [/^(egp|le|l\.e\.?|جنيه|جنيها|جنيهًا|ج\.م\.?|جم)$/i, 'EGP'],
+  [/^(egp|le|l\.e\.?|جنيه|جنيها|جنيهًا|جنيهات|ج\.م\.?|جم)$/i, 'EGP'],
   [/^(usd|\$|دولار)$/i, 'USD'],
   [/^(eur|€|يورو)$/i, 'EUR'],
   [/^gbp$/i, 'GBP'],
@@ -46,15 +46,27 @@ const CURRENCIES: [RegExp, string][] = [
   [/^qar$/i, 'QAR'],
   [/^try$/i, 'TRY'],
 ]
-const CUR = String.raw`EGP|L\.E\.?|LE|USD|EUR|GBP|SAR|AED|KWD|QAR|TRY|\$|€|جنيها|جنيهًا|جنيه|ج\.م\.?|جم|دولار|يورو|ريال`
+const CUR = String.raw`EGP|L\.E\.?|LE|USD|EUR|GBP|SAR|AED|KWD|QAR|TRY|\$|€|جنيهات|جنيها|جنيهًا|جنيه|ج\.م\.?|جم|دولار|يورو|ريال`
 const NUM = String.raw`\d[\d,]*(?:\.\d+)?`
-const AMOUNT = new RegExp(String.raw`(?:(${CUR})\s*(${NUM}))|(?:(${NUM})\s*(${CUR}))(?![a-z])`, 'gi')
+// A currency code inside a word isn't one: "STYLE 24" is not LE 24, "COUNTRY 5" not TRY 5.
+// A number right before a currency that is itself followed by an amount belongs to something
+// else: "card 2244 EGP 500", "on 05/11/2026 EGP 1,500", "at 21:16 EGP 75". Dates and times
+// after the currency ("EGP 300 05/11/2026") don't count as that amount.
+const NEXT_AMOUNT = String.raw`(?!\s*\d[\d,]*(?:\.\d+)?(?![\d/:\-]|\.\d))`
+const AMOUNT = new RegExp(
+  String.raw`(?:(?<![a-z])(${CUR})\s*(${NUM}))|(?:(?<![a-z\d.,*•])(${NUM})\s*(${CUR})(?![a-z\u0600-\u06ff])${NEXT_AMOUNT})`,
+  'gi',
+)
 // Some wallets leave out the currency: "بقيمة 270.00".
 const AMOUNT_WORD = new RegExp(String.raw`(?:بقيمة|قيمة|بمبلغ|مبلغ|amount(?: of)?|value(?: of)?)\s*:?\s*(${NUM})`, 'i')
 
 // Not a finished payment: codes for approving one, or one that failed.
-const IGNORE = /\b(otp|one[- ]time|passcode|password|verification|pin)\b|كود|رمز|كلمة (?:السر|المرور)|declined|failed|unsuccessful|insufficient|rejected|مرفوض|رفض|لم تتم|غير ناجح/i
-const CREDIT = /\b(credited|refund(?:ed)?|reversal|reversed|deposit(?:ed)?|received|cash ?back|salary)\b|إيداع|ايداع|إضافة|اضافة|استرداد|استلام|تحويل وارد|راتب/i
+// Also reminders of a bill or statement, which name an amount that wasn't paid yet.
+const IGNORE = /\b(otp|one[- ]time|passcode|password|verification|pin|payment due|due date|amount due|due amount|minimum (?:payment|amount|due)|statement balance)\b|مستحق|تاريخ الاستحقاق|الحد الأدنى للسداد|كود|رمز|كلمة (?:السر|المرور)|declined|failed|unsuccessful|insufficient|rejected|مرفوض|رفض|لم تتم|غير ناجح/i
+const CREDIT = /\b(credited|refund(?:ed)?|reversal|reversed|deposit(?:ed)?|received|salary)\b|إيداع|ايداع|إضافة|اضافة|استرداد|استلام|تحويل وارد|راتب/i
+// Cashback is money in on its own, but a purchase that mentions cashback earned is still a purchase.
+const CASHBACK = /\bcash ?back\b|كاش ?باك/i
+const SPENT = /\b(purchase[ds]?|charged|debited|spent|withdrawal|withdrawn|deducted)\b|خصم|شراء|سحب/i
 // "...to your account" (إلى حسابك) is money coming in.
 const INTO_ACCOUNT = /(?:إلى|الى|ل)\s*حسابك|to your (?:account|card)/i
 const TRANSFER = /\btransfer|تحويل/i
@@ -104,8 +116,8 @@ const NAMED = [
 const PHONE = /(?:من|إلى|الى|لرقم|لـ|ل|to|from)\s*(?:رقم|number|mobile|wallet)?\s*:?\s*(\+?2?01\d{9})\b/i
 
 // The words before a merchant or person, and the words that end its name.
-const MERCHANT_EN = /\b(?:at|@|from|to|with|in)\s+([^\n]+?)(?=\s+(?:on|at|dated|date|for|via|using|is|was|has|card|with|ref|available|avl|bal|balance|total)\b|[,;]|\.\s|\.?$|\s+\d{1,2}[/-]\d{1,2}|\n)/gi
-const MERCHANT_AR = /(?:^|\s)(?:لدى|لدي|عند|في|من|إلى|الى)\s+([^\n]+?)(?=\s+(?:بتاريخ|برقم|يوم|في|الساعة|رصيد|الرصيد|المتاح|للمزيد)(?:\s|$)|[.,،;]|$|\n)/g
+const MERCHANT_EN = /\b(?:at|@|from|to|with|in)\s+([^\n]+?)(?=\s+(?:on|at|dated|date|for|via|using|is|was|has|card|with|ref|available|avl|bal|balance|total|egp|usd|eur|to\s+your)\b|[,;]|\.\s|\.?$|\s+\d{1,2}[/-]\d{1,2}|\n)/gi
+const MERCHANT_AR = /(?:^|\s)(?:لدى|لدي|عند|في|من|إلى|الى)\s+([^\n]+?)(?=\s+(?:بتاريخ|برقم|يوم|في|الساعة|رصيد|الرصيد|المتاح|للمزيد|بنجاح)(?:\s|$|[.,،])|[.,،;]|$|\n)/g
 const NOT_MERCHANT = /^(\d|your|the|card|account|egp|usd|le\b|time|date|بطاق|حساب|رصيد|تاريخ|مبلغ|بمبلغ)/i
 
 /** Arabic-Indic digits to 0-9 and the Arabic decimal/thousands marks to . and , */
@@ -125,12 +137,19 @@ const isoDate = (ms: number) => {
 const currencyCode = (token: string) => CURRENCIES.find(([re]) => re.test(token))?.[1] ?? 'EGP'
 
 function findAmount(body: string): { amount: number; currency: string } | null {
+  let first: { amount: number; currency: string } | null = null
   for (const m of body.matchAll(AMOUNT)) {
     const before = body.slice(Math.max(0, m.index - 30), m.index)
     if (BALANCE_BEFORE.test(before) || FEE_BEFORE.test(before)) continue
     const amount = Number((m[2] ?? m[3]).replace(/,/g, ''))
-    if (amount > 0) return { amount, currency: currencyCode(m[1] ?? m[4]) }
+    // Above zero, and not a reference number read as an amount.
+    if (!(amount > 0 && amount < 1e9)) continue
+    const found = { amount, currency: currencyCode(m[1] ?? m[4]) }
+    // "USD 20.00 (EGP 1,000.00)": the bank's own EGP amount is what left the account.
+    if (found.currency === 'EGP') return found
+    first ??= found
   }
+  if (first) return first
   const amount = Number(AMOUNT_WORD.exec(body)?.[1].replace(/,/g, ''))
   return amount > 0 ? { amount, currency: 'EGP' } : null
 }
@@ -145,7 +164,9 @@ function findFee(body: string): number | undefined {
 function receipt(body: string): string {
   const lines: string[] = []
   for (const line of body.split('\n')) {
-    if (lines.length && (!line.trim() || AD_LINE.test(line))) break
+    // An ad line only ends the receipt once the receipt has its amount: "Interest 2% applied.
+    // Your card ... was charged EGP 300" is the receipt itself.
+    if (lines.length && (!line.trim() || (AD_LINE.test(line) && findAmount(lines.join('\n'))))) break
     if (line.trim()) lines.push(line)
   }
   return lines.join('\n')
@@ -177,7 +198,7 @@ export function parseBankSms(sms: SmsMessage, walletSender?: string | null): Par
   const full = normalize(sms.body)
   const body = receipt(full)
   if (IGNORE.test(body)) return null
-  const credit = CREDIT.test(body) || INTO_ACCOUNT.test(body)
+  const credit = CREDIT.test(body) || INTO_ACCOUNT.test(body) || (CASHBACK.test(body) && !SPENT.test(body))
   if (!credit && !SPEND.test(body)) return null
   const found = findAmount(body)
   if (!found) return null

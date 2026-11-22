@@ -71,6 +71,27 @@ const cases: [string, Partial<ParsedSms> | null][] = [
   ['Your OTP for purchase of EGP 500 at NOON is 123456', null],
   ['Transaction of EGP 300 at UBER declined: insufficient funds', null],
   ['Get EGP 100 cashback on your next order!', null],
+  // A number right before the currency belongs to the card, date or time, not the amount.
+  ['Card **2244 EGP 500.00 was debited at UBER', { direction: 'spend', amount: 500, card: '2244', merchant: 'UBER' }],
+  ['Your account 1234 was debited on 05/11/2026 EGP 1,500.00 for transfer', { amount: 1500, card: '1234' }],
+  ['Purchase on card xx1234 at 21:16 EGP 75.00 at KFC', { amount: 75, merchant: 'KFC' }],
+  ['تم خصم من بطاقتك المنتهية بـ 2244 بتاريخ 05-11-2026 جم 300 عند UBER', { amount: 300, card: '2244' }],
+  ['Your card ending 2244 was charged EGP 300 05/11/2026 at UBER', { amount: 300 }],
+  // Currency codes inside words aren't currencies.
+  ['Purchase on card xx1234 at STYLE 24 for EGP 300.00', { amount: 300, currency: 'EGP' }],
+  ['Purchase on card xx1234 at COUNTRY 5 STORE EGP 120.00', { amount: 120, currency: 'EGP', merchant: 'COUNTRY 5 STORE' }],
+  ['Your card xx1234 charged at CAESAR 2 GRILL EGP 40.00', { amount: 40, currency: 'EGP', merchant: 'CAESAR 2 GRILL' }],
+  ['تم خصم 500 جنيهات من بطاقتك المنتهية 2244', { amount: 500, currency: 'EGP' }],
+  // The bank's own EGP amount over the foreign one.
+  ['Purchase of USD 20.00 (EGP 1,000.00) on card xx1234 at APPLE.COM', { amount: 1000, currency: 'EGP', merchant: 'APPLE.COM' }],
+  // Cashback earned on a purchase doesn't make it money in.
+  ['Purchase of EGP 500.00 on card xx1234 at NOON. You earned cashback of EGP 5.00', { direction: 'spend', amount: 500 }],
+  // A percent sign in the receipt itself doesn't end it.
+  ['Dear Customer\nInterest 2% applied. Your card ending 2244 was charged EGP 300.00 at UBER', { amount: 300, card: '2244' }],
+  ['You have received EGP 1,000.00 via InstaPay from AHMED ALI to your account ****4275', { direction: 'credit', merchant: 'AHMED ALI' }],
+  // Reminders and impossible amounts aren't payments.
+  ['Your available limit on card xx1234 is EGP 20,000. Payment due EGP 3,000 by 25/11', null],
+  ['Your card ending 2244 was charged for EGP 99999999999999999999 at UBER', null],
 ]
 
 let failed = 0

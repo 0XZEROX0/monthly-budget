@@ -174,7 +174,7 @@ private fun App(start: String?, onStarted: () -> Unit, finish: () -> Unit) {
         if (!saving) {
             saving = true
             Store.rememberAccount(context, entry.kind, entry.account)
-            if (entry.id.startsWith("sms-")) Sms.markAdded(context, entry.id.removePrefix("sms-"))
+            if (entry.id.startsWith("sms-")) Sms.markAdded(context, entry.id.removePrefix("sms-").substringBefore("-"))
             scope.launch {
                 val sent = Budget.add(context, entry, fee)
                 saving = false
